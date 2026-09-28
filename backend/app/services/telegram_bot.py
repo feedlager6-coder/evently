@@ -68,12 +68,14 @@ async def handle_inline_query(
         for ev in events:
             price_str = "Бесплатно" if ev.is_free else f"{ev.price_amount} {ev.price_currency}"
             date_str = ev.start_at.strftime("%d.%m %H:%M")
+            thumb = ev.cover_image_url or "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
             results.append({
                 "type": "article",
                 "id": f"event_{ev.id}",
                 "title": ev.title,
                 "description": f"{ev.city_name} · {date_str} · {price_str}",
-                "thumb_url": ev.cover_image_url or "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400",
+                "thumbnail_url": thumb,
+                "thumb_url": thumb,
                 "input_message_content": {
                     "message_text": format_event_message(ev),
                     "parse_mode": "HTML"
@@ -83,12 +85,14 @@ async def handle_inline_query(
     else:
         # Graceful empty-state
         city_display = parsed.city_id.capitalize() if parsed.city_id else "выбранном городе"
+        empty_thumb = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400"
         results.append({
             "type": "article",
             "id": "empty_state",
             "title": f"В {city_display} пока нет подходящих событий",
             "description": "Нажмите, чтобы открыть всю афишу Evently в Mini App",
-            "thumb_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400",
+            "thumbnail_url": empty_thumb,
+            "thumb_url": empty_thumb,
             "input_message_content": {
                 "message_text": (
                     f"🔍 <b>По запросу «{query_text}» событий не найдено.</b>\n\n"

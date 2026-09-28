@@ -26,6 +26,13 @@ async def telegram_webhook(
     update_id = update.get("update_id")
     response_payload = None
 
+    is_live_bot = bool(
+        settings.TELEGRAM_BOT_TOKEN
+        and "testtoken" not in settings.TELEGRAM_BOT_TOKEN
+        and not settings.TELEGRAM_BOT_TOKEN.startswith("123456789:")
+        and ":" in settings.TELEGRAM_BOT_TOKEN
+    )
+
     if "inline_query" in update:
         inline_query = update["inline_query"]
         answer_payload = await handle_inline_query(session, inline_query)
@@ -34,14 +41,18 @@ async def telegram_webhook(
             **answer_payload
         }
 
-        # If running in production with live token, dispatch upstream
-        if settings.APP_ENV == "production" and "testtoken" not in settings.TELEGRAM_BOT_TOKEN:
+        # Dispatch upstream to Telegram if live bot token is configured
+        if is_live_bot:
             try:
-                async with httpx.AsyncClient(timeout=3.0) as client:
-                    await client.post(
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.post(
                         f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/answerInlineQuery",
                         json=answer_payload
                     )
+                    if resp.status_code != 200 or not resp.json().get("ok"):
+                        logger.error(f"Telegram answerInlineQuery error ({resp.status_code}): {resp.text}")
+                    else:
+                        logger.info(f"Answered inline query {answer_payload.get('inline_query_id')}")
             except Exception as e:
                 logger.error(f"Failed to post answerInlineQuery to Telegram: {e}")
 
@@ -56,13 +67,17 @@ async def telegram_webhook(
                 **reply_payload
             }
 
-            if settings.APP_ENV == "production" and "testtoken" not in settings.TELEGRAM_BOT_TOKEN:
+            if is_live_bot:
                 try:
-                    async with httpx.AsyncClient(timeout=3.0) as client:
-                        await client.post(
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        resp = await client.post(
                             f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
                             json=reply_payload
                         )
+                        if resp.status_code != 200 or not resp.json().get("ok"):
+                            logger.error(f"Telegram sendMessage error ({resp.status_code}): {resp.text}")
+                        else:
+                            logger.info(f"Sent reply to chat {reply_payload.get('chat_id')}")
                 except Exception as e:
                     logger.error(f"Failed to post sendMessage to Telegram: {e}")
 
