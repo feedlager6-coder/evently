@@ -22,9 +22,11 @@ class Settings(BaseSettings):
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
 
-    # Security
+    # Security & Networking
     SECRET_KEY: str = "evently_mvp_secret_key_change_in_production_32bytes"
     AUTH_DATE_MAX_AGE_SECONDS: int = 86400
+    PUBLIC_HOST: Optional[str] = None
+    CORS_ORIGINS: str = "*"
 
     # TypeSafe AI (Optional Secondary Layer)
     TYPESAFE_API_KEY: Optional[str] = None
@@ -35,6 +37,20 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @property
+    def async_database_url(self) -> str:
+        """
+        Normalizes DATABASE_URL for SQLAlchemy async engine.
+        Converts 'postgres://' or 'postgresql://' to 'postgresql+asyncpg://'.
+        Leaves 'sqlite+aiosqlite://' or other explicit dialects intact.
+        """
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
 
     @property
     def admin_ids(self) -> List[int]:

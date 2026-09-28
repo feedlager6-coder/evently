@@ -9,13 +9,14 @@ logger = logging.getLogger("evently.database")
 
 Base = declarative_base()
 
-# Configure engine with SQLite WAL and foreign keys
+# Configure engine with SQLite WAL and foreign keys if SQLite, or asyncpg for PostgreSQL
+db_url = settings.async_database_url
 connect_args = {}
-if "sqlite" in settings.DATABASE_URL:
+if "sqlite" in db_url:
     connect_args = {"check_same_thread": False}
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     echo=False,
     connect_args=connect_args,
     future=True
@@ -25,7 +26,7 @@ engine = create_async_engine(
 # Enforce SQLite foreign keys and WAL mode on connect
 @event.listens_for(engine.sync_engine, "connect")
 def configure_sqlite_pragmas(dbapi_connection, connection_record):
-    if "sqlite" in settings.DATABASE_URL:
+    if "sqlite" in db_url:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON;")
         cursor.execute("PRAGMA journal_mode=WAL;")

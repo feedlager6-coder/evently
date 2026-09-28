@@ -20,8 +20,15 @@ Usage:
 
 import sys
 import os
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 import asyncio
 import argparse
+from typing import Optional
 import httpx
 
 from pathlib import Path
@@ -79,9 +86,15 @@ async def get_bot_info():
             print(f"   • Last Error Date:        {wh_data.get('last_error_date')}")
 
 
-async def set_webhook(tunnel_url: str):
+async def set_webhook(tunnel_url: Optional[str] = None):
     token = check_token()
-    clean_url = tunnel_url.rstrip("/")
+    target_url = tunnel_url or (f"https://{settings.PUBLIC_HOST}" if settings.PUBLIC_HOST else None)
+    if not target_url:
+        print("❌ Error: No URL provided and PUBLIC_HOST is not set in environment.")
+        print("   Usage: python backend/scripts/telegram_cli.py webhook --set https://your-domain.com")
+        return
+
+    clean_url = target_url.rstrip("/")
     if not clean_url.startswith("https://"):
         print("❌ Error: Telegram Webhooks strictly require an HTTPS URL.")
         return
@@ -191,7 +204,7 @@ def main():
 
     # webhook
     wh_parser = subparsers.add_parser("webhook", help="Manage Telegram webhook")
-    wh_parser.add_argument("--set", type=str, help="Public tunnel HTTPS URL (e.g. https://xxx.trycloudflare.com)")
+    wh_parser.add_argument("--set", type=str, nargs="?", const="", help="Public HTTPS URL (e.g. https://xxx.trycloudflare.com, defaults to PUBLIC_HOST)")
     wh_parser.add_argument("--info", action="store_true", help="Print current webhook status")
     wh_parser.add_argument("--delete", action="store_true", help="Delete webhook")
 
@@ -203,8 +216,8 @@ def main():
     if args.command == "info":
         asyncio.run(get_bot_info())
     elif args.command == "webhook":
-        if args.set:
-            asyncio.run(set_webhook(args.set))
+        if args.set is not None:
+            asyncio.run(set_webhook(args.set or None))
         elif args.delete:
             asyncio.run(delete_webhook())
         else:

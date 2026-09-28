@@ -170,3 +170,34 @@ async def test_spa_serving(client):
         assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_health_check_endpoint(client):
+    resp = await client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "healthy"
+    assert data["app"] == "Evently"
+
+
+def test_database_url_normalization():
+    from app.config import Settings
+
+    # Railway standard postgres://
+    s1 = Settings(DATABASE_URL="postgres://user:pass@host:5432/db")
+    assert s1.async_database_url == "postgresql+asyncpg://user:pass@host:5432/db"
+
+    # Standard postgresql://
+    s2 = Settings(DATABASE_URL="postgresql://user:pass@host:5432/db")
+    assert s2.async_database_url == "postgresql+asyncpg://user:pass@host:5432/db"
+
+    # Already async postgresql+asyncpg://
+    s3 = Settings(DATABASE_URL="postgresql+asyncpg://user:pass@host:5432/db")
+    assert s3.async_database_url == "postgresql+asyncpg://user:pass@host:5432/db"
+
+    # SQLite remains unchanged
+    s4 = Settings(DATABASE_URL="sqlite+aiosqlite:///./test.db")
+    assert s4.async_database_url == "sqlite+aiosqlite:///./test.db"
+
+
+
+

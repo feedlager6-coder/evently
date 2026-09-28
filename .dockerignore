@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite*
+.pytest_cache/
+__pycache__/
+*.pyc
+tests/
+frontend/node_modules/
+frontend/dist/
+.vscode/
+.idea/
