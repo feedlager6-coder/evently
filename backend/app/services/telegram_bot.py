@@ -24,12 +24,39 @@ def format_event_message(event: EventSummary) -> str:
     )
 
 
+def build_mini_app_button(text: str, start_param: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Builds compliant button for private bot messages.
+    If Mini App URL is a direct web URL (https://... and not t.me), uses 'web_app' button
+    which launches the native Telegram Mini App viewport inside Telegram.
+    If it is a t.me direct link, uses 'url' button.
+    """
+    base_url = settings.effective_mini_app_url
+    if base_url.startswith("https://t.me/"):
+        if start_param:
+            sep = "&" if "?" in base_url else "?"
+            return {"text": text, "url": f"{base_url}{sep}startapp={start_param}"}
+        return {"text": text, "url": base_url}
+
+    # Direct HTTPS Web URL (e.g. Railway public domain)
+    if start_param:
+        target_url = f"{base_url.rstrip('/')}/?startapp={start_param}"
+    else:
+        target_url = base_url
+    return {"text": text, "web_app": {"url": target_url}}
+
+
 def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     """
     Constructs compliant inline keyboard to open event directly inside Telegram Mini App.
-    Uses Telegram's universal direct link pattern: https://t.me/<bot>/<app>?startapp=<param>
+    In inline query results (sent in group chats/channels), only direct 'url' buttons are allowed.
     """
-    url = f"{settings.TELEGRAM_MINI_APP_URL}?startapp=event_{event_id}"
+    mini_app_url = settings.effective_mini_app_url
+    if mini_app_url.startswith("https://t.me/"):
+        sep = "&" if "?" in mini_app_url else "?"
+        url = f"{mini_app_url}{sep}startapp=event_{event_id}"
+    else:
+        url = f"{mini_app_url.rstrip('/')}/?startapp=event_{event_id}"
     return {
         "inline_keyboard": [
             [
@@ -103,7 +130,7 @@ async def handle_inline_query(
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        {"text": "🎟️ Открыть Evently Mini App", "url": settings.TELEGRAM_MINI_APP_URL}
+                        build_mini_app_button("🎟️ Открыть Evently Mini App")
                     ]
                 ]
             }
@@ -119,8 +146,8 @@ async def handle_inline_query(
 
 def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Handles private bot commands (/start, /create, /admin).
-    Returns outbound sendMessage payload if command matched.
+    Handles private bot commands (/start, /create, /admin, /help) and text messages.
+    Returns outbound sendMessage payload.
     """
     text = (message.get("text") or "").strip()
     chat_id = message.get("chat", {}).get("id")
@@ -132,7 +159,6 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
-        app_url = f"{settings.TELEGRAM_MINI_APP_URL}?startapp={start_param}" if start_param else settings.TELEGRAM_MINI_APP_URL
         return {
             "chat_id": chat_id,
             "text": (
@@ -145,10 +171,10 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        {"text": "🎟️ Открыть Evently", "url": app_url}
+                        build_mini_app_button("🎟️ Открыть Evently", start_param or None)
                     ],
                     [
-                        {"text": "➕ Создать мероприятие", "url": f"{settings.TELEGRAM_MINI_APP_URL}?startapp=create"}
+                        build_mini_app_button("➕ Создать мероприятие", "create")
                     ]
                 ]
             }
@@ -166,7 +192,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        {"text": "➕ Заполнить форму события", "url": f"{settings.TELEGRAM_MINI_APP_URL}?startapp=create"}
+                        build_mini_app_button("➕ Заполнить форму события", "create")
                     ]
                 ]
             }
@@ -185,7 +211,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "reply_markup": {
                     "inline_keyboard": [
                         [
-                            {"text": "🛡️ Открыть модерацию", "url": f"{settings.TELEGRAM_MINI_APP_URL}?startapp=admin"}
+                            build_mini_app_button("🛡️ Открыть модерацию", "admin")
                         ]
                     ]
                 }
@@ -197,4 +223,42 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "parse_mode": "HTML"
             }
 
-    return None
+    elif text.startswith("/help"):
+        return {
+            "chat_id": chat_id,
+            "text": (
+                "ℹ️ <b>Как пользоваться Evently:</b>\n\n"
+                "1. <b>Быстрый поиск в любом чате:</b>\n"
+                "   Напишите <code>@evently [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
+                "2. <b>Telegram Mini App:</b>\n"
+                "   Нажмите кнопку ниже, чтобы открыть афишу, фильтровать события и отмечаться «Я иду».\n\n"
+                "3. <b>Организаторам:</b>\n"
+                "   Используйте команду /create для добавления своего мероприятия."
+            ),
+            "parse_mode": "HTML",
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        build_mini_app_button("🎟️ Открыть Evently")
+                    ]
+                ]
+            }
+        }
+
+    else:
+        # Fallback response for any other private text messages
+        return {
+            "chat_id": chat_id,
+            "text": (
+                "👋 Привет! Чтобы найти события или открыть афишу, нажмите кнопку ниже "
+                "или вызовите бота в любом чате: <code>@evently концерты</code>"
+            ),
+            "parse_mode": "HTML",
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        build_mini_app_button("🎟️ Открыть Evently")
+                    ]
+                ]
+            }
+        }

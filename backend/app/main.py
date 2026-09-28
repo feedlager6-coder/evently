@@ -9,6 +9,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +39,36 @@ async def lifespan(app: FastAPI):
             await seed_database(session)
         except Exception as e:
             logger.error(f"Error seeding database: {e}")
+
+    # Auto-sync Telegram webhook if live token and public host are configured
+    if settings.is_live_bot and settings.effective_public_host:
+        webhook_url = f"{settings.effective_public_host}/api/v1/telegram/webhook"
+        logger.info(f"Checking/syncing Telegram webhook to: {webhook_url}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                info_resp = await client.get(f"https://api.telegram.org/bot{settings.clean_bot_token}/getWebhookInfo")
+                current_url = ""
+                if info_resp.status_code == 200:
+                    current_url = info_resp.json().get("result", {}).get("url", "")
+
+                if current_url != webhook_url:
+                    logger.info(f"Registering Telegram webhook: {webhook_url} (previous: '{current_url}')...")
+                    set_resp = await client.post(
+                        f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
+                        json={
+                            "url": webhook_url,
+                            "allowed_updates": ["inline_query", "message"]
+                        }
+                    )
+                    data = set_resp.json()
+                    if data.get("ok"):
+                        logger.info(f"✅ Telegram webhook auto-registered: {webhook_url}")
+                    else:
+                        logger.warning(f"⚠️ Telegram setWebhook response: {data.get('description')}")
+                else:
+                    logger.info(f"✅ Telegram webhook already configured: {webhook_url}")
+        except Exception as e:
+            logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
 
     yield
 

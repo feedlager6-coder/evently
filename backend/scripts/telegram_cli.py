@@ -41,8 +41,8 @@ from app.services.telegram_bot import handle_inline_query, handle_private_messag
 
 
 def check_token():
-    token = settings.TELEGRAM_BOT_TOKEN
-    if not token or "testtoken" in token or token.startswith("123456789:"):
+    token = settings.clean_bot_token
+    if not token or not settings.is_live_bot:
         print("❌ Error: TELEGRAM_BOT_TOKEN is not configured or still set to demo placeholder in .env")
         print("   Please provide a real Telegram bot token from @BotFather in .env to use live verification.")
         sys.exit(1)
@@ -88,10 +88,11 @@ async def get_bot_info():
 
 async def set_webhook(tunnel_url: Optional[str] = None):
     token = check_token()
-    target_url = tunnel_url or (f"https://{settings.PUBLIC_HOST}" if settings.PUBLIC_HOST else None)
+    target_url = tunnel_url or settings.effective_public_host
     if not target_url:
-        print("❌ Error: No URL provided and PUBLIC_HOST is not set in environment.")
-        print("   Usage: python backend/scripts/telegram_cli.py webhook --set https://your-domain.com")
+        print("❌ Error: No URL provided and neither PUBLIC_HOST nor RAILWAY_PUBLIC_DOMAIN is set in environment.")
+        print("   Usage: python backend/scripts/telegram_cli.py setup-webhook")
+        print("   Or:    python backend/scripts/telegram_cli.py webhook --set https://your-domain.com")
         return
 
     clean_url = target_url.rstrip("/")
@@ -112,6 +113,44 @@ async def set_webhook(tunnel_url: Optional[str] = None):
             print("✅ Webhook registered successfully with Telegram!")
         else:
             print(f"❌ Failed to set webhook: {data.get('description')}")
+
+
+async def set_menu_button():
+    token = check_token()
+    mini_app_url = settings.effective_mini_app_url
+    print(f"🔘 Configuring Telegram Menu Button -> {mini_app_url} ...")
+    payload = {
+        "menu_button": {
+            "type": "web_app",
+            "text": "Афиша Evently",
+            "web_app": {"url": mini_app_url}
+        }
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(f"https://api.telegram.org/bot{token}/setChatMenuButton", json=payload)
+        data = resp.json()
+        if data.get("ok"):
+            print("✅ Menu Button configured successfully!")
+        else:
+            print(f"❌ Failed to set Menu Button: {data.get('description')}")
+
+
+async def set_commands():
+    token = check_token()
+    print("📋 Registering bot commands (/start, /create, /admin, /help) ...")
+    commands = [
+        {"command": "start", "description": "Запустить бота и открыть афишу"},
+        {"command": "create", "description": "Создать новое мероприятие"},
+        {"command": "admin", "description": "Панель администратора / модерация"},
+        {"command": "help", "description": "Справка и инструкция по поиску"}
+    ]
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(f"https://api.telegram.org/bot{token}/setMyCommands", json={"commands": commands})
+        data = resp.json()
+        if data.get("ok"):
+            print("✅ Bot commands registered successfully!")
+        else:
+            print(f"❌ Failed to set commands: {data.get('description')}")
 
 
 async def delete_webhook():
@@ -199,22 +238,22 @@ def main():
     parser = argparse.ArgumentParser(description="Evently Telegram Verification CLI")
     subparsers = parser.add_subparsers(dest="command")
 
-    # info
-    subparsers.add_parser("info", help="Inspect bot status and settings")
-
-    # webhook
-    wh_parser = subparsers.add_parser("webhook", help="Manage Telegram webhook")
-    wh_parser.add_argument("--set", type=str, nargs="?", const="", help="Public HTTPS URL (e.g. https://xxx.trycloudflare.com, defaults to PUBLIC_HOST)")
-    wh_parser.add_argument("--info", action="store_true", help="Print current webhook status")
-    wh_parser.add_argument("--delete", action="store_true", help="Delete webhook")
-
-    # poll
-    subparsers.add_parser("poll", help="Run local polling for bot events")
+    # Direct aliases for common operations
+    subparsers.add_parser("setup-webhook", help="Register webhook with public HTTPS URL (defaults to PUBLIC_HOST/Railway domain)")
+    subparsers.add_parser("get-webhook-info", help="Inspect Telegram webhook status")
+    subparsers.add_parser("set-menu-button", help="Configure bot menu button to open Mini App")
+    subparsers.add_parser("set-commands", help="Register bot commands with BotFather/Telegram")
 
     args = parser.parse_args()
 
-    if args.command == "info":
+    if args.command in ("info", "get-webhook-info"):
         asyncio.run(get_bot_info())
+    elif args.command == "setup-webhook":
+        asyncio.run(set_webhook())
+    elif args.command == "set-menu-button":
+        asyncio.run(set_menu_button())
+    elif args.command == "set-commands":
+        asyncio.run(set_commands())
     elif args.command == "webhook":
         if args.set is not None:
             asyncio.run(set_webhook(args.set or None))
