@@ -108,9 +108,11 @@ async def health_check():
     }
 
 
-# Mount Uploads directory
-UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
+# Mount Uploads directory (supports Railway Persistent Volume or local storage)
+from app.services.storage_service import storage_service
+UPLOADS_DIR = storage_service.get_local_storage_dir()
 (UPLOADS_DIR / "covers").mkdir(parents=True, exist_ok=True)
+(UPLOADS_DIR / "avatars").mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Serve Frontend SPA if built bundle exists

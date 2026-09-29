@@ -12,6 +12,7 @@ import {
   ChevronRight,
   AlertCircle,
 } from 'lucide-react';
+import { SafeAvatar } from './SafeAvatar';
 
 interface MySubscriptionsModalProps {
   isOpen: boolean;
@@ -121,18 +122,12 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
                     }}
                     className="flex items-center space-x-3.5 p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer card-press"
                   >
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                      {org.avatar_url ? (
-                        <img
-                          src={org.avatar_url}
-                          alt={org.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm font-bold text-indigo-300">
-                          {org.name.slice(0, 2).toUpperCase()}
-                        </span>
-                      )}
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-indigo-500/30 flex items-center justify-center shrink-0">
+                      <SafeAvatar
+                        src={org.avatar_url}
+                        name={org.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
 
                     <div className="flex-1 min-w-0 space-y-0.5">

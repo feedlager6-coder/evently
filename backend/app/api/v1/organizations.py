@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -13,6 +13,7 @@ from app.schemas.organization import (
 from app.schemas.subscription import SubscriptionStatusResponse
 from app.schemas.event import EventSummary
 from app.api.deps import get_current_user, get_current_user_optional
+from app.services.storage_service import storage_service
 from app.services.organization_service import (
     create_organization as create_org_service,
     get_organization_by_id_or_slug,
@@ -24,6 +25,24 @@ from app.services.organization_service import (
 )
 
 router = APIRouter(prefix="/organizations", tags=["Organizations"])
+
+
+@router.post("/upload-avatar")
+async def upload_organization_avatar(
+    file: UploadFile = File(...)
+):
+    """
+    Uploads an organization avatar.
+    Validates MIME type, file size limit (5MB), and magic bytes.
+    Saves image to persistent storage (S3 or persistent volume/disk) and returns URL.
+    """
+    content = await file.read()
+    url = await storage_service.save_image(
+        content=content,
+        content_type=file.content_type or "",
+        folder="avatars"
+    )
+    return {"url": url}
 
 
 @router.post("", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)

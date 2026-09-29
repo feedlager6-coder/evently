@@ -1,6 +1,7 @@
 import React from 'react';
 import type { EventSummary } from '../types';
 import { Calendar, MapPin, Users, Check } from 'lucide-react';
+import { SafeImage } from './SafeImage';
 
 interface EventCardProps {
   event: EventSummary;
@@ -28,8 +29,8 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
     >
       {/* Cover Image Container */}
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-900">
-        <img
-          src={event.cover_image_url || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800'}
+        <SafeImage
+          src={event.cover_image_url}
           alt={event.title}
           loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"

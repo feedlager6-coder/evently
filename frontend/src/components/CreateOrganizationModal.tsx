@@ -150,7 +150,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
     try {
       setIsUploadingAvatar(true);
       setAvatarUploadError(null);
-      const res = await api.uploadCoverImage(file);
+      const res = await api.uploadOrganizationAvatar(file);
       setAvatarUrl(res.url);
       telegram.hapticSuccess();
     } catch (err: any) {

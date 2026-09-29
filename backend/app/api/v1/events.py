@@ -19,31 +19,9 @@ from app.services.event_service import (
     EventValidationError
 )
 
+from app.services.storage_service import storage_service, ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE, validate_image_bytes
+
 router = APIRouter(prefix="/events", tags=["Events"])
-
-ALLOWED_IMAGE_TYPES = {
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
-
-
-def validate_image_bytes(content: bytes) -> bool:
-    """Verifies that the byte stream represents a genuine JPEG, PNG, or WEBP image."""
-    if len(content) < 12:
-        return False
-    # JPEG
-    if content.startswith(b"\xff\xd8\xff"):
-        return True
-    # PNG
-    if content.startswith(b"\x89PNG\r\n\x1a\n"):
-        return True
-    # WEBP
-    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
-        return True
-    return False
 
 
 @router.post("/upload-cover")
@@ -51,41 +29,17 @@ async def upload_event_cover(
     file: UploadFile = File(...)
 ):
     """
-    Uploads an event cover image.
+    Uploads an event cover or organization media image.
     Validates MIME type, file size limit (5MB), and magic bytes.
-    Saves image under uploads/covers/ and returns the relative URL.
+    Saves image to persistent storage (S3 or persistent volume/disk) and returns URL.
     """
-    content_type = (file.content_type or "").lower()
-    if content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported image type: '{content_type}'. Allowed: JPEG, PNG, WEBP."
-        )
-
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds maximum allowed size of 5 MB."
-        )
-
-    if not validate_image_bytes(content):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image format: file signature does not match genuine image."
-        )
-
-    ext = ALLOWED_IMAGE_TYPES[content_type]
-    filename = f"{uuid.uuid4().hex}{ext}"
-
-    uploads_dir = Path("uploads") / "covers"
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    target_path = uploads_dir / filename
-
-    with open(target_path, "wb") as f:
-        f.write(content)
-
-    return {"url": f"/uploads/covers/{filename}"}
+    url = await storage_service.save_image(
+        content=content,
+        content_type=file.content_type or "",
+        folder="covers"
+    )
+    return {"url": url}
 
 
 @router.get("", response_model=EventListResponse)

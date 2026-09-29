@@ -11,6 +11,7 @@ from app.models.event import Event, EventStatus
 logger = logging.getLogger("evently.seeds")
 
 CITIES_DATA = [
+    # Dagestan & North Caucasus
     {
         "id": "makhachkala",
         "name": "Махачкала",
@@ -21,6 +22,98 @@ CITIES_DATA = [
         "longitude": 47.5047,
         "is_active": True
     },
+    {
+        "id": "kaspiysk",
+        "name": "Каспийск",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 42.8816,
+        "longitude": 47.6394,
+        "is_active": True
+    },
+    {
+        "id": "derbent",
+        "name": "Дербент",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 42.0678,
+        "longitude": 48.2899,
+        "is_active": True
+    },
+    {
+        "id": "khasavyurt",
+        "name": "Хасавюрт",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.2509,
+        "longitude": 46.5872,
+        "is_active": True
+    },
+    {
+        "id": "izberbash",
+        "name": "Избербаш",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 42.5684,
+        "longitude": 47.8654,
+        "is_active": True
+    },
+    {
+        "id": "grozny",
+        "name": "Грозный",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.3170,
+        "longitude": 45.6982,
+        "is_active": True
+    },
+    {
+        "id": "vladikavkaz",
+        "name": "Владикавказ",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.0246,
+        "longitude": 44.6817,
+        "is_active": True
+    },
+    {
+        "id": "nalchik",
+        "name": "Нальчик",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.4853,
+        "longitude": 43.6071,
+        "is_active": True
+    },
+    {
+        "id": "pyatigorsk",
+        "name": "Пятигорск",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 44.0486,
+        "longitude": 43.0594,
+        "is_active": True
+    },
+    {
+        "id": "stavropol",
+        "name": "Ставрополь",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 45.0433,
+        "longitude": 41.9691,
+        "is_active": True
+    },
+
+    # Federal Centers & Major Cities
     {
         "id": "moscow",
         "name": "Москва",
@@ -62,6 +155,16 @@ CITIES_DATA = [
         "is_active": True
     },
     {
+        "id": "sochi",
+        "name": "Сочи",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.6028,
+        "longitude": 39.7342,
+        "is_active": True
+    },
+    {
         "id": "rostov_on_don",
         "name": "Ростов-на-Дону",
         "country": "Россия",
@@ -69,76 +172,6 @@ CITIES_DATA = [
         "currency": "RUB",
         "latitude": 47.2357,
         "longitude": 39.7015,
-        "is_active": True
-    },
-    {
-        "id": "yekaterinburg",
-        "name": "Екатеринбург",
-        "country": "Россия",
-        "timezone": "Asia/Yekaterinburg",
-        "currency": "RUB",
-        "latitude": 56.8389,
-        "longitude": 60.6057,
-        "is_active": True
-    },
-    {
-        "id": "novosibirsk",
-        "name": "Новосибирск",
-        "country": "Россия",
-        "timezone": "Asia/Novosibirsk",
-        "currency": "RUB",
-        "latitude": 55.0084,
-        "longitude": 82.9357,
-        "is_active": True
-    },
-    {
-        "id": "nizhny_novgorod",
-        "name": "Нижний Новгород",
-        "country": "Россия",
-        "timezone": "Europe/Moscow",
-        "currency": "RUB",
-        "latitude": 56.3269,
-        "longitude": 44.0059,
-        "is_active": True
-    },
-    {
-        "id": "samara",
-        "name": "Самара",
-        "country": "Россия",
-        "timezone": "Europe/Samara",
-        "currency": "RUB",
-        "latitude": 53.1959,
-        "longitude": 50.1002,
-        "is_active": True
-    },
-    {
-        "id": "ufa",
-        "name": "Уфа",
-        "country": "Россия",
-        "timezone": "Asia/Yekaterinburg",
-        "currency": "RUB",
-        "latitude": 54.7388,
-        "longitude": 55.9721,
-        "is_active": True
-    },
-    {
-        "id": "voronezh",
-        "name": "Воронеж",
-        "country": "Россия",
-        "timezone": "Europe/Moscow",
-        "currency": "RUB",
-        "latitude": 51.6615,
-        "longitude": 39.2003,
-        "is_active": True
-    },
-    {
-        "id": "perm",
-        "name": "Пермь",
-        "country": "Россия",
-        "timezone": "Asia/Yekaterinburg",
-        "currency": "RUB",
-        "latitude": 58.0105,
-        "longitude": 56.2502,
         "is_active": True
     },
     {
@@ -152,13 +185,173 @@ CITIES_DATA = [
         "is_active": True
     },
     {
-        "id": "sochi",
-        "name": "Сочи",
+        "id": "saratov",
+        "name": "Саратов",
+        "country": "Россия",
+        "timezone": "Europe/Saratov",
+        "currency": "RUB",
+        "latitude": 51.5336,
+        "longitude": 46.0343,
+        "is_active": True
+    },
+    {
+        "id": "voronezh",
+        "name": "Воронеж",
         "country": "Россия",
         "timezone": "Europe/Moscow",
         "currency": "RUB",
-        "latitude": 43.6028,
-        "longitude": 39.7342,
+        "latitude": 51.6615,
+        "longitude": 39.2003,
+        "is_active": True
+    },
+    {
+        "id": "samara",
+        "name": "Самара",
+        "country": "Россия",
+        "timezone": "Europe/Samara",
+        "currency": "RUB",
+        "latitude": 53.1959,
+        "longitude": 50.1002,
+        "is_active": True
+    },
+    {
+        "id": "nizhny_novgorod",
+        "name": "Нижний Новгород",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 56.3269,
+        "longitude": 44.0059,
+        "is_active": True
+    },
+    {
+        "id": "ufa",
+        "name": "Уфа",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 54.7388,
+        "longitude": 55.9721,
+        "is_active": True
+    },
+    {
+        "id": "perm",
+        "name": "Пермь",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 58.0105,
+        "longitude": 56.2502,
+        "is_active": True
+    },
+    {
+        "id": "yekaterinburg",
+        "name": "Екатеринбург",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 56.8389,
+        "longitude": 60.6057,
+        "is_active": True
+    },
+    {
+        "id": "chelyabinsk",
+        "name": "Челябинск",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 55.1644,
+        "longitude": 61.4368,
+        "is_active": True
+    },
+    {
+        "id": "tyumen",
+        "name": "Тюмень",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 57.1530,
+        "longitude": 65.5343,
+        "is_active": True
+    },
+    {
+        "id": "omsk",
+        "name": "Омск",
+        "country": "Россия",
+        "timezone": "Asia/Omsk",
+        "currency": "RUB",
+        "latitude": 54.9885,
+        "longitude": 73.3242,
+        "is_active": True
+    },
+    {
+        "id": "novosibirsk",
+        "name": "Новосибирск",
+        "country": "Россия",
+        "timezone": "Asia/Novosibirsk",
+        "currency": "RUB",
+        "latitude": 55.0084,
+        "longitude": 82.9357,
+        "is_active": True
+    },
+    {
+        "id": "krasnoyarsk",
+        "name": "Красноярск",
+        "country": "Россия",
+        "timezone": "Asia/Krasnoyarsk",
+        "currency": "RUB",
+        "latitude": 56.0153,
+        "longitude": 92.8932,
+        "is_active": True
+    },
+    {
+        "id": "irkutsk",
+        "name": "Иркутск",
+        "country": "Россия",
+        "timezone": "Asia/Irkutsk",
+        "currency": "RUB",
+        "latitude": 52.2870,
+        "longitude": 104.3050,
+        "is_active": True
+    },
+    {
+        "id": "khabarovsk",
+        "name": "Хабаровск",
+        "country": "Россия",
+        "timezone": "Asia/Vladivostok",
+        "currency": "RUB",
+        "latitude": 48.4814,
+        "longitude": 135.0721,
+        "is_active": True
+    },
+    {
+        "id": "vladivostok",
+        "name": "Владивосток",
+        "country": "Россия",
+        "timezone": "Asia/Vladivostok",
+        "currency": "RUB",
+        "latitude": 43.1155,
+        "longitude": 131.8855,
+        "is_active": True
+    },
+    {
+        "id": "kaliningrad",
+        "name": "Калининград",
+        "country": "Россия",
+        "timezone": "Europe/Kaliningrad",
+        "currency": "RUB",
+        "latitude": 54.7104,
+        "longitude": 20.4522,
+        "is_active": True
+    },
+    {
+        "id": "yaroslavl",
+        "name": "Ярославль",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 57.6261,
+        "longitude": 39.8845,
         "is_active": True
     }
 ]

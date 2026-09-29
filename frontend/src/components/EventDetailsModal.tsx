@@ -11,13 +11,23 @@ import {
   Share2, 
   Ticket, 
   User as UserIcon,
-  Building2,
   ChevronRight
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
 import type { GoingAnimationState } from './GoingAnimation';
 import { AnimatedCounter } from './AnimatedCounter';
+import { SafeImage } from './SafeImage';
+import { SafeAvatar } from './SafeAvatar';
+
+export function getAttendeesWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'человек идут';
+  if (mod10 === 1) return 'человек идёт';
+  if (mod10 >= 2 && mod10 <= 4) return 'человека идут';
+  return 'человек идут';
+}
 
 interface EventDetailsModalProps {
   event: EventResponse | null;
@@ -142,8 +152,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       >
         {/* Top Media / Hero */}
         <div className="relative aspect-[16/9] w-full bg-gray-900 shrink-0">
-          <img
-            src={event.cover_image_url || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800'}
+          <SafeImage
+            src={event.cover_image_url}
             alt={event.title}
             className="w-full h-full object-cover"
           />
@@ -237,16 +247,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               className="flex items-center justify-between p-3.5 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer group"
             >
               <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                  {event.organization_avatar_url ? (
-                    <img
-                      src={event.organization_avatar_url}
-                      alt={event.organization_name || 'Организация'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Building2 className="w-5 h-5 text-indigo-300" />
-                  )}
+                <div className="w-10 h-10 rounded-xl overflow-hidden border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  <SafeAvatar
+                    src={event.organization_avatar_url}
+                    name={event.organization_name || 'Организация'}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[11px] text-gray-400 font-medium">Организация</div>
@@ -299,7 +305,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               <strong className="text-white font-semibold">
                 <AnimatedCounter
                   value={event.attendee_count}
-                  suffix={event.attendee_count === 1 ? 'человек' : 'человек(а)'}
+                  suffix={getAttendeesWord(event.attendee_count)}
                 />
               </strong>
             </span>
@@ -307,15 +313,16 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         </div>
 
         {/* Sticky Bottom RSVP Action Bar */}
-        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0">
+        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3">
           <button
             onClick={handleRsvpClick}
             disabled={isRsvpLoading}
-            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2.5 transition-all duration-300 shadow-xl btn-press ${
+            title={event.is_attending ? 'Нажмите, чтобы отменить участие' : 'Подтвердить участие'}
+            className={`w-full h-12 px-6 rounded-2xl font-semibold text-sm flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
               event.is_attending || rsvpAnimationPhase === 'animating'
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 glow-success'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/30 glow-primary'
-            } disabled:opacity-75`}
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 shadow-sm'
+                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/25 shadow-lg'
+            } disabled:opacity-70`}
           >
             <GoingAnimation
               state={
@@ -327,18 +334,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   ? 'success'
                   : 'idle'
               }
-              onAnimationEnd={() => setRsvpAnimationPhase('success')}
-              size={20}
+              onAnimationEnd={() => setRsvpAnimationPhase('idle')}
+              size={18}
             />
-            {rsvpAnimationPhase === 'animating' ? (
-              <span>Я иду! 🎟️</span>
-            ) : isRsvpLoading && rsvpAnimationPhase === 'loading' ? (
-              <span>Обновление...</span>
-            ) : event.is_attending ? (
-              <span>✓ Вы идёте (нажмите, чтобы отменить)</span>
-            ) : (
-              <span>Я иду</span>
-            )}
+            <span>
+              {isRsvpLoading && rsvpAnimationPhase === 'loading'
+                ? 'Обновление...'
+                : 'Я иду'}
+            </span>
           </button>
         </div>
       </div>

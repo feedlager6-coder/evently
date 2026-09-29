@@ -18,6 +18,8 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { AnimatedCounter } from './AnimatedCounter';
+import { SafeAvatar } from './SafeAvatar';
+import { SafeImage } from './SafeImage';
 
 interface OrganizationModalProps {
   orgIdOrSlug: string | null;
@@ -217,18 +219,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {/* Profile Card */}
               <div className="flex flex-col items-center text-center space-y-3 pt-2">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border-2 border-indigo-500/30 flex items-center justify-center shadow-xl">
-                    {org.avatar_url ? (
-                      <img
-                        src={org.avatar_url}
-                        alt={org.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-2xl font-bold text-indigo-300">
-                        {org.name.slice(0, 2).toUpperCase()}
-                      </span>
-                    )}
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-indigo-500/30 flex items-center justify-center shadow-xl">
+                    <SafeAvatar
+                      src={org.avatar_url}
+                      name={org.name}
+                      alt={org.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   {org.is_verified && (
                     <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow">
@@ -390,9 +387,10 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                           className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer card-press"
                         >
                           <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 shrink-0">
-                            <img
-                              src={ev.cover_image_url || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400'}
+                            <SafeImage
+                              src={ev.cover_image_url}
                               alt={ev.title}
+                              fallbackSrc="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
                               className="w-full h-full object-cover"
                             />
                           </div>

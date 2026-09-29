@@ -29,42 +29,42 @@ export const Navigation: React.FC<NavigationProps> = ({
         {/* Feed Tab */}
         <button
           onClick={() => handleTabClick('feed')}
-          className={`flex flex-col items-center py-1.5 px-3.5 rounded-xl btn-press transition-all ${
+          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
             currentTab === 'feed'
-              ? 'text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 shadow-sm shadow-indigo-500/20'
-              : 'text-gray-400 hover:text-gray-200 border border-transparent'
+              ? 'text-indigo-400 font-semibold'
+              : 'text-gray-400 hover:text-gray-200'
           }`}
           aria-label="Афиша"
         >
-          <Compass className="w-5 h-5 mb-0.5" />
+          <Compass className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'feed' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
           <span className="text-[10px] tracking-tight">Афиша</span>
         </button>
 
         {/* Create Event Tab */}
         <button
           onClick={() => handleTabClick('create')}
-          className={`flex flex-col items-center py-1.5 px-3.5 rounded-xl btn-press transition-all ${
+          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
             currentTab === 'create'
-              ? 'text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 shadow-sm shadow-indigo-500/20'
-              : 'text-gray-400 hover:text-gray-200 border border-transparent'
+              ? 'text-indigo-400 font-semibold'
+              : 'text-gray-400 hover:text-gray-200'
           }`}
           aria-label="Создать"
         >
-          <PlusCircle className="w-5 h-5 mb-0.5" />
+          <PlusCircle className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'create' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
           <span className="text-[10px] tracking-tight">Создать</span>
         </button>
 
         {/* Organizer Tab */}
         <button
           onClick={() => handleTabClick('organizer')}
-          className={`flex flex-col items-center py-1.5 px-3.5 rounded-xl btn-press transition-all ${
+          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
             currentTab === 'organizer'
-              ? 'text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 shadow-sm shadow-indigo-500/20'
-              : 'text-gray-400 hover:text-gray-200 border border-transparent'
+              ? 'text-indigo-400 font-semibold'
+              : 'text-gray-400 hover:text-gray-200'
           }`}
           aria-label="Мои события"
         >
-          <Calendar className="w-5 h-5 mb-0.5" />
+          <Calendar className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'organizer' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
           <span className="text-[10px] tracking-tight">Мои события</span>
         </button>
 
@@ -72,14 +72,14 @@ export const Navigation: React.FC<NavigationProps> = ({
         {isAdmin && (
           <button
             onClick={() => handleTabClick('admin')}
-            className={`flex flex-col items-center py-1.5 px-3.5 rounded-xl btn-press transition-all ${
+            className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
               currentTab === 'admin'
-                ? 'text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 shadow-sm shadow-indigo-500/20'
-                : 'text-gray-400 hover:text-gray-200 border border-transparent'
+                ? 'text-indigo-400 font-semibold'
+                : 'text-gray-400 hover:text-gray-200'
             }`}
             aria-label="Модерация"
           >
-            <Shield className="w-5 h-5 mb-0.5" />
+            <Shield className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'admin' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
             <span className="text-[10px] tracking-tight">Модерация</span>
           </button>
         )}
