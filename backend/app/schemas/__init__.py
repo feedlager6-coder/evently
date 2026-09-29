@@ -4,6 +4,9 @@ from app.schemas.event import EventCreate, EventResponse, EventListResponse, Eve
 from app.schemas.rsvp import RSVPResponse
 from app.schemas.moderation import RejectRequest
 
+from app.schemas.organization import OrganizationSummary, OrganizationResponse, OrganizationCreate, OrganizationUpdate
+from app.schemas.discovery import VenueSummary, UnifiedDiscoveryResponse, DiscoveryOrganizationSummary
+
 __all__ = [
     "CityResponse",
     "CategoryResponse",
@@ -13,4 +16,12 @@ __all__ = [
     "EventSummary",
     "RSVPResponse",
     "RejectRequest",
+    "OrganizationSummary",
+    "OrganizationResponse",
+    "OrganizationCreate",
+    "OrganizationUpdate",
+    "VenueSummary",
+    "UnifiedDiscoveryResponse",
+    "DiscoveryOrganizationSummary",
 ]
+

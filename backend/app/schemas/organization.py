@@ -53,6 +53,7 @@ class OrganizationSummary(BaseModel):
     status: str = "active"
     is_verified: bool = False
     followers_count: int = 0
+    events_count: int = 0
     is_subscribed: bool = False
     is_owner: bool = False
     created_at: datetime

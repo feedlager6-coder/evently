@@ -8,7 +8,8 @@ import type {
   EventStatus,
   TelegramWebAppUser,
   OrganizationSummary,
-  OrganizationResponse
+  OrganizationResponse,
+  VenueSummary
 } from './types';
 import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
@@ -24,8 +25,9 @@ import { Navigation } from './components/Navigation';
 import { OrganizationModal } from './components/OrganizationModal';
 import { CreateOrganizationModal } from './components/CreateOrganizationModal';
 import { MySubscriptionsModal } from './components/MySubscriptionsModal';
+import { DiscoveryModal } from './components/DiscoveryModal';
 import type { TabType } from './components/Navigation';
-import { Loader2, Compass, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, RefreshCw, Search } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Navigation & UI state
@@ -75,11 +77,25 @@ export const App: React.FC = () => {
   // Telegram User
   const [user, setUser] = useState<TelegramWebAppUser | null>(null);
 
+  // Unified Discovery search state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchInitialQuery, setSearchInitialQuery] = useState('');
+
   // Helper to open Organization details
   const openOrgById = useCallback((orgId: string) => {
     setSelectedOrgId(orgId);
     setIsOrgModalOpen(true);
   }, []);
+
+  // Helper to handle Venue click in Discovery
+  const handleVenueClick = useCallback((venue: VenueSummary) => {
+    if (venue.organization_id) {
+      openOrgById(venue.organization_id);
+    } else {
+      // Standalone venue: keep search query focused on this venue or filter events
+      setSearchInitialQuery(venue.name);
+    }
+  }, [openOrgById]);
 
   // Helper to open Event details
   const openEventById = useCallback(async (eventId: string) => {
@@ -321,6 +337,11 @@ export const App: React.FC = () => {
         currentCity={currentCity}
         onOpenCityModal={() => setIsCityModalOpen(true)}
         onOpenSubscriptionsModal={() => setIsSubscriptionsModalOpen(true)}
+        onOpenSearch={() => {
+          telegram.hapticImpact('light');
+          setSearchInitialQuery('');
+          setIsSearchOpen(true);
+        }}
         user={user}
         isAdmin={isAdmin}
       />
@@ -329,6 +350,24 @@ export const App: React.FC = () => {
       <main className="max-w-lg mx-auto">
         {currentTab === 'feed' && (
           <div className="space-y-3">
+            {/* Prominent Discovery Search Trigger */}
+            <div className="px-4 pt-1">
+              <div
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  setSearchInitialQuery('');
+                  setIsSearchOpen(true);
+                }}
+                className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-2xl bg-[#131722] border border-white/8 hover:border-indigo-500/40 text-gray-400 text-xs cursor-pointer card-press transition-all shadow-sm group"
+              >
+                <Search className="w-4 h-4 text-indigo-400 shrink-0 group-hover:scale-105 transition-transform" />
+                <span className="flex-1 text-gray-300 font-medium">События, места и организации...</span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-white/5 text-gray-400 border border-white/5 shrink-0">
+                  {currentCity ? currentCity.name : 'Город'}
+                </span>
+              </div>
+            </div>
+
             {/* Filter Bar */}
             <FilterBar
               dateFilter={dateFilter}
@@ -521,6 +560,18 @@ export const App: React.FC = () => {
         isOpen={isSubscriptionsModalOpen}
         onClose={() => setIsSubscriptionsModalOpen(false)}
         onSelectOrg={(orgId) => openOrgById(orgId)}
+      />
+
+      {/* Unified Discovery Search Modal */}
+      <DiscoveryModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        currentCity={currentCity}
+        onOpenCityModal={() => setIsCityModalOpen(true)}
+        onEventClick={(ev) => openEventById(ev.id)}
+        onOrgClick={(orgId) => openOrgById(orgId)}
+        onVenueClick={handleVenueClick}
+        initialQuery={searchInitialQuery}
       />
 
       {/* Bottom Navigation */}

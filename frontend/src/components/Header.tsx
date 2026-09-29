@@ -1,12 +1,13 @@
 import React from 'react';
 import type { City, TelegramWebAppUser } from '../types';
-import { MapPin, ChevronDown, Bookmark } from 'lucide-react';
+import { MapPin, ChevronDown, Bookmark, Search } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 
 interface HeaderProps {
   currentCity?: City;
   onOpenCityModal: () => void;
   onOpenSubscriptionsModal?: () => void;
+  onOpenSearch?: () => void;
   user?: TelegramWebAppUser | null;
   isAdmin: boolean;
 }
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentCity,
   onOpenCityModal,
   onOpenSubscriptionsModal,
+  onOpenSearch,
   isAdmin
 }) => {
   return (
@@ -34,8 +36,21 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Right Actions: Subscriptions & City Selector */}
-        <div className="flex items-center space-x-2">
+        {/* Right Actions: Search, Subscriptions & City Selector */}
+        <div className="flex items-center space-x-1.5">
+          {onOpenSearch && (
+            <button
+              onClick={() => {
+                onOpenSearch();
+              }}
+              className="p-2 rounded-full bg-[#161A28] border border-white/8 hover:border-indigo-500/40 text-gray-300 hover:text-white btn-press transition-all"
+              title="Поиск событий, мест и организаций"
+              aria-label="Поиск"
+            >
+              <Search className="w-3.5 h-3.5 text-indigo-400" />
+            </button>
+          )}
+
           {onOpenSubscriptionsModal && (
             <button
               onClick={() => {

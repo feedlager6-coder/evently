@@ -189,7 +189,47 @@ async def handle_inline_query(
                 },
                 "reply_markup": build_event_inline_keyboard(ev.id)
             })
-    else:
+
+    # Also search matching organizations if query is present
+    if query_text:
+        try:
+            from app.services.discovery_service import discovery_service
+            matched_orgs, _ = await discovery_service.search_organizations(
+                session=session,
+                query=query_text,
+                city_id=target_city_id if target_city_id != "makhachkala" or "махачкал" in query_text.lower() else None,
+                limit=3
+            )
+            for org in matched_orgs:
+                org_thumb = resolve_absolute_image_url(org.avatar_url)
+                org_url = settings.get_organization_deep_link(org.id)
+                results.append({
+                    "type": "article",
+                    "id": f"org_{org.id}",
+                    "title": f"🧭 {org.name}",
+                    "description": f"{org.category} · {org.city_name or ''} · {org.followers_count} подписчиков",
+                    "thumbnail_url": org_thumb,
+                    "thumb_url": org_thumb,
+                    "input_message_content": {
+                        "message_text": (
+                            f"🧭 <b>{html.escape(org.name)}</b>\n"
+                            f"Категория: {html.escape(org.category)}\n"
+                            f"Город: {html.escape(org.city_name or 'Россия')}\n"
+                            f"Подписчиков: {org.followers_count}\n\n"
+                            f"Смотрите актуальные события и афишу организации в Ivently!"
+                        ),
+                        "parse_mode": "HTML"
+                    },
+                    "reply_markup": {
+                        "inline_keyboard": [
+                            [{"text": "🧭 Открыть профиль", "url": org_url}]
+                        ]
+                    }
+                })
+        except Exception as e:
+            logger.warning(f"Error querying organizations for inline search: {e}")
+
+    if not results:
         # Graceful empty-state
         city_display = (target_city_id or "выбранном городе").capitalize()
         empty_thumb = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400"

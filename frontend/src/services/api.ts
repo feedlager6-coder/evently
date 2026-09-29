@@ -13,7 +13,8 @@ import type {
   OrganizationCreatePayload,
   OrganizationUpdatePayload,
   SubscriptionStatusResponse,
-  UserSubscriptionItem
+  UserSubscriptionItem,
+  UnifiedDiscoveryResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -197,6 +198,28 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Не удалось загрузить события');
+    return res.json();
+  },
+
+  async searchDiscovery(
+    query: string,
+    cityId?: string,
+    categoryId?: string,
+    limit: number = 15
+  ): Promise<UnifiedDiscoveryResponse> {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    if (cityId) params.append('city_id', cityId);
+    if (categoryId) params.append('category_id', categoryId);
+    params.append('limit', limit.toString());
+
+    const res = await fetch(`${API_BASE}/discovery/search?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось выполнить поиск'));
+    }
     return res.json();
   },
 

@@ -10,6 +10,7 @@ from app.api.v1.locations import router as locations_router
 from app.api.v1.users import router as users_router
 from app.api.v1.meta import router as meta_router
 from app.api.v1.organizations import router as organizations_router
+from app.api.v1.discovery import router as discovery_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -18,6 +19,7 @@ api_v1_router.include_router(categories_router)
 api_v1_router.include_router(events_router)
 api_v1_router.include_router(organizer_router)
 api_v1_router.include_router(organizations_router)
+api_v1_router.include_router(discovery_router)
 api_v1_router.include_router(admin_router)
 api_v1_router.include_router(telegram_router)
 api_v1_router.include_router(locations_router)

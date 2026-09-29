@@ -99,6 +99,7 @@ export interface OrganizationSummary {
   status: string;
   is_verified: boolean;
   followers_count: number;
+  events_count?: number;
   is_subscribed: boolean;
   is_owner: boolean;
   created_at: string;
@@ -182,5 +183,30 @@ export interface TelegramWebAppUser {
   username?: string;
   language_code?: string;
   is_premium?: boolean;
+}
+
+export interface VenueSummary {
+  id: string;
+  name: string;
+  address?: string;
+  city_id?: string;
+  city_name?: string;
+  latitude?: number;
+  longitude?: number;
+  organization_id?: string;
+  organization_name?: string;
+  organization_avatar_url?: string;
+  upcoming_events_count: number;
+}
+
+export interface UnifiedDiscoveryResponse {
+  query: string;
+  city_id?: string;
+  events: EventSummary[];
+  organizations: OrganizationSummary[];
+  venues: VenueSummary[];
+  total_events: number;
+  total_organizations: number;
+  total_venues: number;
 }
 
