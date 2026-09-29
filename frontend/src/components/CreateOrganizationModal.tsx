@@ -218,16 +218,16 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
       <div
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh]"
+        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
           >
             <X className="w-5 h-5" />
           </button>
@@ -424,7 +424,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             <button
               type="submit"
               disabled={isLoading || isUploadingAvatar}
-              className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xl shadow-indigo-600/30 active:scale-[0.98] disabled:opacity-70"
+              className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xl shadow-indigo-600/30 btn-press disabled:opacity-70"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

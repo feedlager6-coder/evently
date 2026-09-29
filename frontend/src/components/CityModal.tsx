@@ -96,9 +96,9 @@ export const CityModal: React.FC<CityModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-fade-in">
       <div 
-        className="w-full max-w-sm max-h-[85vh] rounded-3xl bg-[#141722] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3"
+        className="w-full max-w-sm max-h-[85vh] rounded-t-[28px] sm:rounded-3xl bg-[#131722] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3 sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -111,7 +111,7 @@ export const CityModal: React.FC<CityModalProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 btn-press transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -121,7 +121,7 @@ export const CityModal: React.FC<CityModalProps> = ({
         <button
           onClick={handleDetectLocation}
           disabled={isLocating}
-          className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl bg-indigo-600/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/25 hover:border-indigo-500/50 transition-all font-semibold text-xs disabled:opacity-60"
+          className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl bg-indigo-600/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/25 hover:border-indigo-500/50 btn-press transition-all font-semibold text-xs disabled:opacity-60"
         >
           {isLocating ? (
             <>
@@ -151,7 +151,7 @@ export const CityModal: React.FC<CityModalProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск города..."
-            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#1C2030] border border-white/5 text-white placeholder-gray-400 text-xs focus:outline-none focus:border-indigo-500/60"
+            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#1C2030] border border-white/8 text-white placeholder-gray-400 text-xs focus:outline-none focus:border-indigo-500/60"
           />
         </div>
 
@@ -168,10 +168,11 @@ export const CityModal: React.FC<CityModalProps> = ({
                 <button
                   key={city.id}
                   onClick={() => {
+                    telegram.hapticImpact('light');
                     onSelectCity(city.id);
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border btn-press transition-all ${
                     isSelected
                       ? 'bg-indigo-600/20 border-indigo-500/60 text-white shadow-sm'
                       : 'bg-[#1C2030]/40 border-white/5 text-gray-300 hover:bg-[#1C2030] hover:text-white'
@@ -185,7 +186,7 @@ export const CityModal: React.FC<CityModalProps> = ({
                     </div>
                   </div>
                   {isSelected && (
-                    <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0">
+                    <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0 shadow-sm animate-scale-pop">
                       <Check className="w-3 h-3 stroke-[3]" />
                     </div>
                   )}

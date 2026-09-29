@@ -211,9 +211,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in overflow-y-auto">
       <div 
-        className="w-full max-w-lg rounded-3xl bg-[#121522] border border-white/10 p-5 shadow-2xl space-y-4 my-auto"
+        className="w-full max-w-lg rounded-3xl bg-[#121522] border border-white/10 p-5 shadow-2xl space-y-4 my-auto sheet-slide-up"
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -231,7 +231,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors btn-press"
           >
             <X className="w-5 h-5" />
           </button>
@@ -249,9 +249,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               </p>
             </div>
             <button
-
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs shadow-lg hover:bg-indigo-500 transition-colors"
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs shadow-lg hover:bg-indigo-500 transition-colors btn-press"
             >
               Отлично, понятно
             </button>
@@ -273,7 +272,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setSelectedOrgId(undefined)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all pill-press ${
                       !selectedOrgId
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                         : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
@@ -286,7 +285,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       key={org.id}
                       type="button"
                       onClick={() => setSelectedOrgId(org.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 pill-press ${
                         selectedOrgId === org.id
                           ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                           : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
@@ -550,7 +549,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       key={preset.label}
                       type="button"
                       onClick={() => setCoverImageUrl(preset.url)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap border transition-all ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap border transition-all pill-press ${
                         coverImageUrl === preset.url
                           ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold'
                           : 'bg-[#1A1E2E] border-white/5 text-gray-400 hover:text-white'
@@ -580,7 +579,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <button
               type="submit"
               disabled={isLoading || isUploadingImage}
-              className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -180,6 +180,14 @@ export const telegram = {
     }
   },
 
+  hapticSelection() {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.selectionChanged();
+    } catch {
+      // Ignored outside Telegram
+    }
+  },
+
   showBackButton(onClick: () => void) {
     try {
       if (window.Telegram?.WebApp?.BackButton) {

@@ -39,8 +39,10 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-2">
           {onOpenSubscriptionsModal && (
             <button
-              onClick={onOpenSubscriptionsModal}
-              className="p-2 rounded-full bg-[#181C2A] border border-white/10 hover:border-indigo-500/40 text-gray-300 hover:text-white transition-all active:scale-95"
+              onClick={() => {
+                onOpenSubscriptionsModal();
+              }}
+              className="p-2 rounded-full bg-[#161A28] border border-white/8 hover:border-indigo-500/40 text-gray-300 hover:text-white btn-press transition-all"
               title="Мои подписки"
               aria-label="Мои подписки"
             >
@@ -50,8 +52,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Prominent City Selector */}
           <button
-            onClick={onOpenCityModal}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#181C2A] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#202538] transition-all text-xs font-semibold text-white shadow-sm active:scale-95"
+            onClick={() => {
+              onOpenCityModal();
+            }}
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#161A28] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#1E2336] text-xs font-semibold text-white shadow-sm btn-press transition-all"
             aria-label="Выбрать город"
           >
             <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />

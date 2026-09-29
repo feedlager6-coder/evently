@@ -17,6 +17,7 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
+import { AnimatedCounter } from './AnimatedCounter';
 
 interface OrganizationModalProps {
   orgIdOrSlug: string | null;
@@ -28,19 +29,23 @@ interface OrganizationModalProps {
   onSubscriptionChanged?: () => void;
 }
 
-export function formatFollowers(count: number): string {
+export function getFollowersWord(count: number): string {
   const mod10 = count % 10;
   const mod100 = count % 100;
   if (mod100 >= 11 && mod100 <= 19) {
-    return `${count} подписчиков`;
+    return 'подписчиков';
   }
   if (mod10 === 1) {
-    return `${count} подписчик`;
+    return 'подписчик';
   }
   if (mod10 >= 2 && mod10 <= 4) {
-    return `${count} подписчика`;
+    return 'подписчика';
   }
-  return `${count} подписчиков`;
+  return 'подписчиков';
+}
+
+export function formatFollowers(count: number): string {
+  return `${count} ${getFollowersWord(count)}`;
 }
 
 export const OrganizationModal: React.FC<OrganizationModalProps> = ({
@@ -164,16 +169,16 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
       <div
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh]"
+        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Actions */}
         <div className="relative p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
           >
             <X className="w-5 h-5" />
           </button>
@@ -182,7 +187,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
           </div>
           <button
             onClick={handleShare}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors text-xs font-medium"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors text-xs font-medium btn-press"
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>{copied ? 'Скопировано!' : 'Поделиться'}</span>
@@ -202,7 +207,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               <div className="text-sm font-semibold">{error}</div>
               <button
                 onClick={loadData}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2"
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2 btn-press"
               >
                 Повторить попытку
               </button>
@@ -241,9 +246,11 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       {org.category}
                     </span>
                     <span>•</span>
-                    <span className="text-indigo-400 font-semibold">
-                      {formatFollowers(org.followers_count)}
-                    </span>
+                    <AnimatedCounter
+                      value={org.followers_count}
+                      suffix={getFollowersWord(org.followers_count)}
+                      className="text-indigo-400 font-semibold"
+                    />
                   </div>
                 </div>
 
@@ -253,14 +260,14 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => onEditOrg?.(org)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors border border-white/10"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors border border-white/10 btn-press"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>Редактировать профиль</span>
                       </button>
                       <button
                         onClick={() => onOpenCreateEvent?.(org.id)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-indigo-600/30"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-indigo-600/30 btn-press"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Создать событие</span>
@@ -274,7 +281,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                         org.is_subscribed
                           ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 shadow-emerald-500/10'
                           : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
-                      } active:scale-[0.98] disabled:opacity-75`}
+                      } btn-press disabled:opacity-75`}
                     >
                       {isSubscribing ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -380,7 +387,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                             onClose();
                             onEventClick(ev);
                           }}
-                          className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer active:scale-[0.99]"
+                          className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer card-press"
                         >
                           <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 shrink-0">
                             <img

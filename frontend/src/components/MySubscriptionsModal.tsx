@@ -54,16 +54,16 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
       <div
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors"
+            className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
           >
             <X className="w-5 h-5" />
           </button>
@@ -87,7 +87,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
               <div className="text-xs font-semibold">{error}</div>
               <button
                 onClick={loadSubscriptions}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2"
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2 btn-press"
               >
                 Повторить попытку
               </button>
@@ -119,7 +119,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
                       onClose();
                       onSelectOrg(org.id);
                     }}
-                    className="flex items-center space-x-3.5 p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer active:scale-[0.99]"
+                    className="flex items-center space-x-3.5 p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer card-press"
                   >
                     <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border border-indigo-500/30 flex items-center justify-center shrink-0">
                       {org.avatar_url ? (

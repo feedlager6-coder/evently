@@ -5,10 +5,44 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  :root {
+    /* Background Design Tokens */
+    --bg-canvas: #0B0D13;
+    --bg-elevated: #131722;
+    --bg-surface: #191E2E;
+    --bg-glass-nav: rgba(14, 16, 26, 0.88);
+
+    /* Border Tokens */
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-active: rgba(99, 102, 241, 0.45);
+
+    /* Brand Accent & Glow Tokens */
+    --brand-primary: #6366F1;
+    --brand-purple: #8B5CF6;
+    --brand-glow: rgba(99, 102, 241, 0.25);
+    --brand-glow-emerald: rgba(16, 185, 129, 0.3);
+
+    /* Typography Tokens */
+    --text-primary: #FFFFFF;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+
+    /* Physics Curves */
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-sheet: cubic-bezier(0.2, 0.9, 0.2, 1);
+
+    /* Safe Area Insets for iOS & Telegram Mini App */
+    --safe-bottom: max(
+      env(safe-area-inset-bottom, 0px),
+      var(--tg-safe-area-inset-bottom, 0px),
+      var(--tg-content-safe-area-inset-bottom, 0px)
+    );
+  }
+
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #0B0D13;
-    color: #F3F4F6;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
     min-height: 100vh;
     min-height: -webkit-fill-available;
     overflow-x: hidden;
@@ -24,46 +58,122 @@
   scrollbar-width: none;
 }
 
-/* Telegram glassmorphism cards */
+/* Telegram glassmorphism panels (for chrome & floating overlays) */
 .glass-panel {
-  background: rgba(22, 24, 34, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-glass-nav);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
 }
 
-.glass-card {
-  background: #141721;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+/* Tactile Micro-Interactions (Hardware Accelerated) */
+.btn-press {
+  transition: transform 140ms var(--ease-spring), opacity 140ms ease, box-shadow 140ms ease;
+  will-change: transform;
+}
+.btn-press:active {
+  transform: scale(0.97);
 }
 
-.glass-card:active {
+.pill-press {
+  transition: transform 120ms var(--ease-spring), background-color 160ms ease, border-color 160ms ease;
+  will-change: transform;
+}
+.pill-press:active {
+  transform: scale(0.95);
+}
+
+.card-press {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  transition: transform 200ms var(--ease-spring), border-color 200ms ease, box-shadow 200ms ease;
+  will-change: transform;
+}
+.card-press:active {
   transform: scale(0.985);
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: var(--border-active);
 }
 
-/* Safe Area Insets for iOS & Telegram Mini App */
-:root {
-  --safe-bottom: max(
-    env(safe-area-inset-bottom, 0px),
-    var(--tg-safe-area-inset-bottom, 0px),
-    var(--tg-content-safe-area-inset-bottom, 0px)
-  );
+/* Sheet & Modal Animations */
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
-/* Fixed Bottom Navigation: sits safely above iOS Home Indicator, 0 extra gap on Android/Desktop */
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sheet-slide-up {
+  animation: sheetSlideUp 280ms var(--ease-sheet) forwards;
+  will-change: transform;
+}
+
+.backdrop-fade-in {
+  animation: backdropFadeIn 200ms ease-out forwards;
+}
+
+/* Counter Roll Animations */
+@keyframes slideUpIn {
+  from {
+    transform: translateY(60%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDownIn {
+  from {
+    transform: translateY(-60%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up-in {
+  animation: slideUpIn 240ms var(--ease-spring) forwards;
+  display: inline-block;
+}
+
+.animate-slide-down-in {
+  animation: slideDownIn 240ms var(--ease-spring) forwards;
+  display: inline-block;
+}
+
+/* Atmospheric Glow Shadows */
+.glow-primary {
+  box-shadow: 0 4px 20px -2px var(--brand-glow);
+}
+
+.glow-success {
+  box-shadow: 0 4px 20px -2px var(--brand-glow-emerald);
+}
+
+/* Safe Area Containers */
 .nav-safe-bottom {
   padding-top: 0.5rem;
   padding-bottom: calc(0.5rem + var(--safe-bottom, 0px));
 }
 
-/* Scrollable Container Bottom Padding: ensures feed items aren't occluded by elevated navigation */
 .content-safe-bottom {
   padding-bottom: calc(6rem + var(--safe-bottom, 0px));
 }
 
-/* Bottom Sheet Action Bar: ensures RSVP button floats comfortably above iOS Home Indicator */
 .modal-safe-bottom {
   padding-top: 1rem;
   padding-left: 1rem;
@@ -71,3 +181,69 @@
   padding-bottom: calc(1rem + var(--safe-bottom, 0px));
 }
 
+/* RSVP Flagship Micro-Animation Keyframes */
+@keyframes scalePop {
+  0% { transform: scale(0.65); opacity: 0; }
+  65% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1.0); opacity: 1; }
+}
+
+@keyframes strideBurst {
+  0% { transform: scale(0.85) translateX(-3px); }
+  50% { transform: scale(1.05) translateX(1px); }
+  100% { transform: scale(1.0) translateX(0); }
+}
+
+@keyframes dash {
+  from { stroke-dashoffset: 8; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sparkle {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(167, 139, 250, 0.4)); }
+  50% { filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.9)); }
+}
+
+@keyframes legStride {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+@keyframes ticketGlow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px #34D399); }
+  50% { transform: scale(1.2); filter: drop-shadow(0 0 6px #10B981); }
+}
+
+.animate-scale-pop {
+  animation: scalePop 260ms var(--ease-spring) forwards;
+}
+
+.animate-stride-burst {
+  animation: strideBurst 550ms var(--ease-spring) forwards;
+}
+
+.animate-dash {
+  animation: dash 550ms linear infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 550ms ease-in-out infinite;
+}
+
+.animate-leg-stride {
+  animation: legStride 260ms ease-in-out infinite;
+}
+
+.animate-ticket-glow {
+  animation: ticketGlow 550ms ease-in-out infinite;
+}
+
+/* Accessibility: Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -100,8 +100,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       {/* Status Segmented Control */}
       <div className="flex bg-[#141724] p-1 rounded-xl border border-white/5 text-xs">
         <button
-          onClick={() => onStatusChange('pending')}
-          className={`flex-1 py-1.5 font-medium rounded-lg transition-all ${
+          onClick={() => {
+            telegram.hapticSelection();
+            onStatusChange('pending');
+          }}
+          className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
             activeStatus === 'pending'
               ? 'bg-indigo-600 text-white shadow'
               : 'text-gray-400 hover:text-white'
@@ -110,8 +113,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           На проверке
         </button>
         <button
-          onClick={() => onStatusChange('published')}
-          className={`flex-1 py-1.5 font-medium rounded-lg transition-all ${
+          onClick={() => {
+            telegram.hapticSelection();
+            onStatusChange('published');
+          }}
+          className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
             activeStatus === 'published'
               ? 'bg-indigo-600 text-white shadow'
               : 'text-gray-400 hover:text-white'
@@ -120,8 +126,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           Опубликованные
         </button>
         <button
-          onClick={() => onStatusChange('rejected')}
-          className={`flex-1 py-1.5 font-medium rounded-lg transition-all ${
+          onClick={() => {
+            telegram.hapticSelection();
+            onStatusChange('rejected');
+          }}
+          className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
             activeStatus === 'rejected'
               ? 'bg-indigo-600 text-white shadow'
               : 'text-gray-400 hover:text-white'
@@ -195,14 +204,14 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                       <button
                         type="submit"
                         disabled={isActing}
-                        className="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold"
+                        className="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold btn-press"
                       >
                         Подтвердить отказ
                       </button>
                       <button
                         type="button"
                         onClick={() => setRejectingId(null)}
-                        className="px-3 py-1 rounded-lg bg-white/10 text-gray-300"
+                        className="px-3 py-1 rounded-lg bg-white/10 text-gray-300 btn-press"
                       >
                         Отмена
                       </button>
@@ -219,7 +228,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                             setRejectingId(ev.id);
                           }}
                           disabled={isActing}
-                          className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold text-xs border border-red-500/20 transition-colors"
+                          className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold text-xs border border-red-500/20 transition-colors btn-press"
                         >
                           <X className="w-3.5 h-3.5" />
                           <span>Отклонить</span>
@@ -227,7 +236,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                         <button
                           onClick={(e) => handlePublish(e, ev.id)}
                           disabled={isActing}
-                          className="flex items-center space-x-1 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                          className="flex items-center space-x-1 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 transition-all btn-press"
                         >
                           {isActing ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -245,7 +254,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                       <button
                         onClick={(e) => handleCancel(e, ev.id)}
                         disabled={isActing}
-                        className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs border border-white/5 transition-colors"
+                        className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs border border-white/5 transition-colors btn-press"
                       >
                         <Ban className="w-3.5 h-3.5" />
                         <span>Снять с публикации</span>

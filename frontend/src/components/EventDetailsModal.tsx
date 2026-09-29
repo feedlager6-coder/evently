@@ -12,10 +12,12 @@ import {
   Ticket, 
   User as UserIcon,
   Building2,
-  ChevronRight,
-  Loader2
+  ChevronRight
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
+import { GoingAnimation } from './GoingAnimation';
+import type { GoingAnimationState } from './GoingAnimation';
+import { AnimatedCounter } from './AnimatedCounter';
 
 interface EventDetailsModalProps {
   event: EventResponse | null;
@@ -36,6 +38,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [rsvpAnimationPhase, setRsvpAnimationPhase] = useState<GoingAnimationState>('idle');
 
   if (!isOpen || !event) return null;
 
@@ -101,18 +104,40 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     }
   };
 
-
   const handleRsvpClick = async () => {
     if (isRsvpLoading) return;
-    telegram.hapticSuccess();
-    await onToggleRsvp(event.id, event.is_attending);
+
+    if (event.is_attending) {
+      // Canceling attendance
+      telegram.hapticImpact('light');
+      setRsvpAnimationPhase('loading');
+      try {
+        await onToggleRsvp(event.id, true);
+        setRsvpAnimationPhase('idle');
+      } catch {
+        setRsvpAnimationPhase('idle');
+      }
+    } else {
+      // Joining event: Flagship RSVP Sequence
+      telegram.hapticImpact('medium');
+      setRsvpAnimationPhase('loading');
+      try {
+        await onToggleRsvp(event.id, false);
+        // On successful HTTP confirmation, trigger the stride animation
+        setRsvpAnimationPhase('animating');
+        telegram.hapticSuccess();
+      } catch {
+        setRsvpAnimationPhase('idle');
+        telegram.hapticError();
+      }
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4">
-      {/* Bottom Sheet Modal Container */}
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-fade-in p-0 sm:p-4">
+      {/* Bottom Sheet Modal Container with physics slide up */}
       <div 
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-3xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh]"
+        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Media / Hero */}
@@ -269,33 +294,50 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           {/* Attendees Summary */}
           <div className="flex items-center space-x-2 text-xs text-gray-400 py-1">
             <Users className="w-4 h-4 text-indigo-400" />
-            <span>Уже идут: <strong className="text-white font-semibold">{event.attendee_count} человек</strong></span>
+            <span>
+              Уже идут:{' '}
+              <strong className="text-white font-semibold">
+                <AnimatedCounter
+                  value={event.attendee_count}
+                  suffix={event.attendee_count === 1 ? 'человек' : 'человек(а)'}
+                />
+              </strong>
+            </span>
           </div>
         </div>
 
         {/* Sticky Bottom RSVP Action Bar */}
-        <div className="modal-safe-bottom bg-[#141724] border-t border-white/8 shrink-0">
+        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0">
           <button
             onClick={handleRsvpClick}
             disabled={isRsvpLoading}
-            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 transition-all duration-300 shadow-xl ${
-              event.is_attending
-                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
-            } active:scale-[0.98] disabled:opacity-75`}
+            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2.5 transition-all duration-300 shadow-xl btn-press ${
+              event.is_attending || rsvpAnimationPhase === 'animating'
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 glow-success'
+                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/30 glow-primary'
+            } disabled:opacity-75`}
           >
-            {isRsvpLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+            <GoingAnimation
+              state={
+                rsvpAnimationPhase === 'animating'
+                  ? 'animating'
+                  : isRsvpLoading
+                  ? 'loading'
+                  : event.is_attending
+                  ? 'success'
+                  : 'idle'
+              }
+              onAnimationEnd={() => setRsvpAnimationPhase('success')}
+              size={20}
+            />
+            {rsvpAnimationPhase === 'animating' ? (
+              <span>Я иду! 🎟️</span>
+            ) : isRsvpLoading && rsvpAnimationPhase === 'loading' ? (
+              <span>Обновление...</span>
             ) : event.is_attending ? (
-              <>
-                <Check className="w-5 h-5 stroke-[2.5]" />
-                <span>✓ Вы идёте (нажмите, чтобы отменить)</span>
-              </>
+              <span>✓ Вы идёте (нажмите, чтобы отменить)</span>
             ) : (
-              <>
-                <Ticket className="w-5 h-5" />
-                <span>Я иду</span>
-              </>
+              <span>Я иду</span>
             )}
           </button>
         </div>

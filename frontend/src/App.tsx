@@ -331,7 +331,7 @@ export const App: React.FC = () => {
                   </div>
                   <button
                     onClick={() => loadFeedEvents()}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium hover:bg-indigo-600/40 transition-colors"
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium hover:bg-indigo-600/40 transition-colors btn-press"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Повторить попытку</span>
@@ -354,7 +354,7 @@ export const App: React.FC = () => {
                         setDateFilter('all');
                         setSelectedCategoryId(undefined);
                       }}
-                      className="px-4 py-2 rounded-xl bg-indigo-600/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-600/40"
+                      className="px-4 py-2 rounded-xl bg-indigo-600/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-600/40 btn-press"
                     >
                       Сбросить фильтры
                     </button>

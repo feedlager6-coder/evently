@@ -44,7 +44,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         </div>
         <button
           onClick={onOpenCreateModal}
-          className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all shrink-0 active:scale-95"
+          className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all shrink-0 btn-press"
         >
           <Plus className="w-4 h-4" />
           <span>Создать</span>
@@ -59,7 +59,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
           </h4>
           <button
             onClick={onOpenCreateOrgModal}
-            className="flex items-center space-x-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+            className="flex items-center space-x-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium btn-press"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Создать профиль</span>
@@ -83,7 +83,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
             <button
               onClick={onOpenCreateOrgModal}
-              className="px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/40 text-xs font-medium shrink-0"
+              className="px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/40 text-xs font-medium shrink-0 btn-press"
             >
               Создать
             </button>
@@ -94,7 +94,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               <div
                 key={org.id}
                 onClick={() => onOrgClick?.(org)}
-                className="p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer flex items-center justify-between group active:scale-[0.99]"
+                className="p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer flex items-center justify-between group card-press"
               >
                 <div className="flex items-center space-x-3 min-w-0">
                   <div className="w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border border-indigo-500/30 flex items-center justify-center shrink-0">
@@ -154,7 +154,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
             <button
               onClick={onOpenCreateModal}
-              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500"
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
             >
               Создать первое событие
             </button>
@@ -172,7 +172,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               <div
                 key={ev.id}
                 onClick={() => onEventClick(ev)}
-                className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer space-y-2.5"
+                className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer space-y-2.5 card-press"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-semibold text-sm text-white line-clamp-1">{ev.title}</div>
