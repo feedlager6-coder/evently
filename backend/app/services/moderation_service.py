@@ -55,6 +55,8 @@ async def get_admin_events(
                 city_name=c_name,
                 start_at=event.start_at,
                 venue_name=event.venue_name,
+                latitude=event.latitude,
+                longitude=event.longitude,
                 price_amount=event.price_amount,
                 price_currency=event.price_currency,
                 is_free=(event.price_amount is None or event.price_amount == 0),

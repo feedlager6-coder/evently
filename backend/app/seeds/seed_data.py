@@ -12,19 +12,13 @@ logger = logging.getLogger("evently.seeds")
 
 CITIES_DATA = [
     {
-        "id": "warsaw",
-        "name": "Варшава",
-        "country": "Польша",
-        "timezone": "Europe/Warsaw",
-        "currency": "PLN",
-        "is_active": True
-    },
-    {
         "id": "makhachkala",
         "name": "Махачкала",
         "country": "Россия",
         "timezone": "Europe/Moscow",
         "currency": "RUB",
+        "latitude": 42.9849,
+        "longitude": 47.5047,
         "is_active": True
     },
     {
@@ -33,6 +27,138 @@ CITIES_DATA = [
         "country": "Россия",
         "timezone": "Europe/Moscow",
         "currency": "RUB",
+        "latitude": 55.7558,
+        "longitude": 37.6173,
+        "is_active": True
+    },
+    {
+        "id": "spb",
+        "name": "Санкт-Петербург",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 59.9343,
+        "longitude": 30.3351,
+        "is_active": True
+    },
+    {
+        "id": "kazan",
+        "name": "Казань",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 55.7961,
+        "longitude": 49.1064,
+        "is_active": True
+    },
+    {
+        "id": "krasnodar",
+        "name": "Краснодар",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 45.0355,
+        "longitude": 38.9753,
+        "is_active": True
+    },
+    {
+        "id": "rostov_on_don",
+        "name": "Ростов-на-Дону",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 47.2357,
+        "longitude": 39.7015,
+        "is_active": True
+    },
+    {
+        "id": "yekaterinburg",
+        "name": "Екатеринбург",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 56.8389,
+        "longitude": 60.6057,
+        "is_active": True
+    },
+    {
+        "id": "novosibirsk",
+        "name": "Новосибирск",
+        "country": "Россия",
+        "timezone": "Asia/Novosibirsk",
+        "currency": "RUB",
+        "latitude": 55.0084,
+        "longitude": 82.9357,
+        "is_active": True
+    },
+    {
+        "id": "nizhny_novgorod",
+        "name": "Нижний Новгород",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 56.3269,
+        "longitude": 44.0059,
+        "is_active": True
+    },
+    {
+        "id": "samara",
+        "name": "Самара",
+        "country": "Россия",
+        "timezone": "Europe/Samara",
+        "currency": "RUB",
+        "latitude": 53.1959,
+        "longitude": 50.1002,
+        "is_active": True
+    },
+    {
+        "id": "ufa",
+        "name": "Уфа",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 54.7388,
+        "longitude": 55.9721,
+        "is_active": True
+    },
+    {
+        "id": "voronezh",
+        "name": "Воронеж",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 51.6615,
+        "longitude": 39.2003,
+        "is_active": True
+    },
+    {
+        "id": "perm",
+        "name": "Пермь",
+        "country": "Россия",
+        "timezone": "Asia/Yekaterinburg",
+        "currency": "RUB",
+        "latitude": 58.0105,
+        "longitude": 56.2502,
+        "is_active": True
+    },
+    {
+        "id": "volgograd",
+        "name": "Волгоград",
+        "country": "Россия",
+        "timezone": "Europe/Volgograd",
+        "currency": "RUB",
+        "latitude": 48.7080,
+        "longitude": 44.5133,
+        "is_active": True
+    },
+    {
+        "id": "sochi",
+        "name": "Сочи",
+        "country": "Россия",
+        "timezone": "Europe/Moscow",
+        "currency": "RUB",
+        "latitude": 43.6028,
+        "longitude": 39.7342,
         "is_active": True
     }
 ]
@@ -51,146 +177,166 @@ CATEGORIES_DATA = [
 def generate_seed_events(organizer_id: int) -> list:
     now = datetime.now(timezone.utc)
 
-    # 10 Warsaw Events
-    warsaw_events = [
+    # 10 Saint Petersburg Events
+    spb_events = [
         {
-            "id": "waw_01",
-            "title": "Tech Meetup Warsaw: AI & Distributed Systems",
+            "id": "spb_01",
+            "title": "Tech Meetup SPb: AI & High-Load Systems",
             "description": "Ежемесячный митап инженеров и исследователей. Обсуждаем архитектуру больших языковых моделей и high-load сервисы.",
             "cover_image_url": "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800",
             "category_id": "education",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(hours=4),  # Today
-            "venue_name": "Google for Startups Campus",
-            "address": "Plac Konesera 10, Warszawa",
+            "venue_name": "Лофт Проект Этажи",
+            "address": "Лиговский пр. 74, Санкт-Петербург",
+            "latitude": 59.9221,
+            "longitude": 30.3556,
             "price_amount": None,
-            "price_currency": "PLN",
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_02",
-            "title": "Warsaw Indie Rock Live Night",
-            "description": "Живой концерт независимых польских и европейских групп. Уютная клубная атмосфера и аутентичный звук.",
+            "id": "spb_02",
+            "title": "SPb Indie Rock Live Night",
+            "description": "Живой концерт независимых петербургских групп. Уютная клубная атмосфера и аутентичный звук.",
             "cover_image_url": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800",
             "category_id": "concerts",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=1, hours=2),  # Tomorrow
-            "venue_name": "Klub Progresja",
-            "address": "Fort Wola 22, Warszawa",
-            "price_amount": 75.0,
-            "price_currency": "PLN",
+            "venue_name": "Клуб Космонавт",
+            "address": "Бронницкая ул. 24, Санкт-Петербург",
+            "latitude": 59.9148,
+            "longitude": 30.3182,
+            "price_amount": 1200.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_03",
+            "id": "spb_03",
             "title": "Electronic Sunset Rooftop Party",
-            "description": "Танцевальная вечеринка на крыше с панорамным видом на центр Варшавы. Deep house и melodic techno.",
+            "description": "Танцевальная вечеринка на крыше с панорамным видом на Неву и центр Петербурга. Deep house и melodic techno.",
             "cover_image_url": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800",
             "category_id": "parties",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=2, hours=5),  # Weekend
-            "venue_name": "The View Rooftop",
-            "address": "Twarda 18, Warszawa",
-            "price_amount": 50.0,
-            "price_currency": "PLN",
+            "venue_name": "Крыша Hi-Hat",
+            "address": "Аптекарский пр. 4, Санкт-Петербург",
+            "latitude": 59.9723,
+            "longitude": 30.3155,
+            "price_amount": 900.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_04",
-            "title": "Wisła Morning 10K Running Tour",
-            "description": "Совместная утренняя пробежка вдоль набережной Вислы. Разминка с профессиональным тренером.",
+            "id": "spb_04",
+            "title": "Neva Morning 10K Running Tour",
+            "description": "Совместная утренняя пробежка вдоль набережных Невы. Разминка с профессиональным тренером.",
             "cover_image_url": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800",
             "category_id": "sports",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=3, hours=1),
-            "venue_name": "Bulwary Wiślane",
-            "address": "Wybrzeże Kościuszkowskie, Warszawa",
+            "venue_name": "Дворцовая набережная",
+            "address": "Дворцовая наб. 32, Санкт-Петербург",
+            "latitude": 59.9419,
+            "longitude": 30.3168,
             "price_amount": None,
-            "price_currency": "PLN",
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_05",
-            "title": "CEE Founders & Investors Breakfast",
-            "description": "Закрытая встреча основателей технологических стартапов и венчурных фондов Центральной Европы.",
+            "id": "spb_05",
+            "title": "SPb Founders & IT Breakfast",
+            "description": "Встреча основателей технологических стартапов и инвесторов. Питчи проектов и обмен опытом.",
             "cover_image_url": "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=800",
             "category_id": "business",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=4, hours=3),
-            "venue_name": "WeWork Mennica Legacy",
-            "address": "Prosta 20, Warszawa",
-            "price_amount": 120.0,
-            "price_currency": "PLN",
+            "venue_name": "Коворкинг Ясная Поляна",
+            "address": "ул. Льва Толстого 1-3, Санкт-Петербург",
+            "latitude": 59.9658,
+            "longitude": 30.3149,
+            "price_amount": 1500.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_06",
-            "title": "Modern Polish Digital Art Expo",
+            "id": "spb_06",
+            "title": "Modern Digital Art Expo",
             "description": "Выставка мультимедийного искусства нового поколения: проекционные инсталляции и generative visual art.",
             "cover_image_url": "https://images.unsplash.com/photo-1508997449629-303059a039c0?w=800",
             "category_id": "exhibitions",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=5, hours=2),
-            "venue_name": "Centrum Sztuki Współczesnej",
-            "address": "Jazdów 2, Warszawa",
-            "price_amount": 35.0,
-            "price_currency": "PLN",
+            "venue_name": "Севкабель Порт",
+            "address": "Кожевенная линия 40, Санкт-Петербург",
+            "latitude": 59.9242,
+            "longitude": 30.2415,
+            "price_amount": 600.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_07",
-            "title": "Warsaw Board Games & Social Evening",
-            "description": "Уютный вечер настольных игр для экспатов и местных жителей. Более 100 популярных игр.",
+            "id": "spb_07",
+            "title": "SPb Board Games & Social Evening",
+            "description": "Уютный вечер настольных игр. Более 100 популярных настолок, ведущие объясняют правила.",
             "cover_image_url": "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=800",
             "category_id": "other",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=6, hours=4),
-            "venue_name": "Paradox Cafe",
-            "address": "Anielewicza 2, Warszawa",
-            "price_amount": 20.0,
-            "price_currency": "PLN",
+            "venue_name": "Playloft GAGARIN",
+            "address": "ул. Марата 34, Санкт-Петербург",
+            "latitude": 59.9265,
+            "longitude": 30.3498,
+            "price_amount": 400.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_08",
-            "title": "Jazz Club Showcase: Warsaw Trio",
-            "description": "Классический джаз и современные импровизации в одном из старейших джазовых клубов Европы.",
+            "id": "spb_08",
+            "title": "Jazz Evening: Neva Trio",
+            "description": "Классический джаз и современные импровизации в историческом джазовом клубе.",
             "cover_image_url": "https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=800",
             "category_id": "concerts",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=7, hours=2),
-            "venue_name": "Jazz Club Tygmont",
-            "address": "Mazowiecka 6/8, Warszawa",
-            "price_amount": 60.0,
-            "price_currency": "PLN",
+            "venue_name": "JFC Jazz Club",
+            "address": "Шпалерная ул. 33, Санкт-Петербург",
+            "latitude": 59.9482,
+            "longitude": 30.3582,
+            "price_amount": 1000.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_09",
-            "title": "Warsaw Open Squash Championship",
+            "id": "spb_09",
+            "title": "SPb Squash & Tennis Championship",
             "description": "Любительский турнир по сквошу среди спортсменов уровней B и C. Награды победителям.",
             "cover_image_url": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800",
             "category_id": "sports",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=8, hours=3),
-            "venue_name": "Kahuna Squash & Badminton",
-            "address": "Zawodzie 26, Warszawa",
-            "price_amount": 90.0,
-            "price_currency": "PLN",
+            "venue_name": "RC Club Squash",
+            "address": "Крестовский остров, Константиновский пр. 19, Санкт-Петербург",
+            "latitude": 59.9729,
+            "longitude": 30.2642,
+            "price_amount": 1500.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
         {
-            "id": "waw_10",
-            "title": "Warsaw Product Design Workshop",
+            "id": "spb_10",
+            "title": "SPb Product Design Workshop",
             "description": "Практический воркшоп по созданию адаптивных мобильных интерфейсов и design systems в Figma.",
             "cover_image_url": "https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=800",
             "category_id": "education",
-            "city_id": "warsaw",
+            "city_id": "spb",
             "start_at": now + timedelta(days=9, hours=4),
-            "venue_name": "HubHub Nowogrodzka",
-            "address": "Nowogrodzka 56a, Warszawa",
-            "price_amount": 150.0,
-            "price_currency": "PLN",
+            "venue_name": "Пространство К-30",
+            "address": "Кожевенная линия 30, Санкт-Петербург",
+            "latitude": 59.9231,
+            "longitude": 30.2458,
+            "price_amount": 2000.0,
+            "price_currency": "RUB",
             "status": EventStatus.PUBLISHED.value,
         },
     ]
@@ -483,19 +629,35 @@ def generate_seed_events(organizer_id: int) -> list:
         },
     ]
 
-    return warsaw_events + makhachkala_events + moscow_events
+    return spb_events + makhachkala_events + moscow_events
 
 
 async def seed_database(session: AsyncSession) -> None:
     """
-    Seeds database with initial cities, categories, demo organizer, and 30 realistic events.
-    Safe and idempotent: checks existing IDs before inserting.
+    Seeds database with initial cities, categories, demo organizer, and realistic events.
+    Safe and idempotent: checks existing IDs before inserting and updates attributes.
     """
-    # 1. Seed Cities
+    # 1. Seed Cities (15 Russian Cities)
     for c_data in CITIES_DATA:
-        existing = await session.execute(select(City).where(City.id == c_data["id"]))
-        if not existing.scalar_one_or_none():
+        existing_res = await session.execute(select(City).where(City.id == c_data["id"]))
+        existing_city = existing_res.scalar_one_or_none()
+        if not existing_city:
             session.add(City(**c_data))
+        else:
+            existing_city.name = c_data["name"]
+            existing_city.country = c_data["country"]
+            existing_city.timezone = c_data["timezone"]
+            existing_city.currency = c_data["currency"]
+            existing_city.latitude = c_data.get("latitude")
+            existing_city.longitude = c_data.get("longitude")
+            existing_city.is_active = c_data.get("is_active", True)
+
+    # Deactivate Warsaw if present from previous deployment
+    waw_res = await session.execute(select(City).where(City.id == "warsaw"))
+    waw_city = waw_res.scalar_one_or_none()
+    if waw_city:
+        waw_city.is_active = False
+
     await session.commit()
 
     # 2. Seed Categories
@@ -515,13 +677,17 @@ async def seed_database(session: AsyncSession) -> None:
             username="evently_admin",
             first_name="Evently",
             last_name="Curator",
-            default_city_id="warsaw"
+            default_city_id="makhachkala"
         )
         session.add(admin_user)
         await session.commit()
         await session.refresh(admin_user)
+    else:
+        if admin_user.default_city_id == "warsaw":
+            admin_user.default_city_id = "makhachkala"
+            await session.commit()
 
-    # 4. Seed Events (30 events across Warsaw, Makhachkala, Moscow)
+    # 4. Seed Events (30 events across SPb, Makhachkala, Moscow)
     events_data = generate_seed_events(organizer_id=admin_user.id)
     for ev_data in events_data:
         existing = await session.execute(select(Event).where(Event.id == ev_data["id"]))
@@ -529,4 +695,5 @@ async def seed_database(session: AsyncSession) -> None:
             event = Event(organizer_user_id=admin_user.id, **ev_data)
             session.add(event)
     await session.commit()
-    logger.info("Database successfully seeded with 3 cities, 7 categories, and 30 demo events.")
+    logger.info("Database successfully seeded with 15 Russian cities, 7 categories, and 30 demo events.")
+

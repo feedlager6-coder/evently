@@ -107,6 +107,14 @@ export const telegram = {
     }
   },
 
+  hapticError() {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+    } catch {
+      // Ignored outside Telegram
+    }
+  },
+
   hapticImpact(style: 'light' | 'medium' | 'heavy' = 'medium') {
     try {
       window.Telegram?.WebApp?.HapticFeedback?.impactOccurred(style);
@@ -134,5 +142,63 @@ export const telegram = {
     } catch {
       // Ignored outside Telegram
     }
+  },
+
+  async requestLocation(): Promise<{ latitude: number; longitude: number } | null> {
+    // 1. Try official Telegram WebApp LocationManager (Bot API 8.0+)
+    const tgLocationManager = (window.Telegram?.WebApp as any)?.LocationManager;
+    if (tgLocationManager) {
+      try {
+        const result = await new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+          const fetchLoc = () => {
+            try {
+              tgLocationManager.getLocation((data: any) => {
+                if (data && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                  resolve({ latitude: data.latitude, longitude: data.longitude });
+                } else {
+                  resolve(null);
+                }
+              });
+            } catch {
+              resolve(null);
+            }
+          };
+
+          if (tgLocationManager.isInited) {
+            fetchLoc();
+          } else {
+            tgLocationManager.init(() => {
+              fetchLoc();
+            });
+          }
+        });
+        if (result) return result;
+      } catch {
+        // Fallback to standard navigator geolocation
+      }
+    }
+
+    // 2. Fallback to standard browser geolocation
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        return await new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              resolve({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+              });
+            },
+            () => resolve(null),
+            { timeout: 8000, enableHighAccuracy: false }
+          );
+        });
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
   }
 };
+

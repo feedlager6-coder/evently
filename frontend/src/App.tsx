@@ -30,7 +30,7 @@ export const App: React.FC = () => {
   // Core metadata
   const [cities, setCities] = useState<City[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCityId, setSelectedCityId] = useState<string>('warsaw');
+  const [selectedCityId, setSelectedCityId] = useState<string>('makhachkala');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
 
@@ -71,21 +71,25 @@ export const App: React.FC = () => {
         ]);
         setCities(loadedCities);
         setCategories(loadedCategories);
-        if (loadedCities.length > 0) {
-          setSelectedCityId(loadedCities[0].id);
+
+        // City selection preference: localStorage -> geolocation -> makhachkala / first
+        const savedCityId = localStorage.getItem('evently_selected_city_id');
+        if (savedCityId && loadedCities.some((c) => c.id === savedCityId)) {
+          setSelectedCityId(savedCityId);
+        } else if (loadedCities.length > 0) {
+          const defaultCity = loadedCities.find((c) => c.id === 'makhachkala') || loadedCities[0];
+          setSelectedCityId(defaultCity.id);
         }
 
-        // Check if user is admin
+        // Verify user profile & admin permission via GET /api/v1/users/me
         try {
-          const adminQueue = await api.getAdminEvents('pending');
-          // If 200 OK without error, user is admin
-          setIsAdmin(true);
-          setAdminEvents(adminQueue);
+          const userProfile = await api.getCurrentUser();
+          setIsAdmin(Boolean(userProfile?.is_admin));
         } catch {
           setIsAdmin(false);
         }
 
-        // Handle Deep Linking via start_param (e.g., event_waw_01 or create)
+        // Handle Deep Linking via start_param (e.g., event_mkh_01 or create)
         const startParam = telegram.getStartParam();
         if (startParam) {
           if (startParam.startsWith('event_')) {
@@ -331,7 +335,14 @@ export const App: React.FC = () => {
         onClose={() => setIsCityModalOpen(false)}
         cities={cities}
         selectedCityId={selectedCityId}
-        onSelectCity={(cid) => setSelectedCityId(cid)}
+        onSelectCity={(cid) => {
+          setSelectedCityId(cid);
+          try {
+            localStorage.setItem('evently_selected_city_id', cid);
+          } catch (e) {
+            console.warn('Failed to save selected city:', e);
+          }
+        }}
       />
 
       {/* Event Details Sheet */}

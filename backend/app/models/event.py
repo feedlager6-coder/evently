@@ -29,6 +29,8 @@ class Event(Base):
     start_at = Column(DateTime(timezone=True), nullable=False, index=True)
     venue_name = Column(String(255), nullable=False)
     address = Column(String(255), nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     price_amount = Column(Float, nullable=True)
     price_currency = Column(String(10), nullable=True)
     status = Column(String(20), nullable=False, default=EventStatus.PENDING.value, index=True)

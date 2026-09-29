@@ -20,15 +20,18 @@ router = APIRouter(prefix="/admin", tags=["Admin Moderation"])
 
 @router.get("/events", response_model=List[EventSummary])
 async def list_moderation_queue(
-    status_filter: Optional[str] = Query("pending", pattern="^(pending|published|rejected|cancelled|all)$"),
+    status: Optional[str] = Query(None, pattern="^(pending|published|rejected|cancelled|all)$"),
+    status_filter: Optional[str] = Query(None, pattern="^(pending|published|rejected|cancelled|all)$"),
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
     Admin moderation queue. Lists events filtered by status (default 'pending').
+    Accepts both ?status= and ?status_filter= parameters for seamless frontend compatibility.
     Protected by admin RBAC check.
     """
-    effective_status = None if status_filter == "all" else status_filter
+    raw_status = status or status_filter or "pending"
+    effective_status = None if raw_status == "all" else raw_status
     return await get_admin_events(session, status_filter=effective_status)
 
 

@@ -94,7 +94,7 @@ async def handle_inline_query(
     user = inline_query.get("from", {})
     user_id = user.get("id")
 
-    parsed = parse_query(query_text, default_city_id="warsaw")
+    parsed = parse_query(query_text, default_city_id="makhachkala")
 
     # Fetch events
     events, total = await list_published_events(
@@ -167,21 +167,27 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not text or not chat_id:
         return None
 
+    bot_username = settings.TELEGRAM_BOT_USERNAME or "Ivently_bot"
+
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
         return {
             "chat_id": chat_id,
             "text": (
-                "👋 <b>Добро пожаловать в Evently!</b>\n\n"
-                "Evently — ваш Telegram-проводник в мир ярких событий, концертов, вечеринок и митапов.\n\n"
-                "• Напишите в любом чате <code>@evently мероприятия в Варшаве</code> для быстрого поиска.\n"
-                "• Или откройте Mini App ниже для полноценного каталога и отметки «Я иду»."
+                "👋 <b>Добро пожаловать в Evently — события рядом!</b>\n\n"
+                "Evently — ваш проводник в мир ярких событий, концертов, вечеринок и митапов.\n\n"
+                "• Нажмите <b>«🔎 Найти события»</b> ниже, чтобы выбрать чат и найти события прямо в строке ввода.\n"
+                f"• Или напишите в любом чате: <code>@{bot_username} Махачкала</code> (или другой город/категорию).\n"
+                "• Для просмотра всей афиши, фильтров по датам и отметки «Я иду» откройте Mini App."
             ),
             "parse_mode": "HTML",
             "reply_markup": {
                 "inline_keyboard": [
                     [
                         build_mini_app_button("🎟️ Открыть Evently", start_param or None)
+                    ],
+                    [
+                        {"text": "🔎 Найти события", "switch_inline_query": ""}
                     ],
                     [
                         build_mini_app_button("➕ Создать мероприятие", "create")
@@ -214,6 +220,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "chat_id": chat_id,
                 "text": (
                     "🛡️ <b>Панель администратора Evently</b>\n\n"
+                    f"Ваш Telegram ID: <code>{user_id}</code>\n\n"
                     "Вы авторизованы как администратор. "
                     "Вам доступны функции модерации заявок, публикации и отмены мероприятий."
                 ),
@@ -229,7 +236,11 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         else:
             return {
                 "chat_id": chat_id,
-                "text": "⛔ У вас нет прав администратора для использования этой команды.",
+                "text": (
+                    f"⛔ <b>У вас нет прав администратора</b> для использования этой команды.\n\n"
+                    f"Ваш Telegram ID: <code>{user_id}</code>\n\n"
+                    f"Чтобы получить доступ к панели модерации, добавьте этот ID в переменную окружения <code>ADMIN_USER_IDS</code> в настройках проекта на Railway."
+                ),
                 "parse_mode": "HTML"
             }
 
@@ -239,7 +250,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "text": (
                 "ℹ️ <b>Как пользоваться Evently:</b>\n\n"
                 "1. <b>Быстрый поиск в любом чате:</b>\n"
-                "   Напишите <code>@evently [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
+                f"   Нажмите «🔎 Найти события» или напишите <code>@{bot_username} [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
                 "2. <b>Telegram Mini App:</b>\n"
                 "   Нажмите кнопку ниже, чтобы открыть афишу, фильтровать события и отмечаться «Я иду».\n\n"
                 "3. <b>Организаторам:</b>\n"
@@ -250,6 +261,9 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "inline_keyboard": [
                     [
                         build_mini_app_button("🎟️ Открыть Evently")
+                    ],
+                    [
+                        {"text": "🔎 Найти события", "switch_inline_query": ""}
                     ]
                 ]
             }

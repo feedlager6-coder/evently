@@ -1,18 +1,17 @@
 import React from 'react';
 import type { City, TelegramWebAppUser } from '../types';
-import { MapPin, ChevronDown, Ticket, Sparkles } from 'lucide-react';
+import { MapPin, ChevronDown, Ticket } from 'lucide-react';
 
 interface HeaderProps {
   currentCity?: City;
   onOpenCityModal: () => void;
-  user: TelegramWebAppUser | null;
+  user?: TelegramWebAppUser | null;
   isAdmin: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentCity,
   onOpenCityModal,
-  user,
   isAdmin
 }) => {
   return (
@@ -33,31 +32,20 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* City Selector Pill */}
+        {/* Prominent City Selector on the right */}
         <button
           onClick={onOpenCityModal}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#181C2A] border border-white/10 hover:border-indigo-500/50 hover:bg-[#202538] transition-all text-xs font-medium text-gray-200 shadow-sm"
+          className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#181C2A] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#202538] transition-all text-xs font-semibold text-white shadow-sm active:scale-95"
+          aria-label="Выбрать город"
         >
-          <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-          <span>{currentCity ? currentCity.name : 'Выбрать город'}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <span className="max-w-[140px] truncate">
+            {currentCity ? currentCity.name : 'Выбрать город'}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
         </button>
-
-        {/* User avatar / badge */}
-        <div className="flex items-center">
-          {user ? (
-            <div className="flex items-center space-x-1.5 text-xs text-gray-300 bg-white/5 py-1 px-2.5 rounded-full border border-white/5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-medium max-w-[80px] truncate">{user.first_name}</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-1 text-xs text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-full border border-indigo-500/20">
-              <Sparkles className="w-3 h-3" />
-              <span>Гость</span>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );
 };
+

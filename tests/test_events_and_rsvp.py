@@ -19,17 +19,21 @@ async def test_created_event_defaults_to_pending(test_session):
         description="Founders pitching to seed investors.",
         cover_image_url="https://images.unsplash.com/photo-1515187029135-18ee286d815b",
         category_id="business",
-        city_id="warsaw",
+        city_id="makhachkala",
         start_at=now + timedelta(days=2),
-        venue_name="Venture Hub",
-        address="ul. Chmielna 10, Warszawa",
-        price_amount=50.0,
-        price_currency="PLN"
+        venue_name="IT Park",
+        address="ул. Магомеда Гаджиева, 5",
+        latitude=42.9831,
+        longitude=47.5046,
+        price_amount=500.0,
+        price_currency="RUB"
     )
 
     event = await create_organizer_event(test_session, create_data, organizer_user_id=1)
     assert event.id is not None
     assert event.status == EventStatus.PENDING.value
+    assert event.latitude == 42.9831
+    assert event.longitude == 47.5046
 
 
 @pytest.mark.asyncio
@@ -41,17 +45,17 @@ async def test_published_visible_others_invisible(test_session):
         title="Secret Gathering (Pending)",
         description="Not yet approved by admin.",
         category_id="parties",
-        city_id="warsaw",
+        city_id="makhachkala",
         start_at=now + timedelta(days=1),
         venue_name="Secret Basement",
-        address="ul. Ukryta 1",
+        address="ул. Ленина, 1",
         price_amount=None,
-        price_currency="PLN"
+        price_currency="RUB"
     )
     pending_event = await create_organizer_event(test_session, pending_data, organizer_user_id=1)
 
     # Query public discovery feed
-    events, total = await list_published_events(test_session, city_id="warsaw")
+    events, total = await list_published_events(test_session, city_id="makhachkala")
     event_ids = [e.id for e in events]
 
     assert pending_event.id not in event_ids
@@ -62,8 +66,9 @@ async def test_published_visible_others_invisible(test_session):
 
 @pytest.mark.asyncio
 async def test_rsvp_idempotency(test_session):
-    # Use existing published Warsaw event
-    events, _ = await list_published_events(test_session, city_id="warsaw")
+    # Use existing published SPb event
+    events, _ = await list_published_events(test_session, city_id="spb")
+    assert len(events) > 0
     target_event = events[0]
     initial_count = target_event.attendee_count
     user_id = 999

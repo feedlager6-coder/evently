@@ -11,9 +11,21 @@ class ParsedQuery(NamedTuple):
 
 
 CITY_PATTERNS = {
-    "warsaw": [r"\bваршав[аеуыо]?\b", r"\bwarsaw\b"],
     "makhachkala": [r"\bмахачкал[аеуыо]?\b", r"\bmakhachkala\b"],
     "moscow": [r"\bмоскв[аеуыо]?\b", r"\bmoscow\b"],
+    "spb": [r"\bсанкт-петербург[а-я]*\b", r"\bпетербург[а-я]*\b", r"\bпитер[а-я]*\b", r"\bspb\b", r"\bpiter\b", r"\bpetersburg\b"],
+    "kazan": [r"\bказан[ьиеяю]?\b", r"\bkazan\b"],
+    "krasnodar": [r"\bкраснодар[а-я]*\b", r"\bkrasnodar\b"],
+    "rostov_on_don": [r"\bростов[а-я]*\b", r"\brostov\b"],
+    "ekaterinburg": [r"\bекатеринбург[а-я]*\b", r"\bекб\b", r"\byekaterinburg\b", r"\bekaterinburg\b"],
+    "novosibirsk": [r"\bновосибирск[а-я]*\b", r"\bновосиб[а-я]*\b", r"\bnovosibirsk\b"],
+    "nizhny_novgorod": [r"\bнижн[иея]+й?\s*новгород[а-я]*\b", r"\bнижн[еи]й\b", r"\bnizhny\b"],
+    "samara": [r"\bсамар[аеуыо]?\b", r"\bsamara\b"],
+    "ufa": [r"\bуф[аеуыо]?\b", r"\bufa\b"],
+    "voronezh": [r"\bворонеж[а-я]*\b", r"\bvoronezh\b"],
+    "perm": [r"\bперм[ьиеяю]?\b", r"\bperm\b"],
+    "volgograd": [r"\bволгоград[а-я]*\b", r"\bvolgograd\b"],
+    "sochi": [r"\bсочи\b", r"\bsochi\b"],
 }
 
 CATEGORY_PATTERNS = {

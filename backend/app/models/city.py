@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -6,11 +6,13 @@ from app.database import Base
 class City(Base):
     __tablename__ = "cities"
 
-    id = Column(String(50), primary_key=True, index=True)  # e.g. "warsaw", "makhachkala", "moscow"
+    id = Column(String(50), primary_key=True, index=True)  # e.g. "makhachkala", "moscow"
     name = Column(String(100), nullable=False)
     country = Column(String(100), nullable=False)
-    timezone = Column(String(100), nullable=False)  # e.g. "Europe/Warsaw"
-    currency = Column(String(10), nullable=False)   # e.g. "PLN", "RUB"
+    timezone = Column(String(100), nullable=False)  # e.g. "Europe/Moscow"
+    currency = Column(String(10), nullable=False)   # e.g. "RUB"
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Relationships

@@ -5,17 +5,20 @@ import type {
   EventResponse,
   EventCreatePayload,
   DateFilterType,
-  EventStatus
+  EventStatus,
+  LocationSuggestion,
+  UserProfile
 } from '../types';
 import { telegram } from './telegram';
 
 const API_BASE = '/api/v1';
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(isJson: boolean = true): HeadersInit {
   const initData = telegram.getInitData();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
+  if (isJson) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (initData) {
     headers['Authorization'] = `tma ${initData}`;
   }
@@ -23,9 +26,20 @@ function getAuthHeaders(): HeadersInit {
 }
 
 export const api = {
-  async getCities(): Promise<City[]> {
-    const res = await fetch(`${API_BASE}/cities`);
+  async getCities(search?: string): Promise<City[]> {
+    const params = new URLSearchParams();
+    if (search && search.trim()) {
+      params.append('q', search.trim());
+    }
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/cities${queryStr}`);
     if (!res.ok) throw new Error('Failed to fetch cities');
+    return res.json();
+  },
+
+  async getNearestCity(latitude: number, longitude: number): Promise<City> {
+    const res = await fetch(`${API_BASE}/cities/nearest?latitude=${latitude}&longitude=${longitude}`);
+    if (!res.ok) throw new Error('Failed to determine nearest city');
     return res.json();
   },
 
@@ -58,6 +72,44 @@ export const api = {
     });
     if (!res.ok) throw new Error(`Event not found: ${eventId}`);
     return res.json();
+  },
+
+  async uploadCoverImage(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_BASE}/events/upload-cover`, {
+      method: 'POST',
+      headers: getAuthHeaders(false),
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Не удалось загрузить изображение');
+    }
+    return res.json();
+  },
+
+  async suggestLocations(q: string, cityId?: string): Promise<LocationSuggestion[]> {
+    const params = new URLSearchParams();
+    params.append('q', q);
+    if (cityId) params.append('city_id', cityId);
+
+    const res = await fetch(`${API_BASE}/locations/suggest?${params.toString()}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getCurrentUser(): Promise<UserProfile | null> {
+    try {
+      const res = await fetch(`${API_BASE}/users/me`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    }
   },
 
   async addRsvp(eventId: string): Promise<{ is_attending: boolean; attendee_count: number }> {
@@ -110,11 +162,12 @@ export const api = {
   },
 
   async getAdminEvents(status: EventStatus = 'pending'): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/admin/events?status=${status}`, {
+    const res = await fetch(`${API_BASE}/admin/events?status=${status}&status_filter=${status}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
-      if (res.status === 403 || res.status === 401) return [];
+      if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
+      if (res.status === 401) throw new Error('Требуется авторизация в Telegram');
       throw new Error('Failed to fetch admin moderation queue');
     }
     return res.json();

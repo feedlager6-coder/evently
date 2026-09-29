@@ -108,6 +108,11 @@ async def health_check():
     }
 
 
+# Mount Uploads directory
+UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
+(UPLOADS_DIR / "covers").mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
 # Serve Frontend SPA if built bundle exists
 FRONTEND_DIST_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
@@ -119,10 +124,11 @@ if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        if full_path.startswith("api/") or full_path == "health":
+        if full_path.startswith("api/") or full_path.startswith("uploads/") or full_path == "health":
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Not Found")
         file_path = FRONTEND_DIST_DIR / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
         return FileResponse(FRONTEND_DIST_DIR / "index.html")
+

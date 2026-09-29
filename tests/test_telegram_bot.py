@@ -6,7 +6,7 @@ from app.services.telegram_bot import handle_inline_query, handle_private_messag
 async def test_inline_query_returns_results(test_session):
     query_payload = {
         "id": "query_12345",
-        "query": "концерты в Варшаве",
+        "query": "мероприятия в Санкт-Петербурге",
         "from": {"id": 123456789, "first_name": "Alex"}
     }
 
@@ -17,7 +17,7 @@ async def test_inline_query_returns_results(test_session):
 
     first_article = results[0]
     assert first_article["type"] == "article"
-    assert "Варшава" in first_article["description"]
+    assert "Санкт-Петербург" in first_article["description"]
     assert "reply_markup" in first_article
     assert "url" in first_article["reply_markup"]["inline_keyboard"][0][0]
 
@@ -27,7 +27,7 @@ async def test_inline_query_empty_state_handled(test_session):
     # Query with non-existent events
     query_payload = {
         "id": "query_99999",
-        "query": "спорт сегодня в Варшаве",
+        "query": "выставки сегодня в Сочи",
         "from": {"id": 123456789}
     }
 
@@ -47,7 +47,14 @@ def test_private_start_command():
     reply = handle_private_message(msg)
     assert reply is not None
     assert "Добро пожаловать в Evently" in reply["text"]
-    assert len(reply["reply_markup"]["inline_keyboard"]) >= 1
+    
+    # Check buttons: Mini App + switch_inline_query
+    ikb = reply["reply_markup"]["inline_keyboard"]
+    assert len(ikb) >= 2
+    # Verify switch_inline_query button
+    inline_btn_row = next((row for row in ikb if any("switch_inline_query" in b for b in row)), None)
+    assert inline_btn_row is not None
+    assert inline_btn_row[0]["switch_inline_query"] == ""
 
 
 def test_private_create_command():
@@ -71,6 +78,7 @@ def test_private_admin_command_authorization():
     admin_reply = handle_private_message(admin_msg)
     assert admin_reply is not None
     assert "Панель администратора Evently" in admin_reply["text"]
+    assert "123456789" in admin_reply["text"]
 
     # 2. Non-admin user
     non_admin_msg = {
@@ -81,6 +89,7 @@ def test_private_admin_command_authorization():
     non_admin_reply = handle_private_message(non_admin_msg)
     assert non_admin_reply is not None
     assert "нет прав администратора" in non_admin_reply["text"]
+    assert "999999999" in non_admin_reply["text"]
 
 
 @pytest.mark.asyncio
@@ -90,14 +99,13 @@ async def test_telegram_webhook_endpoint(client):
         "update_id": 10001,
         "inline_query": {
             "id": "webhook_q1",
-            "query": "мероприятия в Варшаве",
+            "query": "мероприятия в Санкт-Петербурге",
             "from": {"id": 123456789}
         }
     }
     resp = await client.post("/api/v1/telegram/webhook", json=update)
     assert resp.status_code == 200
     data = resp.json()
-    # In test mode without live token, returns method directly for Telegram Bot API execution
     assert data["method"] == "answerInlineQuery"
     assert data["inline_query_id"] == "webhook_q1"
     assert len(data["results"]) > 0
@@ -135,7 +143,7 @@ async def test_telegram_webhook_start_with_deep_link(client):
             "message_id": 2,
             "chat": {"id": 98765, "type": "private"},
             "from": {"id": 98765, "first_name": "TestUser"},
-            "text": "/start event_warsaw_jazz"
+            "text": "/start event_spb_jazz"
         }
     }
     resp = await client.post("/api/v1/telegram/webhook", json=update)
@@ -145,7 +153,7 @@ async def test_telegram_webhook_start_with_deep_link(client):
     assert data["chat_id"] == 98765
     button = data["reply_markup"]["inline_keyboard"][0][0]
     btn_url = button.get("url") or button.get("web_app", {}).get("url", "")
-    assert "event_warsaw_jazz" in btn_url
+    assert "event_spb_jazz" in btn_url
 
 
 @pytest.mark.asyncio

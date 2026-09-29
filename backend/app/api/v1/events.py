@@ -1,5 +1,7 @@
+import uuid
+from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -19,10 +21,76 @@ from app.services.event_service import (
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def validate_image_bytes(content: bytes) -> bool:
+    """Verifies that the byte stream represents a genuine JPEG, PNG, or WEBP image."""
+    if len(content) < 12:
+        return False
+    # JPEG
+    if content.startswith(b"\xff\xd8\xff"):
+        return True
+    # PNG
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return True
+    # WEBP
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return True
+    return False
+
+
+@router.post("/upload-cover")
+async def upload_event_cover(
+    file: UploadFile = File(...)
+):
+    """
+    Uploads an event cover image.
+    Validates MIME type, file size limit (5MB), and magic bytes.
+    Saves image under uploads/covers/ and returns the relative URL.
+    """
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported image type: '{content_type}'. Allowed: JPEG, PNG, WEBP."
+        )
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds maximum allowed size of 5 MB."
+        )
+
+    if not validate_image_bytes(content):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image format: file signature does not match genuine image."
+        )
+
+    ext = ALLOWED_IMAGE_TYPES[content_type]
+    filename = f"{uuid.uuid4().hex}{ext}"
+
+    uploads_dir = Path("uploads") / "covers"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    target_path = uploads_dir / filename
+
+    with open(target_path, "wb") as f:
+        f.write(content)
+
+    return {"url": f"/uploads/covers/{filename}"}
+
 
 @router.get("", response_model=EventListResponse)
 async def discover_events(
-    city_id: Optional[str] = Query(None, description="City ID filter, e.g. 'warsaw'"),
+    city_id: Optional[str] = Query(None, description="City ID filter, e.g. 'makhachkala'"),
     category_id: Optional[str] = Query(None, description="Category slug/ID filter, e.g. 'concerts'"),
     date_filter: str = Query("all", pattern="^(all|today|tomorrow|weekend)$", description="Date filter"),
     limit: int = Query(50, ge=1, le=100),

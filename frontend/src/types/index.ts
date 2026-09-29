@@ -4,6 +4,8 @@ export interface City {
   country: string;
   timezone: string;
   currency: string;
+  latitude?: number;
+  longitude?: number;
   is_active: boolean;
 }
 
@@ -26,6 +28,9 @@ export interface EventSummary {
   city_name: string;
   start_at: string;
   venue_name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
   price_amount?: number;
   price_currency?: string;
   is_free: boolean;
@@ -37,7 +42,6 @@ export interface EventSummary {
 
 export interface EventResponse extends EventSummary {
   description: string;
-  address?: string;
   organizer_user_id?: number;
   organizer_name?: string;
   rejection_reason?: string;
@@ -53,8 +57,28 @@ export interface EventCreatePayload {
   start_at: string;
   venue_name: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   price_amount?: number;
   price_currency?: string;
+}
+
+export interface LocationSuggestion {
+  display_name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface UserProfile {
+  id: number;
+  telegram_id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  default_city_id?: string;
+  is_admin: boolean;
 }
 
 export type DateFilterType = 'all' | 'today' | 'tomorrow' | 'weekend';
@@ -68,3 +92,4 @@ export interface TelegramWebAppUser {
   language_code?: string;
   is_premium?: boolean;
 }
+
