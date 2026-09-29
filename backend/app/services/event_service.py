@@ -11,10 +11,12 @@ from app.models.event import Event, EventStatus
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
+from app.models.interest import EventInterest
 from app.models.user import User
 from app.models.organization import Organization
 from app.models.subscription import Subscription
 from app.schemas.event import EventCreate, EventSummary, EventResponse
+from app.schemas.interest import EventInterestResponse
 
 
 class EventNotFoundError(Exception):
@@ -102,6 +104,13 @@ async def list_published_events(
         .scalar_subquery()
     )
 
+    # Count subquery for interests
+    interest_count_subq = (
+        select(func.count(EventInterest.id))
+        .where(EventInterest.event_id == Event.id)
+        .scalar_subquery()
+    )
+
     # Base query for published events
     query = (
         select(
@@ -110,6 +119,7 @@ async def list_published_events(
             City.name.label("city_name"),
             City.timezone.label("city_timezone"),
             attendee_count_subq.label("attendee_count"),
+            interest_count_subq.label("interest_count"),
             Organization.name.label("org_name"),
             Organization.category.label("org_category"),
             Organization.avatar_url.label("org_avatar")
@@ -163,8 +173,9 @@ async def list_published_events(
     results = await session.execute(query)
     rows = results.all()
 
-    # Pre-fetch user RSVP event IDs if current_user_id is supplied
+    # Pre-fetch user RSVP and interest event IDs if current_user_id is supplied
     attending_event_ids = set()
+    interested_event_ids = set()
     if current_user_id and rows:
         event_ids = [r[0].id for r in rows]
         user_att_q = select(EventAttendee.event_id).where(
@@ -173,8 +184,14 @@ async def list_published_events(
         att_res = await session.execute(user_att_q)
         attending_event_ids = set(att_res.scalars().all())
 
+        user_int_q = select(EventInterest.event_id).where(
+            and_(EventInterest.user_id == current_user_id, EventInterest.event_id.in_(event_ids))
+        )
+        int_res = await session.execute(user_int_q)
+        interested_event_ids = set(int_res.scalars().all())
+
     summaries: List[EventSummary] = []
-    for event, cat_name, c_name, c_tz, att_count, org_name, org_category, org_avatar in rows:
+    for event, cat_name, c_name, c_tz, att_count, int_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -194,6 +211,8 @@ async def list_published_events(
                 attendee_count=att_count or 0,
                 status=event.status,
                 is_attending=(event.id in attending_event_ids),
+                interest_count=int_count or 0,
+                current_user_interested=(event.id in interested_event_ids),
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
@@ -218,12 +237,19 @@ async def get_event_details(
         .scalar_subquery()
     )
 
+    interest_count_subq = (
+        select(func.count(EventInterest.id))
+        .where(EventInterest.event_id == Event.id)
+        .scalar_subquery()
+    )
+
     query = (
         select(
             Event,
             Category.name.label("category_name"),
             City.name.label("city_name"),
             attendee_count_subq.label("attendee_count"),
+            interest_count_subq.label("interest_count"),
             User.username.label("org_username"),
             User.first_name.label("org_first_name"),
             Organization.id.label("org_id"),
@@ -243,11 +269,12 @@ async def get_event_details(
     if not row:
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
-    event, cat_name, c_name, att_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
+    event, cat_name, c_name, att_count, int_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
     organizer_display = org_username or org_first_name or None
 
-    # Check RSVP
+    # Check RSVP & Interest
     is_attending = False
+    is_interested = False
     if current_user_id:
         rsvp_res = await session.execute(
             select(EventAttendee).where(
@@ -255,6 +282,13 @@ async def get_event_details(
             )
         )
         is_attending = rsvp_res.scalar_one_or_none() is not None
+
+        int_res = await session.execute(
+            select(EventInterest).where(
+                and_(EventInterest.event_id == event_id, EventInterest.user_id == current_user_id)
+            )
+        )
+        is_interested = int_res.scalar_one_or_none() is not None
 
     # Organization follower stats and subscription status
     org_followers_count = None
@@ -303,6 +337,8 @@ async def get_event_details(
         rejection_reason=event.rejection_reason,
         attendee_count=att_count or 0,
         is_attending=is_attending,
+        interest_count=int_count or 0,
+        current_user_interested=is_interested,
         created_at=event.created_at,
         updated_at=event.updated_at
     )
@@ -316,11 +352,18 @@ async def add_event_rsvp(
     """
     Idempotently records event attendance.
     If already attending, returns (True, current_count, 'Already attending') without errors.
+    Removes any existing EventInterest since confirmed attendance supersedes interest.
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
     if not event:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+
+    # Confirmed attendance supersedes interest: remove interest if exists
+    del_int_stmt = delete(EventInterest).where(
+        and_(EventInterest.event_id == event_id, EventInterest.user_id == user_id)
+    )
+    await session.execute(del_int_stmt)
 
     # Check existing attendance
     check_stmt = select(EventAttendee).where(
@@ -329,6 +372,7 @@ async def add_event_rsvp(
     existing = (await session.execute(check_stmt)).scalar_one_or_none()
 
     if existing:
+        await session.commit()
         # Already attending: idempotent return
         count_res = await session.execute(
             select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
@@ -374,6 +418,95 @@ async def remove_event_rsvp(
     )
     count = count_res.scalar() or 0
     return False, count, "RSVP removed"
+
+
+async def add_event_interest(
+    session: AsyncSession,
+    event_id: str,
+    user_id: int
+) -> Tuple[bool, int, bool, int, str]:
+    """
+    Idempotently records user interest ('Хочу пойти').
+    If the user was previously attending ('Я иду'), switches from attending to interested.
+    Returns: (is_interested, interest_count, is_attending, attendee_count, message)
+    """
+    event_res = await session.execute(select(Event).where(Event.id == event_id))
+    event = event_res.scalar_one_or_none()
+    if not event:
+        raise EventNotFoundError(f"Event '{event_id}' not found.")
+
+    # If currently attending, remove attendance (downgrade to interested)
+    del_att_stmt = delete(EventAttendee).where(
+        and_(EventAttendee.event_id == event_id, EventAttendee.user_id == user_id)
+    )
+    await session.execute(del_att_stmt)
+
+    # Check if interest already exists
+    check_stmt = select(EventInterest).where(
+        and_(EventInterest.event_id == event_id, EventInterest.user_id == user_id)
+    )
+    existing = (await session.execute(check_stmt)).scalar_one_or_none()
+
+    if not existing:
+        interest = EventInterest(event_id=event_id, user_id=user_id)
+        session.add(interest)
+
+    await session.commit()
+
+    int_count_res = await session.execute(
+        select(func.count(EventInterest.id)).where(EventInterest.event_id == event_id)
+    )
+    interest_count = int_count_res.scalar() or 0
+
+    att_count_res = await session.execute(
+        select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
+    )
+    attendee_count = att_count_res.scalar() or 0
+
+    msg = "Already interested" if existing else "Interest confirmed"
+    return True, interest_count, False, attendee_count, msg
+
+
+async def remove_event_interest(
+    session: AsyncSession,
+    event_id: str,
+    user_id: int
+) -> Tuple[bool, int, bool, int, str]:
+    """
+    Idempotently cancels user interest ('Хочу пойти').
+    Returns: (is_interested, interest_count, is_attending, attendee_count, message)
+    """
+    event_res = await session.execute(select(Event).where(Event.id == event_id))
+    event = event_res.scalar_one_or_none()
+    if not event:
+        raise EventNotFoundError(f"Event '{event_id}' not found.")
+
+    # Delete interest if exists
+    del_stmt = delete(EventInterest).where(
+        and_(EventInterest.event_id == event_id, EventInterest.user_id == user_id)
+    )
+    await session.execute(del_stmt)
+    await session.commit()
+
+    int_count_res = await session.execute(
+        select(func.count(EventInterest.id)).where(EventInterest.event_id == event_id)
+    )
+    interest_count = int_count_res.scalar() or 0
+
+    # Check attending
+    att_res = await session.execute(
+        select(EventAttendee).where(
+            and_(EventAttendee.event_id == event_id, EventAttendee.user_id == user_id)
+        )
+    )
+    is_attending = att_res.scalar_one_or_none() is not None
+
+    att_count_res = await session.execute(
+        select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
+    )
+    attendee_count = att_count_res.scalar() or 0
+
+    return False, interest_count, is_attending, attendee_count, "Interest removed"
 
 
 async def create_organizer_event(

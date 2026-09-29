@@ -37,11 +37,22 @@ export interface EventSummary {
   status: EventStatus;
   attendee_count: number;
   is_attending: boolean;
+  interest_count: number;
+  current_user_interested: boolean;
   organization_id?: string;
   organization_name?: string;
   organization_category?: string;
   organization_avatar_url?: string;
   created_at: string;
+}
+
+export interface EventInterestResponse {
+  event_id: string;
+  is_interested: boolean;
+  interest_count: number;
+  is_attending: boolean;
+  attendee_count: number;
+  message: string;
 }
 
 export interface EventResponse extends EventSummary {

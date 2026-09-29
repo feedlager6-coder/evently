@@ -14,7 +14,8 @@ import type {
   OrganizationUpdatePayload,
   SubscriptionStatusResponse,
   UserSubscriptionItem,
-  UnifiedDiscoveryResponse
+  UnifiedDiscoveryResponse,
+  EventInterestResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -332,6 +333,32 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       throw new Error('Не удалось отменить регистрацию');
+    }
+    return res.json();
+  },
+
+  async addInterest(eventId: string): Promise<EventInterestResponse> {
+    const res = await fetch(`${API_BASE}/events/${eventId}/interest`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось сохранить интерес к мероприятию'));
+    }
+    return res.json();
+  },
+
+  async removeInterest(eventId: string): Promise<EventInterestResponse> {
+    const res = await fetch(`${API_BASE}/events/${eventId}/interest`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось удалить интерес к мероприятию'));
     }
     return res.json();
   },

@@ -11,7 +11,8 @@ import {
   Share2, 
   Ticket, 
   User as UserIcon,
-  ChevronRight
+  ChevronRight,
+  Heart
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
@@ -29,12 +30,23 @@ export function getAttendeesWord(count: number): string {
   return 'человек идут';
 }
 
+export function getInterestedWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'хотят пойти';
+  if (mod10 === 1) return 'хочет пойти';
+  if (mod10 >= 2 && mod10 <= 4) return 'хотят пойти';
+  return 'хотят пойти';
+}
+
 interface EventDetailsModalProps {
   event: EventResponse | null;
   isOpen: boolean;
   onClose: () => void;
   onToggleRsvp: (eventId: string, currentStatus: boolean) => Promise<void>;
   isRsvpLoading: boolean;
+  onToggleInterest?: (eventId: string, currentStatus: boolean) => Promise<void>;
+  isInterestLoading?: boolean;
   onOpenOrgModal?: (orgId: string) => void;
 }
 
@@ -44,6 +56,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onClose,
   onToggleRsvp,
   isRsvpLoading,
+  onToggleInterest,
+  isInterestLoading = false,
   onOpenOrgModal,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -297,26 +311,37 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             </p>
           </div>
 
-          {/* Attendees Summary */}
-          <div className="flex items-center space-x-2 text-xs text-gray-400 py-1">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <span>
-              Уже идут:{' '}
-              <strong className="text-white font-semibold">
-                <AnimatedCounter
-                  value={event.attendee_count}
-                  suffix={getAttendeesWord(event.attendee_count)}
-                />
-              </strong>
-            </span>
+          {/* Attendees & Interested Summary */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-400 py-1">
+            <div className="flex items-center space-x-1.5">
+              <Users className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>
+                Уже идут:{' '}
+                <strong className="text-white font-semibold">
+                  <AnimatedCounter
+                    value={event.attendee_count}
+                    suffix={getAttendeesWord(event.attendee_count)}
+                  />
+                </strong>
+              </span>
+            </div>
+            {event.interest_count > 0 && (
+              <div className="flex items-center space-x-1.5 text-rose-400">
+                <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-400 shrink-0" />
+                <span>
+                  <strong className="text-white font-semibold">{event.interest_count}</strong> {getInterestedWord(event.interest_count)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Sticky Bottom RSVP Action Bar */}
-        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3">
+        {/* Sticky Bottom Action Bar */}
+        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3 space-y-2">
+          {/* Primary CTA: «Я иду» */}
           <button
             onClick={handleRsvpClick}
-            disabled={isRsvpLoading}
+            disabled={isRsvpLoading || isInterestLoading}
             title={event.is_attending ? 'Нажмите, чтобы отменить участие' : 'Подтвердить участие'}
             className={`w-full h-12 px-6 rounded-2xl font-semibold text-sm flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
               event.is_attending || rsvpAnimationPhase === 'animating'
@@ -343,6 +368,48 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 : 'Я иду'}
             </span>
           </button>
+
+          {/* Secondary Action: «Хочу пойти» */}
+          {onToggleInterest && (
+            <button
+              onClick={() => {
+                if (isInterestLoading || isRsvpLoading) return;
+                telegram.hapticImpact('light');
+                onToggleInterest(event.id, Boolean(event.current_user_interested));
+              }}
+              disabled={isInterestLoading || isRsvpLoading}
+              title={event.current_user_interested ? 'Нажмите, чтобы отменить интерес' : 'Хочу пойти'}
+              className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
+                event.current_user_interested
+                  ? 'bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25'
+                  : 'bg-[#181C2B] border border-white/8 text-gray-300 hover:text-white hover:border-white/20'
+              } disabled:opacity-60`}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  event.current_user_interested
+                    ? 'fill-rose-500 text-rose-500 scale-110'
+                    : 'text-gray-400'
+                }`}
+              />
+              <span>
+                {isInterestLoading
+                  ? 'Обновление...'
+                  : event.current_user_interested
+                  ? 'Вы хотите пойти'
+                  : 'Хочу пойти'}
+              </span>
+              {event.interest_count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
+                  event.current_user_interested
+                    ? 'bg-rose-500/25 text-rose-200'
+                    : 'bg-white/10 text-gray-400'
+                }`}>
+                  {event.interest_count}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

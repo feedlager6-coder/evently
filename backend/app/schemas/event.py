@@ -46,6 +46,8 @@ class EventSummary(BaseModel):
     attendee_count: int = 0
     status: str
     is_attending: bool = False
+    interest_count: int = 0
+    current_user_interested: bool = False
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
     organization_category: Optional[str] = None

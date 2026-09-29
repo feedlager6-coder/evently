@@ -9,7 +9,8 @@ import type {
   TelegramWebAppUser,
   OrganizationSummary,
   OrganizationResponse,
-  VenueSummary
+  VenueSummary,
+  EventInterestResponse
 } from './types';
 import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
@@ -53,6 +54,7 @@ export const App: React.FC = () => {
   const [selectedEventDetails, setSelectedEventDetails] = useState<EventResponse | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isRsvpLoading, setIsRsvpLoading] = useState(false);
+  const [isInterestLoading, setIsInterestLoading] = useState(false);
 
   // Organizer tab state
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
@@ -307,25 +309,131 @@ export const App: React.FC = () => {
 
       // Update Details modal state
       if (selectedEventDetails && selectedEventDetails.id === eventId) {
+        const wasInterested = selectedEventDetails.current_user_interested;
         setSelectedEventDetails({
           ...selectedEventDetails,
           is_attending: res.is_attending,
           attendee_count: res.attendee_count,
+          current_user_interested: res.is_attending ? false : wasInterested,
+          interest_count: res.is_attending && wasInterested
+            ? Math.max(0, selectedEventDetails.interest_count - 1)
+            : selectedEventDetails.interest_count,
         });
       }
 
       // Update Feed list state
       setEvents((prev) =>
-        prev.map((e) =>
-          e.id === eventId
-            ? { ...e, is_attending: res.is_attending, attendee_count: res.attendee_count }
-            : e
-        )
+        prev.map((e) => {
+          if (e.id !== eventId) return e;
+          const wasInterested = e.current_user_interested;
+          return {
+            ...e,
+            is_attending: res.is_attending,
+            attendee_count: res.attendee_count,
+            current_user_interested: res.is_attending ? false : wasInterested,
+            interest_count: res.is_attending && wasInterested
+              ? Math.max(0, e.interest_count - 1)
+              : e.interest_count,
+          };
+        })
       );
     } catch (err: any) {
       alert(err.message || 'Ошибка обновления статуса участия');
     } finally {
       setIsRsvpLoading(false);
+    }
+  };
+
+  // 6. Toggle Interest (Idempotent with optimistic update)
+  const handleToggleInterest = async (eventId: string, currentStatus: boolean) => {
+    const prevDetails = selectedEventDetails;
+    const prevEvents = events;
+
+    try {
+      setIsInterestLoading(true);
+
+      // Optimistic update
+      if (selectedEventDetails && selectedEventDetails.id === eventId) {
+        const nextInterested = !currentStatus;
+        const nextInterestCount = nextInterested
+          ? selectedEventDetails.interest_count + 1
+          : Math.max(0, selectedEventDetails.interest_count - 1);
+        const nextAttending = nextInterested ? false : selectedEventDetails.is_attending;
+        const nextAttendeeCount = (nextInterested && selectedEventDetails.is_attending)
+          ? Math.max(0, selectedEventDetails.attendee_count - 1)
+          : selectedEventDetails.attendee_count;
+
+        setSelectedEventDetails({
+          ...selectedEventDetails,
+          current_user_interested: nextInterested,
+          interest_count: nextInterestCount,
+          is_attending: nextAttending,
+          attendee_count: nextAttendeeCount,
+        });
+      }
+
+      setEvents((prev) =>
+        prev.map((e) => {
+          if (e.id !== eventId) return e;
+          const nextInterested = !currentStatus;
+          const nextInterestCount = nextInterested
+            ? e.interest_count + 1
+            : Math.max(0, e.interest_count - 1);
+          const nextAttending = nextInterested ? false : e.is_attending;
+          const nextAttendeeCount = (nextInterested && e.is_attending)
+            ? Math.max(0, e.attendee_count - 1)
+            : e.attendee_count;
+          return {
+            ...e,
+            current_user_interested: nextInterested,
+            interest_count: nextInterestCount,
+            is_attending: nextAttending,
+            attendee_count: nextAttendeeCount,
+          };
+        })
+      );
+
+      let res: EventInterestResponse;
+      if (currentStatus) {
+        res = await api.removeInterest(eventId);
+      } else {
+        res = await api.addInterest(eventId);
+      }
+
+      // Sync confirmed state from server
+      if (selectedEventDetails && selectedEventDetails.id === eventId) {
+        setSelectedEventDetails((prev) =>
+          prev && prev.id === eventId
+            ? {
+                ...prev,
+                current_user_interested: res.is_interested,
+                interest_count: res.interest_count,
+                is_attending: res.is_attending,
+                attendee_count: res.attendee_count,
+              }
+            : prev
+        );
+      }
+
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                current_user_interested: res.is_interested,
+                interest_count: res.interest_count,
+                is_attending: res.is_attending,
+                attendee_count: res.attendee_count,
+              }
+            : e
+        )
+      );
+    } catch (err: any) {
+      if (prevDetails) setSelectedEventDetails(prevDetails);
+      setEvents(prevEvents);
+      alert(err.message || 'Ошибка обновления статуса интереса');
+    } finally {
+      setIsInterestLoading(false);
     }
   };
 
@@ -508,6 +616,8 @@ export const App: React.FC = () => {
         onClose={() => setIsDetailsOpen(false)}
         onToggleRsvp={handleToggleRsvp}
         isRsvpLoading={isRsvpLoading}
+        onToggleInterest={handleToggleInterest}
+        isInterestLoading={isInterestLoading}
         onOpenOrgModal={(orgId) => {
           setIsDetailsOpen(false);
           openOrgById(orgId);

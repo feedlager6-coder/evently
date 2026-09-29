@@ -10,6 +10,7 @@ from app.models.organization import Organization, OrganizationStatus
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
+from app.models.interest import EventInterest
 from app.models.subscription import Subscription
 from app.schemas.event import EventSummary
 from app.schemas.organization import OrganizationSummary
@@ -112,6 +113,13 @@ class DiscoveryService:
             .scalar_subquery()
         )
 
+        # Interest count subquery (No N+1)
+        interest_count_subq = (
+            select(func.count(EventInterest.id))
+            .where(EventInterest.event_id == Event.id)
+            .scalar_subquery()
+        )
+
         stmt = (
             select(
                 Event,
@@ -119,6 +127,7 @@ class DiscoveryService:
                 City.name.label("city_name"),
                 City.timezone.label("city_timezone"),
                 attendee_count_subq.label("attendee_count"),
+                interest_count_subq.label("interest_count"),
                 Organization.name.label("org_name"),
                 Organization.category.label("org_category"),
                 Organization.avatar_url.label("org_avatar")
@@ -163,8 +172,9 @@ class DiscoveryService:
         stmt = stmt.limit(limit)
         rows = (await session.execute(stmt)).all()
 
-        # Pre-fetch user RSVP event IDs if authenticated
+        # Pre-fetch user RSVP & interest event IDs if authenticated
         attending_event_ids: Set[str] = set()
+        interested_event_ids: Set[str] = set()
         if current_user_id and rows:
             event_ids = [r[0].id for r in rows]
             user_att_q = select(EventAttendee.event_id).where(
@@ -173,8 +183,14 @@ class DiscoveryService:
             att_res = await session.execute(user_att_q)
             attending_event_ids = set(att_res.scalars().all())
 
+            user_int_q = select(EventInterest.event_id).where(
+                and_(EventInterest.user_id == current_user_id, EventInterest.event_id.in_(event_ids))
+            )
+            int_res = await session.execute(user_int_q)
+            interested_event_ids = set(int_res.scalars().all())
+
         summaries: List[EventSummary] = []
-        for ev, cat_name, c_name, c_tz, att_count, org_name, org_cat, org_avatar in rows:
+        for ev, cat_name, c_name, c_tz, att_count, int_count, org_name, org_cat, org_avatar in rows:
             summaries.append(
                 EventSummary(
                     id=ev.id,
@@ -194,6 +210,8 @@ class DiscoveryService:
                     attendee_count=att_count or 0,
                     status=ev.status,
                     is_attending=ev.id in attending_event_ids,
+                    interest_count=int_count or 0,
+                    current_user_interested=ev.id in interested_event_ids,
                     organization_id=ev.organization_id,
                     organization_name=org_name,
                     organization_category=org_cat,

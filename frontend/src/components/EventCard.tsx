@@ -1,6 +1,6 @@
 import React from 'react';
 import type { EventSummary } from '../types';
-import { Calendar, MapPin, Users, Check } from 'lucide-react';
+import { Calendar, MapPin, Users, Check, Heart } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 
 interface EventCardProps {
@@ -53,13 +53,18 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
           </span>
         </div>
 
-        {/* Attending indicator on image if active */}
-        {event.is_attending && (
+        {/* Attending or Interested badge */}
+        {event.is_attending ? (
           <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-lg animate-scale-pop">
             <Check className="w-3.5 h-3.5 stroke-[3]" />
             <span>Вы идёте</span>
           </div>
-        )}
+        ) : event.current_user_interested ? (
+          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white shadow-lg backdrop-blur-sm animate-scale-pop">
+            <Heart className="w-3 h-3 fill-white" />
+            <span>Хочу пойти</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Card Body */}
@@ -81,9 +86,17 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
 
         {/* Bottom stats */}
         <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
-          <div className="flex items-center space-x-1.5">
-            <Users className="w-3.5 h-3.5 text-indigo-400" />
-            <span>{event.attendee_count} {event.attendee_count === 1 ? 'человек идёт' : 'человек(а) идут'}</span>
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1.5">
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <span>{event.attendee_count}</span>
+            </div>
+            {event.interest_count > 0 && (
+              <div className="flex items-center space-x-1 text-rose-400/90">
+                <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-400" />
+                <span>{event.interest_count}</span>
+              </div>
+            )}
           </div>
           <span className="text-indigo-400 font-medium group-hover:translate-x-0.5 transition-transform">
             Подробнее →

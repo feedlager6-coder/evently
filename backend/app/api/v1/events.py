@@ -8,12 +8,15 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.event import EventListResponse, EventResponse, EventCreate
 from app.schemas.rsvp import RSVPResponse
+from app.schemas.interest import EventInterestResponse
 from app.api.deps import get_current_user, get_current_user_optional
 from app.services.event_service import (
     list_published_events,
     get_event_details,
     add_event_rsvp,
     remove_event_rsvp,
+    add_event_interest,
+    remove_event_interest,
     create_organizer_event,
     EventNotFoundError,
     EventValidationError
@@ -133,6 +136,55 @@ async def cancel_rsvp_event(
             event_id=event_id,
             is_attending=is_attending,
             attendee_count=count,
+            message=msg
+        )
+    except EventNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{event_id}/interest", response_model=EventInterestResponse)
+async def express_event_interest(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Idempotent interest creation: marks user as interested ('Хочу пойти').
+    If user was previously attending ('Я иду'), switches status to interested.
+    Repeated POST calls safely return existing state without duplicate entries.
+    """
+    try:
+        is_interested, int_count, is_attending, att_count, msg = await add_event_interest(session, event_id, user.id)
+        return EventInterestResponse(
+            event_id=event_id,
+            is_interested=is_interested,
+            interest_count=int_count,
+            is_attending=is_attending,
+            attendee_count=att_count,
+            message=msg
+        )
+    except EventNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.delete("/{event_id}/interest", response_model=EventInterestResponse)
+async def remove_event_interest_endpoint(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Idempotent interest cancellation: removes interest record ('Хочу пойти').
+    Repeated DELETE calls are safe and repeatable.
+    """
+    try:
+        is_interested, int_count, is_attending, att_count, msg = await remove_event_interest(session, event_id, user.id)
+        return EventInterestResponse(
+            event_id=event_id,
+            is_interested=is_interested,
+            interest_count=int_count,
+            is_attending=is_attending,
+            attendee_count=att_count,
             message=msg
         )
     except EventNotFoundError as e:
