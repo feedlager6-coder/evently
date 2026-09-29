@@ -90,6 +90,34 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   }, [defaultCityId]);
 
+  const handleSelectOrg = (orgId: string | undefined) => {
+    setSelectedOrgId(orgId);
+    if (orgId) {
+      const org = myOrganizations.find((o) => o.id === orgId);
+      if (org) {
+        if (!venueName.trim()) {
+          setVenueName(org.name);
+        }
+        if (!address.trim() && org.address) {
+          setAddress(org.address);
+        }
+        if (org.city_id) {
+          setCityId(org.city_id);
+        }
+        if (org.latitude && org.longitude && latitude === undefined && longitude === undefined) {
+          setLatitude(org.latitude);
+          setLongitude(org.longitude);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (initialOrganizationId) {
+      handleSelectOrg(initialOrganizationId);
+    }
+  }, [initialOrganizationId]);
+
   // Debounced address search (starts at 2 chars, 300ms)
   useEffect(() => {
     const trimmed = (address || '').trim().replace(/\.+$/, '');
@@ -260,7 +288,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             {error && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
+                <span>{typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}</span>
               </div>
             )}
 
@@ -271,7 +299,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <div className="flex flex-wrap gap-2 pt-0.5">
                   <button
                     type="button"
-                    onClick={() => setSelectedOrgId(undefined)}
+                    onClick={() => handleSelectOrg(undefined)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all pill-press ${
                       !selectedOrgId
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -284,7 +312,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     <button
                       key={org.id}
                       type="button"
-                      onClick={() => setSelectedOrgId(org.id)}
+                      onClick={() => handleSelectOrg(org.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 pill-press ${
                         selectedOrgId === org.id
                           ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
@@ -376,7 +404,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
               <div className="space-y-1 relative">
                 <label className="text-gray-300 font-medium flex items-center justify-between">
-                  <span>Адрес</span>
+                  <span>Адрес <span className="text-gray-400 font-normal">{selectedOrgId ? '(по умолчанию адрес организации)' : '(опционально)'}</span></span>
                   {latitude && longitude && (
                     <span className="text-[10px] text-emerald-400 flex items-center space-x-1">
                       <Check className="w-2.5 h-2.5" />

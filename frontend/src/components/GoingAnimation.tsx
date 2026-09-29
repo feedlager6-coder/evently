@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Ticket, Check, Loader2 } from 'lucide-react';
+import { Compass, Check, Loader2 } from 'lucide-react';
 
 export type GoingAnimationState = 'idle' | 'loading' | 'animating' | 'success';
 
@@ -12,7 +12,7 @@ export interface GoingAnimationProps {
 
 /**
  * GoingAnimation — Micro-interaction icon for RSVP button.
- * Smoothly transitions from Ticket (idle) -> Loader (loading) -> Checkmark (animating/success)
+ * Smoothly transitions from Compass (idle) -> Loader (loading) -> Checkmark (animating/success)
  * without layout shifts or geometry jumps.
  */
 export const GoingAnimation: React.FC<GoingAnimationProps> = ({
@@ -58,9 +58,9 @@ export const GoingAnimation: React.FC<GoingAnimationProps> = ({
     );
   }
 
-  // Default: Idle Ticket Icon
+  // Default: Idle Compass Icon
   return (
-    <Ticket
+    <Compass
       className={`shrink-0 ${className}`}
       style={{ width: size, height: size }}
     />

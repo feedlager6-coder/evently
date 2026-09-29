@@ -1,8 +1,11 @@
+import html
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 
 from app.config import settings
+from app.models.city import City
 from app.services.parser_service import parse_query, ParsedQuery
 from app.services.event_service import list_published_events
 from app.schemas.event import EventSummary
@@ -10,15 +13,32 @@ from app.schemas.event import EventSummary
 logger = logging.getLogger("evently.telegram")
 
 
+def resolve_absolute_image_url(url: Optional[str]) -> str:
+    """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS URLs."""
+    fallback = "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
+    if not url or not url.strip():
+        return fallback
+    clean = url.strip()
+    if clean.startswith("http://") or clean.startswith("https://"):
+        return clean
+    public_host = settings.effective_public_host
+    if public_host and clean.startswith("/"):
+        return f"{public_host}{clean}"
+    return fallback
+
+
 def format_event_message(event: EventSummary) -> str:
     """Formats event preview text for Telegram messages with HTML styling."""
     price_text = "Бесплатно" if event.is_free else f"{event.price_amount} {event.price_currency}"
     date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name)
+    safe_city = html.escape(event.city_name or event.city_id or "")
 
     return (
-        f"🎟️ <b>{event.title}</b>\n"
+        f"🧭 <b>{safe_title}</b>\n"
         f"📅 {date_str}\n"
-        f"📍 {event.venue_name} ({event.city_name or event.city_id})\n"
+        f"📍 {safe_venue} ({safe_city})\n"
         f"💰 {price_text}\n"
         f"👥 {event.attendee_count} человек(а) идут"
     )
@@ -62,7 +82,7 @@ def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🎟️ Открыть афишу в Mini App", "url": url}
+                {"text": "🧭 Открыть в Mini App", "url": url}
             ]
         ]
     }
@@ -77,12 +97,10 @@ def build_catalog_inline_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🎟️ Открыть Ivently Mini App", "url": mini_app_url}
+                {"text": "🧭 Открыть Ivently Mini App", "url": mini_app_url}
             ]
         ]
     }
-
-
 
 
 async def handle_inline_query(
@@ -91,22 +109,52 @@ async def handle_inline_query(
 ) -> Dict[str, Any]:
     """
     Processes Telegram InlineQuery (@evently ...) and constructs response payload for answerInlineQuery.
+    Supports dynamic city recognition across 1,134 cities and keyword fallback.
     """
     query_id = inline_query.get("id", "")
-    query_text = inline_query.get("query", "")
+    query_text = (inline_query.get("query") or "").strip()
     user = inline_query.get("from", {})
     user_id = user.get("id")
 
-    parsed = parse_query(query_text, default_city_id="makhachkala")
+    # 1. Parse structured city/category/date
+    parsed = parse_query(query_text, default_city_id=None)
+    target_city_id = parsed.city_id
+    search_keyword = None
+
+    # If city not extracted by pattern parser, check if query matches a city name in DB
+    if not target_city_id and query_text:
+        cleaned = query_text.strip().lower()
+        city_res = await session.execute(
+            select(City).where(or_(City.name.ilike(f"{cleaned}%"), City.id == cleaned)).limit(1)
+        )
+        matched_city = city_res.scalar_one_or_none()
+        if matched_city:
+            target_city_id = matched_city.id
+        else:
+            search_keyword = query_text
+    elif not target_city_id:
+        target_city_id = "makhachkala"
 
     # Fetch events
     events, total = await list_published_events(
         session=session,
-        city_id=parsed.city_id,
+        city_id=target_city_id,
         category_id=parsed.category_id,
         date_filter=parsed.date_filter,
+        search_query=search_keyword,
         limit=10
     )
+
+    # If no events found in targeted city but a generic keyword was typed, search across all cities
+    if not events and not parsed.city_id and search_keyword:
+        events, total = await list_published_events(
+            session=session,
+            city_id=None,
+            category_id=parsed.category_id,
+            date_filter=parsed.date_filter,
+            search_query=search_keyword,
+            limit=10
+        )
 
     results: List[Dict[str, Any]] = []
 
@@ -114,7 +162,7 @@ async def handle_inline_query(
         for ev in events:
             price_str = "Бесплатно" if ev.is_free else f"{ev.price_amount} {ev.price_currency}"
             date_str = ev.start_at.strftime("%d.%m %H:%M")
-            thumb = ev.cover_image_url or "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
+            thumb = resolve_absolute_image_url(ev.cover_image_url)
             results.append({
                 "type": "article",
                 "id": f"event_{ev.id}",
@@ -130,8 +178,9 @@ async def handle_inline_query(
             })
     else:
         # Graceful empty-state
-        city_display = parsed.city_id.capitalize() if parsed.city_id else "выбранном городе"
+        city_display = (target_city_id or "выбранном городе").capitalize()
         empty_thumb = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400"
+        display_q = html.escape(query_text or "поиск")
         results.append({
             "type": "article",
             "id": "empty_state",
@@ -141,7 +190,7 @@ async def handle_inline_query(
             "thumb_url": empty_thumb,
             "input_message_content": {
                 "message_text": (
-                    f"🔍 <b>По запросу «{query_text}» событий не найдено.</b>\n\n"
+                    f"🔍 <b>По запросу «{display_q}» событий не найдено.</b>\n\n"
                     f"Откройте Ivently Mini App, чтобы посмотреть события в других городах или категориях."
                 ),
                 "parse_mode": "HTML"
@@ -152,6 +201,7 @@ async def handle_inline_query(
     return {
         "inline_query_id": query_id,
         "results": results,
+        "cache_time": 30,
         "cache_time": 30,
         "is_personal": True
     }

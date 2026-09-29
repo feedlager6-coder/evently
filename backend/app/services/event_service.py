@@ -86,6 +86,7 @@ async def list_published_events(
     city_id: Optional[str] = None,
     category_id: Optional[str] = None,
     date_filter: str = "all",
+    search_query: Optional[str] = None,
     current_user_id: Optional[int] = None,
     limit: int = 50,
     offset: int = 0
@@ -136,6 +137,18 @@ async def list_published_events(
 
     if category_id:
         query = query.where(Event.category_id == category_id)
+
+    if search_query and search_query.strip():
+        term = f"%{search_query.strip()}%"
+        query = query.where(
+            or_(
+                Event.title.ilike(term),
+                Event.description.ilike(term),
+                Event.venue_name.ilike(term),
+                City.name.ilike(term),
+                Category.name.ilike(term)
+            )
+        )
 
     # Order chronologically
     query = query.order_by(Event.start_at.asc())
@@ -381,6 +394,7 @@ async def create_organizer_event(
         raise EventValidationError(f"Invalid category_id '{data.category_id}'")
 
     org_id = None
+    org = None
     if data.organization_id:
         org_res = await session.execute(select(Organization).where(Organization.id == data.organization_id))
         org = org_res.scalar_one_or_none()
@@ -393,6 +407,19 @@ async def create_organizer_event(
             )
         org_id = org.id
 
+    resolved_address = (data.address or "").strip()
+    if not resolved_address:
+        if org and org.address:
+            resolved_address = org.address.strip()
+        else:
+            resolved_address = data.venue_name.strip()
+
+    resolved_lat = data.latitude
+    resolved_lng = data.longitude
+    if resolved_lat is None and resolved_lng is None and org:
+        resolved_lat = org.latitude
+        resolved_lng = org.longitude
+
     event = Event(
         title=data.title,
         description=data.description,
@@ -401,9 +428,9 @@ async def create_organizer_event(
         city_id=data.city_id,
         start_at=data.start_at,
         venue_name=data.venue_name,
-        address=data.address,
-        latitude=data.latitude,
-        longitude=data.longitude,
+        address=resolved_address,
+        latitude=resolved_lat,
+        longitude=resolved_lng,
         price_amount=data.price_amount,
         price_currency=data.price_currency or "RUB",
         status=EventStatus.PENDING.value,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket } from 'lucide-react';
+import { Compass } from 'lucide-react';
 
 const DEFAULT_EVENT_FALLBACK = 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800';
 
@@ -41,7 +41,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   if (isError) {
     return (
       <div className={`w-full h-full bg-[#121624] flex items-center justify-center text-indigo-400/40 ${className}`}>
-        <Ticket className="w-10 h-10 opacity-30" />
+        <Compass className="w-10 h-10 opacity-30" />
       </div>
     );
   }

@@ -243,7 +243,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
           {error && (
             <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+              <span>{typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}</span>
             </div>
           )}
 

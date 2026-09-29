@@ -31,6 +31,41 @@ function getAuthHeaders(isJson: boolean = true): HeadersInit {
   return headers;
 }
 
+export function extractErrorMessage(errData: any, fallback: string): string {
+  if (!errData) return fallback;
+  if (typeof errData === 'string') return errData;
+  if (typeof errData.detail === 'string') return errData.detail;
+  if (Array.isArray(errData.detail)) {
+    const msgs = errData.detail.map((item: any) => {
+      if (typeof item === 'string') return item;
+      const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : '';
+      const msg = item.msg || '';
+      if (field && field !== 'body') {
+        const fieldLabels: Record<string, string> = {
+          title: 'Название',
+          description: 'Описание',
+          venue_name: 'Место',
+          address: 'Адрес',
+          start_at: 'Дата и время',
+          city_id: 'Город',
+          category_id: 'Категория',
+          price_amount: 'Цена',
+          name: 'Название',
+          slug: 'Короткая ссылка',
+        };
+        const label = fieldLabels[field] || field;
+        return `${label}: ${msg}`;
+      }
+      return msg;
+    }).filter(Boolean);
+    if (msgs.length > 0) return msgs.join(', ');
+  }
+  if (errData.message && typeof errData.message === 'string') {
+    return errData.message;
+  }
+  return fallback;
+}
+
 let cachedBotUsername = 'Ivently_bot';
 
 export const DEFAULT_CITIES: City[] = [
@@ -287,7 +322,7 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Ошибка создания мероприятия');
+      throw new Error(extractErrorMessage(err, 'Ошибка создания мероприятия'));
     }
     return res.json();
   },
@@ -353,7 +388,7 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Ошибка создания организации');
+      throw new Error(extractErrorMessage(err, 'Ошибка создания организации'));
     }
     return res.json();
   },
@@ -364,7 +399,7 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Организация не найдена');
+      throw new Error(extractErrorMessage(err, 'Организация не найдена'));
     }
     return res.json();
   },
@@ -379,7 +414,7 @@ export const api = {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       if (res.status === 403) throw new Error('Нет прав на редактирование этой организации');
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Ошибка обновления профиля организации');
+      throw new Error(extractErrorMessage(err, 'Ошибка обновления профиля организации'));
     }
     return res.json();
   },
@@ -414,7 +449,7 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Не удалось подписаться');
+      throw new Error(extractErrorMessage(err, 'Не удалось подписаться'));
     }
     return res.json();
   },
@@ -427,7 +462,7 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Не удалось отписаться');
+      throw new Error(extractErrorMessage(err, 'Не удалось отписаться'));
     }
     return res.json();
   },

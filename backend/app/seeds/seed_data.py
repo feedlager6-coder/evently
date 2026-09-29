@@ -1,4 +1,6 @@
 import logging
+import os
+import json
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
@@ -825,18 +827,36 @@ def generate_seed_events(organizer_id: int) -> list:
     return spb_events + makhachkala_events + moscow_events
 
 
+def load_russian_cities() -> list:
+    cities_file = os.path.join(os.path.dirname(__file__), "data", "russian_cities.json")
+    if os.path.exists(cities_file):
+        try:
+            with open(cities_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load russian_cities.json: {e}")
+    return CITIES_DATA
+
+
 async def seed_database(session: AsyncSession) -> None:
     """
     Seeds database with initial cities, categories, demo organizer, and realistic events.
     Safe and idempotent: checks existing IDs before inserting and updates attributes.
     """
-    # 1. Seed Cities (15 Russian Cities)
-    for c_data in CITIES_DATA:
-        existing_res = await session.execute(select(City).where(City.id == c_data["id"]))
-        existing_city = existing_res.scalar_one_or_none()
-        if not existing_city:
+    # 1. Seed Cities (Comprehensive dataset of 1,134 Russian cities)
+    cities_to_seed = load_russian_cities()
+    valid_keys = {"id", "name", "country", "timezone", "currency", "latitude", "longitude", "is_active"}
+
+    existing_cities_res = await session.execute(select(City))
+    existing_cities = {c.id: c for c in existing_cities_res.scalars().all()}
+
+    for raw_c in cities_to_seed:
+        c_data = {k: v for k, v in raw_c.items() if k in valid_keys}
+        city_id = c_data["id"]
+        if city_id not in existing_cities:
             session.add(City(**c_data))
         else:
+            existing_city = existing_cities[city_id]
             existing_city.name = c_data["name"]
             existing_city.country = c_data["country"]
             existing_city.timezone = c_data["timezone"]

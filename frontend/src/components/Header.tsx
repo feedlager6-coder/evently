@@ -1,6 +1,6 @@
 import React from 'react';
 import type { City, TelegramWebAppUser } from '../types';
-import { MapPin, ChevronDown, Ticket, Bookmark } from 'lucide-react';
+import { MapPin, ChevronDown, Compass, Bookmark } from 'lucide-react';
 
 interface HeaderProps {
   currentCity?: City;
@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand */}
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <Ticket className="w-4 h-4 text-white" />
+            <Compass className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
             Ivently

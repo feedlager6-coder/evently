@@ -17,7 +17,7 @@ CITY_PATTERNS = {
     "kazan": [r"\bказан[ьиеяю]?\b", r"\bkazan\b"],
     "krasnodar": [r"\bкраснодар[а-я]*\b", r"\bkrasnodar\b"],
     "rostov_on_don": [r"\bростов[а-я]*\b", r"\brostov\b"],
-    "ekaterinburg": [r"\bекатеринбург[а-я]*\b", r"\bекб\b", r"\byekaterinburg\b", r"\bekaterinburg\b"],
+    "yekaterinburg": [r"\bекатеринбург[а-я]*\b", r"\bекб\b", r"\byekaterinburg\b", r"\bekaterinburg\b"],
     "novosibirsk": [r"\bновосибирск[а-я]*\b", r"\bновосиб[а-я]*\b", r"\bnovosibirsk\b"],
     "nizhny_novgorod": [r"\bнижн[иея]+й?\s*новгород[а-я]*\b", r"\bнижн[еи]й\b", r"\bnizhny\b"],
     "samara": [r"\bсамар[аеуыо]?\b", r"\bsamara\b"],

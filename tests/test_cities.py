@@ -12,7 +12,7 @@ async def test_get_cities_returns_expanded_russian_cities(client: AsyncClient):
     assert response.status_code == 200
 
     cities = response.json()
-    assert len(cities) >= 34
+    assert len(cities) >= 1000
 
     city_ids = {c["id"] for c in cities}
     city_names = {c["name"] for c in cities}

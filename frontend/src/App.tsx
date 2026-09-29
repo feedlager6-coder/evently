@@ -25,7 +25,7 @@ import { OrganizationModal } from './components/OrganizationModal';
 import { CreateOrganizationModal } from './components/CreateOrganizationModal';
 import { MySubscriptionsModal } from './components/MySubscriptionsModal';
 import type { TabType } from './components/Navigation';
-import { Loader2, Ticket, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Navigation & UI state
@@ -340,7 +340,7 @@ export const App: React.FC = () => {
               ) : events.length === 0 ? (
                 <div className="py-16 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
                   <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-indigo-400">
-                    <Ticket className="w-6 h-6" />
+                    <Compass className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-bold text-sm text-white">Событий не найдено</h3>

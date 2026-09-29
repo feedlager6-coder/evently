@@ -285,3 +285,60 @@ async def test_organization_events_endpoint_and_publishing_notification(client):
     assert public_org_events_after.status_code == 200
     assert len(public_org_events_after.json()) == 1
     assert public_org_events_after.json()[0]["id"] == event_id
+
+
+@pytest.mark.asyncio
+async def test_create_event_optional_address_and_fallback(client):
+    """
+    Verifies that address is optional when creating an event from an organization,
+    and falls back to organization address or venue_name.
+    """
+    owner_init = make_test_init_data(user_id=1020, username="org_address_test")
+    headers_owner = {"Authorization": f"tma {owner_init}"}
+
+    # 1. Create Organization with an address and coordinates
+    org_res = await client.post(
+        "/api/v1/organizations",
+        json={
+            "name": "Loft Space 05",
+            "category": "Культура",
+            "address": "ул. Коркмасова, 15",
+            "latitude": 42.98,
+            "longitude": 47.50
+        },
+        headers=headers_owner
+    )
+    assert org_res.status_code == 201
+    org_id = org_res.json()["id"]
+
+    # 2. Create Event under org WITHOUT address field
+    ev_payload_org = {
+        "title": "Acoustic Night",
+        "description": "Live acoustic guitar performance in cozy loft atmosphere.",
+        "category_id": "concerts",
+        "city_id": "makhachkala",
+        "start_at": "2026-11-01T19:00:00Z",
+        "venue_name": "Loft Space 05 Main Hall",
+        "organization_id": org_id
+        # address is deliberately omitted
+    }
+    res_org = await client.post("/api/v1/events", json=ev_payload_org, headers=headers_owner)
+    assert res_org.status_code == 201, f"Expected 201, got {res_org.status_code}: {res_org.text}"
+    ev_data = res_org.json()
+    assert ev_data["organization_id"] == org_id
+    assert ev_data["address"] == "ул. Коркмасова, 15"
+    assert ev_data["latitude"] == 42.98
+
+    # 3. Create Event without org and WITHOUT address field (falls back to venue_name)
+    ev_payload_personal = {
+        "title": "Street Workout Meetup",
+        "description": "Friendly outdoor workout and masterclass on bar pull-ups.",
+        "category_id": "sports",
+        "city_id": "makhachkala",
+        "start_at": "2026-11-02T10:00:00Z",
+        "venue_name": "Central Beach Workout Area"
+        # address is deliberately omitted
+    }
+    res_pers = await client.post("/api/v1/events", json=ev_payload_personal, headers=headers_owner)
+    assert res_pers.status_code == 201, f"Expected 201, got {res_pers.status_code}: {res_pers.text}"
+    assert res_pers.json()["address"] == "Central Beach Workout Area"

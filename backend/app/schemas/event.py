@@ -11,7 +11,7 @@ class EventCreate(BaseModel):
     city_id: str = Field(..., description="ID of the city (e.g. makhachkala, moscow)")
     start_at: datetime = Field(..., description="Start timestamp with timezone")
     venue_name: str = Field(..., min_length=2, max_length=255, description="Venue name")
-    address: str = Field(..., min_length=2, max_length=255, description="Physical address")
+    address: Optional[str] = Field(None, max_length=255, description="Physical address (optional, defaults to venue or org address)")
     latitude: Optional[float] = Field(None, description="Venue latitude")
     longitude: Optional[float] = Field(None, description="Venue longitude")
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price (null if free)")

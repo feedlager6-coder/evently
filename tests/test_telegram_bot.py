@@ -38,6 +38,36 @@ async def test_inline_query_empty_state_handled(test_session):
     assert "нет подходящих событий" in results[0]["title"]
 
 
+@pytest.mark.asyncio
+async def test_inline_query_city_makhachkala(test_session):
+    # Query with exact city name "Махачкала"
+    query_payload = {
+        "id": "query_mcx",
+        "query": "Махачкала",
+        "from": {"id": 123456789}
+    }
+    resp = await handle_inline_query(test_session, query_payload)
+    results = resp["results"]
+    assert len(results) > 0
+    assert results[0]["id"] != "empty_state"
+    # Verify events are in Makhachkala
+    assert any("Махачкала" in r["description"] for r in results)
+
+
+@pytest.mark.asyncio
+async def test_inline_query_keyword_search(test_session):
+    # Query by keyword "Tech"
+    query_payload = {
+        "id": "query_tech",
+        "query": "Tech",
+        "from": {"id": 123456789}
+    }
+    resp = await handle_inline_query(test_session, query_payload)
+    results = resp["results"]
+    assert len(results) > 0
+    assert any("Tech" in r["title"] for r in results)
+
+
 def test_private_start_command():
     msg = {
         "text": "/start",
