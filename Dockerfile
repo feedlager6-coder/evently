@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend codebase
 COPY backend/ ./backend/
+RUN mkdir -p uploads/covers
 
 # Copy built frontend SPA assets
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
