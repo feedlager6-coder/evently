@@ -8,6 +8,7 @@ from app.api.v1.admin import router as admin_router
 from app.api.v1.telegram import router as telegram_router
 from app.api.v1.locations import router as locations_router
 from app.api.v1.users import router as users_router
+from app.api.v1.meta import router as meta_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -19,6 +20,8 @@ api_v1_router.include_router(admin_router)
 api_v1_router.include_router(telegram_router)
 api_v1_router.include_router(locations_router)
 api_v1_router.include_router(users_router)
+api_v1_router.include_router(meta_router)
 
 __all__ = ["api_v1_router"]
+
 

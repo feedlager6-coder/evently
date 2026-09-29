@@ -64,11 +64,14 @@ export interface EventCreatePayload {
 }
 
 export interface LocationSuggestion {
-  display_name: string;
+  title?: string;
   address: string;
+  city?: string;
   latitude: number;
   longitude: number;
+  display_name: string;
 }
+
 
 export interface UserProfile {
   id: number;

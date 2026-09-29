@@ -25,25 +25,68 @@ function getAuthHeaders(isJson: boolean = true): HeadersInit {
   return headers;
 }
 
+let cachedBotUsername = 'Ivently_bot';
+
 export const DEFAULT_CITIES: City[] = [
+  // Dagestan & North Caucasus
   { id: 'makhachkala', name: 'Махачкала', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 42.9849, longitude: 47.5047, is_active: true },
+  { id: 'kaspiysk', name: 'Каспийск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 42.8816, longitude: 47.6394, is_active: true },
+  { id: 'derbent', name: 'Дербент', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 42.0678, longitude: 48.2899, is_active: true },
+  { id: 'khasavyurt', name: 'Хасавюрт', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.2509, longitude: 46.5872, is_active: true },
+  { id: 'grozny', name: 'Грозный', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.3170, longitude: 45.6982, is_active: true },
+  { id: 'vladikavkaz', name: 'Владикавказ', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.0246, longitude: 44.6817, is_active: true },
+  { id: 'nalchik', name: 'Нальчик', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.4853, longitude: 43.6071, is_active: true },
+  { id: 'pyatigorsk', name: 'Пятигорск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 44.0486, longitude: 43.0594, is_active: true },
+  { id: 'stavropol', name: 'Ставрополь', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 45.0433, longitude: 41.9691, is_active: true },
+  // Major Federal Centers
   { id: 'moscow', name: 'Москва', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 55.7558, longitude: 37.6173, is_active: true },
   { id: 'spb', name: 'Санкт-Петербург', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 59.9343, longitude: 30.3351, is_active: true },
   { id: 'kazan', name: 'Казань', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 55.7961, longitude: 49.1064, is_active: true },
   { id: 'krasnodar', name: 'Краснодар', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 45.0355, longitude: 38.9753, is_active: true },
+  { id: 'sochi', name: 'Сочи', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.6028, longitude: 39.7342, is_active: true },
   { id: 'rostov_on_don', name: 'Ростов-на-Дону', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 47.2357, longitude: 39.7015, is_active: true },
   { id: 'yekaterinburg', name: 'Екатеринбург', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 56.8389, longitude: 60.6057, is_active: true },
   { id: 'novosibirsk', name: 'Новосибирск', country: 'Россия', timezone: 'Asia/Novosibirsk', currency: 'RUB', latitude: 55.0084, longitude: 82.9357, is_active: true },
   { id: 'nizhny_novgorod', name: 'Нижний Новгород', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 56.3269, longitude: 44.0059, is_active: true },
   { id: 'samara', name: 'Самара', country: 'Россия', timezone: 'Europe/Samara', currency: 'RUB', latitude: 53.1959, longitude: 50.1002, is_active: true },
   { id: 'ufa', name: 'Уфа', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 54.7388, longitude: 55.9721, is_active: true },
+  { id: 'chelyabinsk', name: 'Челябинск', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 55.1644, longitude: 61.4368, is_active: true },
+  { id: 'krasnoyarsk', name: 'Красноярск', country: 'Россия', timezone: 'Asia/Krasnoyarsk', currency: 'RUB', latitude: 56.0153, longitude: 92.8932, is_active: true },
   { id: 'voronezh', name: 'Воронеж', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 51.6755, longitude: 39.2089, is_active: true },
   { id: 'perm', name: 'Пермь', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 58.0105, longitude: 56.2502, is_active: true },
   { id: 'volgograd', name: 'Волгоград', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 48.7080, longitude: 44.5133, is_active: true },
-  { id: 'sochi', name: 'Сочи', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.6028, longitude: 39.7342, is_active: true },
+  { id: 'tyumen', name: 'Тюмень', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 57.1530, longitude: 65.5343, is_active: true },
+  { id: 'vladivostok', name: 'Владивосток', country: 'Россия', timezone: 'Asia/Vladivostok', currency: 'RUB', latitude: 43.1155, longitude: 131.8855, is_active: true },
+  { id: 'kaliningrad', name: 'Калининград', country: 'Россия', timezone: 'Europe/Kaliningrad', currency: 'RUB', latitude: 54.7104, longitude: 20.4522, is_active: true },
+  { id: 'yaroslavl', name: 'Ярославль', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 57.6261, longitude: 39.8845, is_active: true },
+  { id: 'khabarovsk', name: 'Хабаровск', country: 'Россия', timezone: 'Asia/Vladivostok', currency: 'RUB', latitude: 48.4814, longitude: 135.0721, is_active: true },
 ];
 
 export const api = {
+  getBotUsername(): string {
+    return cachedBotUsername;
+  },
+
+  async getAppMeta(): Promise<{ app_name: string; bot_username: string; mini_app_url: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/meta`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.bot_username) {
+          cachedBotUsername = data.bot_username;
+        }
+        return data;
+      }
+    } catch {
+      // Fallback to default
+    }
+    return {
+      app_name: 'Ivently',
+      bot_username: cachedBotUsername,
+      mini_app_url: `https://t.me/${cachedBotUsername}/app`,
+    };
+  },
+
   async getCities(search?: string): Promise<City[]> {
     try {
       const params = new URLSearchParams();
@@ -63,6 +106,7 @@ export const api = {
       return DEFAULT_CITIES;
     }
   },
+
 
   async getNearestCity(latitude: number, longitude: number): Promise<City> {
     try {
@@ -106,7 +150,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/events?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error('Failed to fetch events');
+    if (!res.ok) throw new Error('Не удалось загрузить события');
     return res.json();
   },
 
@@ -114,7 +158,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/events/${eventId}`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error(`Event not found: ${eventId}`);
+    if (!res.ok) throw new Error(`Мероприятие не найдено: ${eventId}`);
     return res.json();
   },
 
@@ -135,9 +179,12 @@ export const api = {
   },
 
   async suggestLocations(q: string, cityId?: string): Promise<LocationSuggestion[]> {
+    const cleanQ = q.trim().replace(/\.+$/, '');
+    if (cleanQ.length < 2) return [];
+
     try {
       const params = new URLSearchParams();
-      params.append('q', q);
+      params.append('q', cleanQ);
       if (cityId) params.append('city_id', cityId);
 
       const res = await fetch(`${API_BASE}/locations/suggest?${params.toString()}`);
@@ -150,16 +197,19 @@ export const api = {
     }
 
     const city = DEFAULT_CITIES.find(c => c.id === cityId) || DEFAULT_CITIES[0];
-    const cleanQ = q.trim();
+    const fallbackAddr = city ? `${cleanQ}, ${city.name}` : cleanQ;
     return [
       {
-        display_name: `${cleanQ}, ${city.name}`,
-        address: `${cleanQ}, ${city.name}`,
+        title: cleanQ,
+        address: fallbackAddr,
+        city: city?.name,
         latitude: city.latitude || 42.9849,
         longitude: city.longitude || 47.5047,
+        display_name: fallbackAddr,
       }
     ];
   },
+
 
   async getCurrentUser(): Promise<UserProfile | null> {
     try {

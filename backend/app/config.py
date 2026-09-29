@@ -5,7 +5,7 @@ from pydantic import field_validator
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Evently"
+    APP_NAME: str = "Ivently"
     APP_ENV: str = "development"
     DEBUG: bool = True
     PORT: int = 8000
@@ -16,8 +16,8 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: str = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ_testtoken"
-    TELEGRAM_BOT_USERNAME: str = "evently_bot"
-    TELEGRAM_MINI_APP_URL: str = "https://t.me/evently_bot/app"
+    TELEGRAM_BOT_USERNAME: str = "Ivently_bot"
+    TELEGRAM_MINI_APP_URL: str = "https://t.me/Ivently_bot/app"
 
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
@@ -96,21 +96,28 @@ class Settings(BaseSettings):
         return host.rstrip("/")
 
     @property
+    def clean_bot_username(self) -> str:
+        """Returns sanitized Telegram bot username without '@' or whitespace."""
+        u = (self.TELEGRAM_BOT_USERNAME or "Ivently_bot").strip().strip("'\"").lstrip("@")
+        return u or "Ivently_bot"
+
+    @property
     def effective_mini_app_url(self) -> str:
         """
-        Resolves the Mini App URL.
+        Resolves the Telegram Mini App launch URL: https://t.me/<username>/app.
         If TELEGRAM_MINI_APP_URL was set to a custom URL, uses it.
-        If TELEGRAM_BOT_USERNAME is set to a custom bot, points to https://t.me/<username>/app.
-        Otherwise falls back to effective_public_host or default.
         """
         custom_url = (self.TELEGRAM_MINI_APP_URL or "").strip().strip("'\"").strip()
-        if custom_url and custom_url != "https://t.me/evently_bot/app":
+        if custom_url and custom_url not in ("https://t.me/evently_bot/app", "https://t.me/Ivently_bot/app"):
             return custom_url
-        if self.TELEGRAM_BOT_USERNAME and self.TELEGRAM_BOT_USERNAME != "evently_bot":
-            return f"https://t.me/{self.TELEGRAM_BOT_USERNAME}/app"
-        if self.effective_public_host:
-            return self.effective_public_host
-        return self.TELEGRAM_MINI_APP_URL
+        return f"https://t.me/{self.clean_bot_username}/app"
+
+    def get_event_deep_link(self, event_id: str) -> str:
+        """
+        Returns official Telegram Mini App direct link with startapp parameter.
+        Format: https://t.me/<username>/app?startapp=event_<event_id>
+        """
+        return f"https://t.me/{self.clean_bot_username}/app?startapp=event_{event_id}"
 
     @property
     def async_database_url(self) -> str:

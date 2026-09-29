@@ -237,7 +237,7 @@ def test_city_timezone_date_filter_boundaries():
 async def test_spa_serving(client):
     resp = await client.get("/")
     if resp.status_code == 200:
-        assert "Evently" in resp.text
+        assert "Ivently" in resp.text or "Evently" in resp.text
         assert "<div id=\"root\"></div>" in resp.text
     else:
         assert resp.status_code == 404
@@ -249,7 +249,18 @@ async def test_health_check_endpoint(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "healthy"
-    assert data["app"] == "Evently"
+    assert data["app"] == "Ivently"
+
+
+@pytest.mark.asyncio
+async def test_app_meta_endpoint(client):
+    resp = await client.get("/api/v1/meta")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["app_name"] == "Ivently"
+    assert data["bot_username"] == "Ivently_bot"
+    assert "https://t.me/Ivently_bot/app" in data["mini_app_url"]
+
 
 
 def test_database_url_normalization():

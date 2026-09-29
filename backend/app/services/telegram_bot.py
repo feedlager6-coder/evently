@@ -58,12 +58,7 @@ def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     Constructs compliant inline keyboard to open event directly inside Telegram Mini App.
     In inline query results (sent in group chats/channels), only direct 'url' buttons are allowed.
     """
-    mini_app_url = settings.effective_mini_app_url
-    if mini_app_url.startswith("https://t.me/"):
-        sep = "&" if "?" in mini_app_url else "?"
-        url = f"{mini_app_url}{sep}startapp=event_{event_id}"
-    else:
-        url = f"{mini_app_url.rstrip('/')}/?startapp=event_{event_id}"
+    url = settings.get_event_deep_link(event_id)
     return {
         "inline_keyboard": [
             [
@@ -82,10 +77,11 @@ def build_catalog_inline_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🎟️ Открыть Evently Mini App", "url": mini_app_url}
+                {"text": "🎟️ Открыть Ivently Mini App", "url": mini_app_url}
             ]
         ]
     }
+
 
 
 
@@ -140,13 +136,13 @@ async def handle_inline_query(
             "type": "article",
             "id": "empty_state",
             "title": f"В {city_display} пока нет подходящих событий",
-            "description": "Нажмите, чтобы открыть всю афишу Evently в Mini App",
+            "description": "Нажмите, чтобы открыть всю афишу Ivently в Mini App",
             "thumbnail_url": empty_thumb,
             "thumb_url": empty_thumb,
             "input_message_content": {
                 "message_text": (
                     f"🔍 <b>По запросу «{query_text}» событий не найдено.</b>\n\n"
-                    f"Откройте Evently Mini App, чтобы посмотреть события в других городах или категориях."
+                    f"Откройте Ivently Mini App, чтобы посмотреть события в других городах или категориях."
                 ),
                 "parse_mode": "HTML"
             },
@@ -174,24 +170,24 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not text or not chat_id:
         return None
 
-    bot_username = settings.TELEGRAM_BOT_USERNAME or "Ivently_bot"
+    bot_username = settings.clean_bot_username
 
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
         return {
             "chat_id": chat_id,
             "text": (
-                "👋 <b>Добро пожаловать в Evently — события рядом!</b>\n\n"
-                "Evently — ваш проводник в мир ярких событий, концертов, вечеринок и митапов.\n\n"
-                "• Нажмите <b>«🔎 Найти события»</b> ниже, чтобы выбрать чат и найти события прямо в строке ввода.\n"
-                f"• Или напишите в любом чате: <code>@{bot_username} Махачкала</code> (или другой город/категорию).\n"
-                "• Для просмотра всей афиши, фильтров по датам и отметки «Я иду» откройте Mini App."
+                "👋 <b>Добро пожаловать в Ivently — события рядом!</b>\n\n"
+                "Находите концерты, вечеринки, спорт, митапы и другие события в вашем городе.\n\n"
+                "🔎 <b>Найти события</b> — поиск прямо из любого чата.\n"
+                "📍 Выберите город или разрешите определить его автоматически.\n"
+                "✨ Откройте Ivently, чтобы смотреть афишу и отмечать «Я иду»."
             ),
             "parse_mode": "HTML",
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Evently", start_param or None)
+                        build_mini_app_button("🎟️ Открыть Ivently", start_param or None)
                     ],
                     [
                         {"text": "🔎 Найти события", "switch_inline_query": ""}
@@ -226,7 +222,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return {
                 "chat_id": chat_id,
                 "text": (
-                    "🛡️ <b>Панель администратора Evently</b>\n\n"
+                    "🛡️ <b>Панель администратора Ivently</b>\n\n"
                     f"Ваш Telegram ID: <code>{user_id}</code>\n\n"
                     "Вы авторизованы как администратор. "
                     "Вам доступны функции модерации заявок, публикации и отмены мероприятий."
@@ -255,7 +251,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return {
             "chat_id": chat_id,
             "text": (
-                "ℹ️ <b>Как пользоваться Evently:</b>\n\n"
+                "ℹ️ <b>Как пользоваться Ivently:</b>\n\n"
                 "1. <b>Быстрый поиск в любом чате:</b>\n"
                 f"   Нажмите «🔎 Найти события» или напишите <code>@{bot_username} [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
                 "2. <b>Telegram Mini App:</b>\n"
@@ -267,7 +263,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Evently")
+                        build_mini_app_button("🎟️ Открыть Ivently")
                     ],
                     [
                         {"text": "🔎 Найти события", "switch_inline_query": ""}
@@ -282,14 +278,15 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "chat_id": chat_id,
             "text": (
                 "👋 Привет! Чтобы найти события или открыть афишу, нажмите кнопку ниже "
-                "или вызовите бота в любом чате: <code>@evently концерты</code>"
+                f"или вызовите бота в любом чате: <code>@{bot_username} концерты</code>"
             ),
             "parse_mode": "HTML",
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Evently")
+                        build_mini_app_button("🎟️ Открыть Ivently")
                     ]
                 ]
             }
         }
+

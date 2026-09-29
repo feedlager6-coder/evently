@@ -83,7 +83,8 @@ export const AdminTab: React.FC<AdminTabProps> = ({
             <Shield className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Модерация Evently</h3>
+            <h3 className="font-bold text-sm text-white">Модерация Ivently</h3>
+
             <p className="text-[11px] text-gray-400">Проверка и управление событиями</p>
           </div>
         </div>

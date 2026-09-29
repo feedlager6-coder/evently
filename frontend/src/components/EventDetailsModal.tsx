@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { EventResponse } from '../types';
 import { telegram } from '../services/telegram';
+import { api } from '../services/api';
 import { 
   Calendar, 
   MapPin, 
@@ -29,6 +30,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   isRsvpLoading,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [shareToast, setShareToast] = useState<string | null>(null);
 
   if (!isOpen || !event) return null;
 
@@ -44,17 +46,56 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
   const priceText = event.is_free
     ? 'Бесплатно'
-    : `${event.price_amount} ${event.price_currency || 'PLN'}`;
+    : `${event.price_amount} ${event.price_currency || 'RUB'}`;
 
-  const handleShare = () => {
+  const handleShare = async () => {
     telegram.hapticImpact('light');
-    const shareUrl = `${window.location.origin}/?startapp=event_${event.id}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    const botUsername = api.getBotUsername();
+    const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
+    const shareTitle = `${event.title} — Ivently`;
+    const shareText = `🎟️ ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\nСмотрите в Ivently:`;
+
+    let shared = false;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        shared = true;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          return;
+        }
+      }
+    }
+
+    if (!shared) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+        } else {
+          const textArea = document.createElement('textarea');
+          textArea.value = shareUrl;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+        }
+        setCopied(true);
+        setShareToast('Ссылка скопирована!');
+        telegram.hapticSuccess();
+        setTimeout(() => {
+          setCopied(false);
+          setShareToast(null);
+        }, 2500);
+      } catch (copyErr) {
+        console.warn('Clipboard copy failed:', copyErr);
+      }
     }
   };
+
 
   const handleRsvpClick = async () => {
     if (isRsvpLoading) return;
@@ -94,6 +135,15 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               <span>{copied ? 'Скопировано!' : 'Поделиться'}</span>
             </button>
           </div>
+
+          {/* Toast Notification */}
+          {shareToast && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-semibold shadow-2xl backdrop-blur-md animate-fade-in flex items-center space-x-1.5 pointer-events-none">
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>{shareToast}</span>
+            </div>
+          )}
+
 
           {/* Badges on hero bottom */}
           <div className="absolute bottom-3 left-4 flex flex-wrap gap-2">

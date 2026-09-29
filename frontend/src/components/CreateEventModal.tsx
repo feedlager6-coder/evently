@@ -86,7 +86,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   // Debounced address search (starts at 2 chars, 300ms)
   useEffect(() => {
-    if (!address || address.trim().length < 2 || !showSuggestions) {
+    const trimmed = (address || '').trim().replace(/\.+$/, '');
+    if (trimmed.length < 2) {
       setLocationSuggestions([]);
       return;
     }
@@ -94,8 +95,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     const timer = setTimeout(async () => {
       try {
         setIsLoadingSuggestions(true);
-        const results = await api.suggestLocations(address, cityId);
+        const results = await api.suggestLocations(trimmed, cityId);
         setLocationSuggestions(results);
+        if (results.length > 0) {
+          setShowSuggestions(true);
+        }
       } catch (err) {
         console.warn('Location suggestion lookup error:', err);
       } finally {
@@ -104,7 +108,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [address, cityId, showSuggestions]);
+  }, [address, cityId]);
+
 
   if (!isOpen) return null;
 
@@ -146,7 +151,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   const handleSelectSuggestion = (suggestion: LocationSuggestion) => {
     setAddress(suggestion.address || suggestion.display_name);
-    if (!venueName.trim()) {
+    if (!venueName.trim() && suggestion.title) {
+      setVenueName(suggestion.title);
+    } else if (!venueName.trim()) {
       const placeName = suggestion.display_name.split(',')[0].trim();
       setVenueName(placeName);
     }
@@ -156,6 +163,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     setLocationSuggestions([]);
     telegram.hapticImpact('light');
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,7 +209,6 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         className="w-full max-w-lg rounded-3xl bg-[#121522] border border-white/10 p-5 shadow-2xl space-y-4 my-auto"
         onClick={(e) => {
           e.stopPropagation();
-          setShowSuggestions(false);
         }}
       >
         {/* Header */}
@@ -231,10 +238,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <div className="space-y-1">
               <h4 className="text-lg font-bold text-white">Отправлено на модерацию!</h4>
               <p className="text-xs text-gray-300 max-w-xs mx-auto">
-                Ваше событие успешно создано и отправлено администраторам. Как только его одобрят, оно станет доступно в афише Evently.
+                Ваше событие успешно создано и отправлено администраторам. Как только его одобрят, оно станет доступно в афише Ivently.
               </p>
             </div>
             <button
+
               onClick={onClose}
               className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs shadow-lg hover:bg-indigo-500 transition-colors"
             >
@@ -343,7 +351,17 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       setAddress(e.target.value);
                       setShowSuggestions(true);
                     }}
-                    onFocus={() => setShowSuggestions(true)}
+                    onFocus={() => {
+                      if (locationSuggestions.length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (locationSuggestions.length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
                     placeholder="Начните ввод адреса..."
                     className="w-full px-3 py-2 pr-7 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500"
                   />
@@ -374,15 +392,20 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                         className="w-full p-2.5 text-left border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors flex items-start space-x-2"
                       >
                         <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                        <div>
-                          <div className="font-semibold text-white text-xs">{item.display_name.split(',')[0]}</div>
-                          <div className="text-[10px] text-gray-400 line-clamp-1">{item.address}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-white text-xs truncate">
+                            {item.title || item.display_name.split(',')[0]}
+                          </div>
+                          <div className="text-[10px] text-gray-400 line-clamp-1">
+                            {item.address || item.display_name}
+                          </div>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
+
             </div>
 
             {/* Price Config */}

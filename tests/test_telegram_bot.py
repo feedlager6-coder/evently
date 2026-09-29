@@ -46,7 +46,7 @@ def test_private_start_command():
     }
     reply = handle_private_message(msg)
     assert reply is not None
-    assert "Добро пожаловать в Evently" in reply["text"]
+    assert "Добро пожаловать в Ivently" in reply["text"]
     
     # Check buttons: Mini App + switch_inline_query
     ikb = reply["reply_markup"]["inline_keyboard"]
@@ -77,8 +77,9 @@ def test_private_admin_command_authorization():
     }
     admin_reply = handle_private_message(admin_msg)
     assert admin_reply is not None
-    assert "Панель администратора Evently" in admin_reply["text"]
+    assert "Панель администратора Ivently" in admin_reply["text"]
     assert "123456789" in admin_reply["text"]
+
 
     # 2. Non-admin user
     non_admin_msg = {
@@ -128,7 +129,7 @@ async def test_telegram_webhook_start_command(client):
     data = resp.json()
     assert data["method"] == "sendMessage"
     assert data["chat_id"] == 98765
-    assert "Добро пожаловать в Evently" in data["text"]
+    assert "Добро пожаловать в Ivently" in data["text"]
     assert "reply_markup" in data
     assert "inline_keyboard" in data["reply_markup"]
     assert len(data["reply_markup"]["inline_keyboard"]) >= 2
@@ -172,7 +173,7 @@ async def test_telegram_webhook_help_and_fallback(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["method"] == "sendMessage"
-    assert "Как пользоваться Evently" in data["text"]
+    assert "Как пользоваться Ivently" in data["text"]
 
     # 2. General text message fallback
     msg_update = {

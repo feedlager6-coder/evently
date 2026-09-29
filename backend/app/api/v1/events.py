@@ -102,8 +102,8 @@ async def discover_events(
     Public event discovery feed. Returns published events filtered by city, category, and date.
     Calculates date boundaries according to the selected city's timezone.
     """
-    # If city not specified, default to user's saved city if authenticated
-    effective_city = city_id or (current_user.default_city_id if current_user else "warsaw")
+    # If city not specified, default to user's saved city if authenticated, or makhachkala
+    effective_city = city_id or (current_user.default_city_id if current_user and current_user.default_city_id else "makhachkala")
 
     events, total = await list_published_events(
         session=session,

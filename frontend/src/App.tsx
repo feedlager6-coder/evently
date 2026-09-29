@@ -71,6 +71,7 @@ export const App: React.FC = () => {
         const [loadedCities, loadedCategories] = await Promise.all([
           api.getCities(),
           api.getCategories(),
+          api.getAppMeta().catch(() => null),
         ]);
         if (loadedCities && loadedCities.length > 0) {
           setCities(loadedCities);
@@ -101,13 +102,16 @@ export const App: React.FC = () => {
         const startParam = telegram.getStartParam();
         if (startParam) {
           if (startParam.startsWith('event_')) {
-            const eventId = startParam.replace('event_', '');
-            openEventById(eventId);
+            const eventId = startParam.replace(/^event_/, '').trim();
+            if (eventId) {
+              openEventById(eventId);
+            }
           } else if (startParam === 'create') {
             setCurrentTab('create');
           }
         }
       } catch (err: any) {
+
         console.error('Failed to initialize app metadata:', err);
       }
     };

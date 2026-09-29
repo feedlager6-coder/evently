@@ -14,10 +14,19 @@ interface CityModalProps {
 
 const CITY_EMOJIS: Record<string, string> = {
   makhachkala: '🏔️',
+  kaspiysk: '🏖️',
+  derbent: '🏰',
+  khasavyurt: '🥋',
+  grozny: '🌙',
+  vladikavkaz: '⛰️',
+  nalchik: '🌲',
+  pyatigorsk: '🗻',
+  stavropol: '🌾',
   moscow: '🏛️',
   spb: '🌉',
   kazan: '🕌',
   krasnodar: '☀️',
+  sochi: '🌴',
   rostov_on_don: '🌊',
   yekaterinburg: '💎',
   ekaterinburg: '💎',
@@ -25,11 +34,18 @@ const CITY_EMOJIS: Record<string, string> = {
   nizhny_novgorod: '🏰',
   samara: '🚀',
   ufa: '🍯',
+  chelyabinsk: '🏭',
+  krasnoyarsk: '🏞️',
   voronezh: '⚓',
   perm: '🐻',
   volgograd: '⚔️',
-  sochi: '🌴',
+  tyumen: '♨️',
+  vladivostok: '⚓',
+  kaliningrad: '🏰',
+  yaroslavl: '🔔',
+  khabarovsk: '🐯',
 };
+
 
 export const CityModal: React.FC<CityModalProps> = ({
   isOpen,
