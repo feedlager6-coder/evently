@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { City, Category, EventCreatePayload, LocationSuggestion } from '../types';
+import type { City, Category, EventCreatePayload, LocationSuggestion, OrganizationSummary } from '../types';
 import { api, DEFAULT_CITIES } from '../services/api';
 import { telegram } from '../services/telegram';
 import { 
@@ -12,7 +12,8 @@ import {
   Image as ImageIcon, 
   Upload, 
   MapPin, 
-  Check
+  Check,
+  Building2
 } from 'lucide-react';
 
 interface CreateEventModalProps {
@@ -22,6 +23,8 @@ interface CreateEventModalProps {
   categories: Category[];
   defaultCityId?: string;
   onEventCreated: () => void;
+  myOrganizations?: OrganizationSummary[];
+  initialOrganizationId?: string;
 }
 
 const PRESET_IMAGES = [
@@ -39,7 +42,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   categories,
   defaultCityId,
   onEventCreated,
+  myOrganizations = [],
+  initialOrganizationId,
 }) => {
+  const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(initialOrganizationId);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [cityId, setCityId] = useState(defaultCityId || 'makhachkala');
@@ -190,6 +196,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         price_amount: isFree ? undefined : Number(priceAmount) || 0,
         price_currency: isFree ? undefined : currency,
         cover_image_url: coverImageUrl.trim() || undefined,
+        organization_id: selectedOrgId || undefined,
       };
 
       await api.createEvent(payload);
@@ -255,6 +262,41 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {/* Organizer selector */}
+            {myOrganizations && myOrganizations.length > 0 && (
+              <div className="space-y-1.5 p-3 rounded-2xl bg-[#141724] border border-white/5">
+                <label className="text-gray-300 font-medium">Организатор (от чьего имени)</label>
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrgId(undefined)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      !selectedOrgId
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    Личный профиль
+                  </button>
+                  {myOrganizations.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      onClick={() => setSelectedOrgId(org.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 ${
+                        selectedOrgId === org.id
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>{org.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

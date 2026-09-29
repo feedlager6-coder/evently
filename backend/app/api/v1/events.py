@@ -198,6 +198,8 @@ async def create_event(
         event = await create_organizer_event(session, payload, organizer_user_id=user.id)
         # Fetch detailed view for response
         return await get_event_details(session, event.id, current_user_id=user.id)
+    except HTTPException:
+        raise
     except EventValidationError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:

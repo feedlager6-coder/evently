@@ -247,6 +247,27 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "parse_mode": "HTML"
             }
 
+    elif text.startswith("/events"):
+        return {
+            "chat_id": chat_id,
+            "text": (
+                "🎟️ <b>Афиша мероприятий Ivently</b>\n\n"
+                "Смотрите актуальные концерты, спектакли, лекции, вечеринки и спорт в вашем городе!\n\n"
+                "Нажмите кнопку ниже, чтобы открыть афишу в Mini App:"
+            ),
+            "parse_mode": "HTML",
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        build_mini_app_button("🎟️ Открыть афишу")
+                    ],
+                    [
+                        {"text": "🔎 Поиск в чате", "switch_inline_query": ""}
+                    ]
+                ]
+            }
+        }
+
     elif text.startswith("/help"):
         return {
             "chat_id": chat_id,
@@ -256,8 +277,10 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 f"   Нажмите «🔎 Найти события» или напишите <code>@{bot_username} [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
                 "2. <b>Telegram Mini App:</b>\n"
                 "   Нажмите кнопку ниже, чтобы открыть афишу, фильтровать события и отмечаться «Я иду».\n\n"
-                "3. <b>Организаторам:</b>\n"
-                "   Используйте команду /create для добавления своего мероприятия."
+                "3. <b>Команды бота:</b>\n"
+                "   /events — открыть афишу\n"
+                "   /create — создать мероприятие или профиль организации\n"
+                "   /help — справка"
             ),
             "parse_mode": "HTML",
             "reply_markup": {

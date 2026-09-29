@@ -6,6 +6,7 @@ from app.models.event import Event, EventStatus
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
+from app.models.organization import Organization
 from app.schemas.event import EventSummary, EventResponse
 from app.services.event_service import EventNotFoundError, EventValidationError
 
@@ -28,10 +29,14 @@ async def get_admin_events(
             Event,
             Category.name.label("category_name"),
             City.name.label("city_name"),
-            attendee_count_subq.label("attendee_count")
+            attendee_count_subq.label("attendee_count"),
+            Organization.name.label("org_name"),
+            Organization.category.label("org_category"),
+            Organization.avatar_url.label("org_avatar")
         )
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
+        .outerjoin(Organization, Event.organization_id == Organization.id)
     )
 
     if status_filter:
@@ -43,7 +48,7 @@ async def get_admin_events(
     rows = results.all()
 
     summaries = []
-    for event, cat_name, c_name, att_count in rows:
+    for event, cat_name, c_name, att_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -62,7 +67,11 @@ async def get_admin_events(
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,
-                is_attending=False
+                is_attending=False,
+                organization_id=event.organization_id,
+                organization_name=org_name,
+                organization_category=org_category,
+                organization_avatar_url=org_avatar
             )
         )
     return summaries

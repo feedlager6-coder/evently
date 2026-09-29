@@ -6,7 +6,9 @@ import type {
   EventResponse, 
   DateFilterType, 
   EventStatus,
-  TelegramWebAppUser 
+  TelegramWebAppUser,
+  OrganizationSummary,
+  OrganizationResponse
 } from './types';
 import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
@@ -19,6 +21,9 @@ import { CreateEventModal } from './components/CreateEventModal';
 import { OrganizerTab } from './components/OrganizerTab';
 import { AdminTab } from './components/AdminTab';
 import { Navigation } from './components/Navigation';
+import { OrganizationModal } from './components/OrganizationModal';
+import { CreateOrganizationModal } from './components/CreateOrganizationModal';
+import { MySubscriptionsModal } from './components/MySubscriptionsModal';
 import type { TabType } from './components/Navigation';
 import { Loader2, Ticket, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -50,6 +55,16 @@ export const App: React.FC = () => {
   // Organizer tab state
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
   const [isLoadingOrganizer, setIsLoadingOrganizer] = useState(false);
+  const [myOrganizations, setMyOrganizations] = useState<OrganizationSummary[]>([]);
+  const [isLoadingMyOrganizations, setIsLoadingMyOrganizations] = useState(false);
+
+  // Organizations Modals state
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
+  const [isCreateOrgModalOpen, setIsCreateOrgModalOpen] = useState(false);
+  const [editingOrgData, setEditingOrgData] = useState<OrganizationResponse | null>(null);
+  const [isSubscriptionsModalOpen, setIsSubscriptionsModalOpen] = useState(false);
+  const [preselectedOrgForEventCreate, setPreselectedOrgForEventCreate] = useState<string | undefined>(undefined);
 
   // Admin tab state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -59,6 +74,26 @@ export const App: React.FC = () => {
 
   // Telegram User
   const [user, setUser] = useState<TelegramWebAppUser | null>(null);
+
+  // Helper to open Organization details
+  const openOrgById = useCallback((orgId: string) => {
+    setSelectedOrgId(orgId);
+    setIsOrgModalOpen(true);
+  }, []);
+
+  // Helper to open Event details
+  const openEventById = useCallback(async (eventId: string) => {
+    try {
+      setIsRsvpLoading(true);
+      const details = await api.getEventDetails(eventId);
+      setSelectedEventDetails(details);
+      setIsDetailsOpen(true);
+    } catch (err) {
+      console.error('Failed to open event details:', err);
+    } finally {
+      setIsRsvpLoading(false);
+    }
+  }, []);
 
   // 1. Initial Load: Metadata & Telegram initialization
   useEffect(() => {
@@ -98,7 +133,7 @@ export const App: React.FC = () => {
           setIsAdmin(false);
         }
 
-        // Handle Deep Linking via start_param (e.g., event_mkh_01 or create)
+        // Handle Deep Linking via start_param (e.g., event_mkh_01, org_123, or create)
         const startParam = telegram.getStartParam();
         if (startParam) {
           if (startParam.startsWith('event_')) {
@@ -106,18 +141,22 @@ export const App: React.FC = () => {
             if (eventId) {
               openEventById(eventId);
             }
+          } else if (startParam.startsWith('org_')) {
+            const orgId = startParam.replace(/^org_/, '').trim();
+            if (orgId) {
+              openOrgById(orgId);
+            }
           } else if (startParam === 'create') {
             setCurrentTab('create');
           }
         }
       } catch (err: any) {
-
         console.error('Failed to initialize app metadata:', err);
       }
     };
 
     initMetadata();
-  }, []);
+  }, [openEventById, openOrgById]);
 
   // 2. Fetch Discovery Feed Events
   const loadFeedEvents = useCallback(async () => {
@@ -137,7 +176,7 @@ export const App: React.FC = () => {
     loadFeedEvents();
   }, [loadFeedEvents]);
 
-  // 3. Fetch Organizer Events
+  // 3. Fetch Organizer Events & Organizations
   const loadOrganizerEvents = useCallback(async () => {
     try {
       setIsLoadingOrganizer(true);
@@ -147,6 +186,18 @@ export const App: React.FC = () => {
       console.error('Error loading organizer events:', err);
     } finally {
       setIsLoadingOrganizer(false);
+    }
+  }, []);
+
+  const loadMyOrganizations = useCallback(async () => {
+    try {
+      setIsLoadingMyOrganizations(true);
+      const data = await api.getMyOrganizations();
+      setMyOrganizations(data);
+    } catch (err) {
+      console.error('Error loading my organizations:', err);
+    } finally {
+      setIsLoadingMyOrganizations(false);
     }
   }, []);
 
@@ -167,24 +218,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (currentTab === 'organizer') {
       loadOrganizerEvents();
+      loadMyOrganizations();
+    } else if (currentTab === 'create') {
+      loadMyOrganizations();
     } else if (currentTab === 'admin') {
       loadAdminEvents();
     }
-  }, [currentTab, loadOrganizerEvents, loadAdminEvents]);
-
-  // Open Event Details
-  const openEventById = async (eventId: string) => {
-    try {
-      setIsRsvpLoading(true);
-      const details = await api.getEventDetails(eventId);
-      setSelectedEventDetails(details);
-      setIsDetailsOpen(true);
-    } catch (err) {
-      console.error('Failed to open event details:', err);
-    } finally {
-      setIsRsvpLoading(false);
-    }
-  };
+  }, [currentTab, loadOrganizerEvents, loadMyOrganizations, loadAdminEvents]);
 
   const handleCardClick = async (event: EventSummary) => {
     openEventById(event.id);
@@ -196,10 +236,8 @@ export const App: React.FC = () => {
       setIsRsvpLoading(true);
       let res;
       if (currentStatus) {
-        // DELETE RSVP
         res = await api.removeRsvp(eventId);
       } else {
-        // POST RSVP
         res = await api.addRsvp(eventId);
       }
 
@@ -235,6 +273,7 @@ export const App: React.FC = () => {
       <Header
         currentCity={currentCity}
         onOpenCityModal={() => setIsCityModalOpen(true)}
+        onOpenSubscriptionsModal={() => setIsSubscriptionsModalOpen(true)}
         user={user}
         isAdmin={isAdmin}
       />
@@ -315,11 +354,17 @@ export const App: React.FC = () => {
           <div className="p-4">
             <CreateEventModal
               isOpen={true}
-              onClose={() => setCurrentTab('feed')}
+              onClose={() => {
+                setPreselectedOrgForEventCreate(undefined);
+                setCurrentTab('feed');
+              }}
               cities={cities}
               categories={categories}
               defaultCityId={selectedCityId}
+              myOrganizations={myOrganizations}
+              initialOrganizationId={preselectedOrgForEventCreate}
               onEventCreated={() => {
+                setPreselectedOrgForEventCreate(undefined);
                 loadFeedEvents();
                 setCurrentTab('organizer');
               }}
@@ -331,7 +376,15 @@ export const App: React.FC = () => {
           <OrganizerTab
             events={organizerEvents}
             isLoading={isLoadingOrganizer}
+            organizations={myOrganizations}
+            isLoadingOrganizations={isLoadingMyOrganizations}
+            onOpenCreateOrgModal={() => {
+              setEditingOrgData(null);
+              setIsCreateOrgModalOpen(true);
+            }}
+            onOrgClick={(org) => openOrgById(org.id)}
             onOpenCreateModal={() => {
+              setPreselectedOrgForEventCreate(undefined);
               setCurrentTab('create');
             }}
             onEventClick={(ev) => openEventById(ev.id)}
@@ -373,6 +426,54 @@ export const App: React.FC = () => {
         onClose={() => setIsDetailsOpen(false)}
         onToggleRsvp={handleToggleRsvp}
         isRsvpLoading={isRsvpLoading}
+        onOpenOrgModal={(orgId) => openOrgById(orgId)}
+      />
+
+      {/* Organization Details Modal */}
+      <OrganizationModal
+        isOpen={isOrgModalOpen}
+        orgIdOrSlug={selectedOrgId}
+        onClose={() => {
+          setIsOrgModalOpen(false);
+          setSelectedOrgId(null);
+        }}
+        onEventClick={(ev) => openEventById(ev.id)}
+        onOpenCreateEvent={(orgId) => {
+          setIsOrgModalOpen(false);
+          setPreselectedOrgForEventCreate(orgId);
+          setCurrentTab('create');
+        }}
+        onEditOrg={(org) => {
+          setIsOrgModalOpen(false);
+          setEditingOrgData(org);
+          setIsCreateOrgModalOpen(true);
+        }}
+        onSubscriptionChanged={() => {
+          loadMyOrganizations();
+        }}
+      />
+
+      {/* Create / Edit Organization Modal */}
+      <CreateOrganizationModal
+        isOpen={isCreateOrgModalOpen}
+        onClose={() => {
+          setIsCreateOrgModalOpen(false);
+          setEditingOrgData(null);
+        }}
+        cities={cities}
+        defaultCityId={selectedCityId}
+        initialData={editingOrgData}
+        onSaved={(savedOrg) => {
+          loadMyOrganizations();
+          openOrgById(savedOrg.id);
+        }}
+      />
+
+      {/* My Subscriptions Modal */}
+      <MySubscriptionsModal
+        isOpen={isSubscriptionsModalOpen}
+        onClose={() => setIsSubscriptionsModalOpen(false)}
+        onSelectOrg={(orgId) => openOrgById(orgId)}
       />
 
       {/* Bottom Navigation */}

@@ -68,6 +68,7 @@ async def init_db() -> None:
             ("events", "latitude", "DOUBLE PRECISION", "FLOAT"),
             ("events", "longitude", "DOUBLE PRECISION", "FLOAT"),
             ("events", "rejection_reason", "TEXT", "TEXT"),
+            ("events", "organization_id", "VARCHAR(36)", "VARCHAR(36)"),
             ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
             ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
         ]

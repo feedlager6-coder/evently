@@ -25,6 +25,8 @@ class User(Base):
     default_city = relationship("City", back_populates="users")
     organized_events = relationship("Event", back_populates="organizer", foreign_keys="Event.organizer_user_id")
     attendances = relationship("EventAttendee", back_populates="user", cascade="all, delete-orphan")
+    owned_organizations = relationship("Organization", back_populates="owner", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username='{self.username}')>"

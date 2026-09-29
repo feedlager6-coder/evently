@@ -16,6 +16,7 @@ class EventCreate(BaseModel):
     longitude: Optional[float] = Field(None, description="Venue longitude")
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price (null if free)")
     price_currency: Optional[str] = Field(None, max_length=10, description="Price currency (e.g. RUB)")
+    organization_id: Optional[str] = Field(None, description="Optional organization ID")
 
     @field_validator("cover_image_url")
     @classmethod
@@ -45,6 +46,10 @@ class EventSummary(BaseModel):
     attendee_count: int = 0
     status: str
     is_attending: bool = False
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None
+    organization_category: Optional[str] = None
+    organization_avatar_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,6 +59,8 @@ class EventResponse(EventSummary):
     address: str
     organizer_user_id: int
     organizer_name: Optional[str] = None
+    organization_followers_count: Optional[int] = None
+    organization_is_subscribed: Optional[bool] = None
     rejection_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime

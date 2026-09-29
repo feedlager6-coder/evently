@@ -19,7 +19,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
 
   const priceLabel = event.is_free
     ? 'Бесплатно'
-    : `${event.price_amount} ${event.price_currency || 'PLN'}`;
+    : `${event.price_amount} ${event.price_currency || 'RUB'}`;
 
   return (
     <div

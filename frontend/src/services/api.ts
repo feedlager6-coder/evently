@@ -7,7 +7,13 @@ import type {
   DateFilterType,
   EventStatus,
   LocationSuggestion,
-  UserProfile
+  UserProfile,
+  OrganizationSummary,
+  OrganizationResponse,
+  OrganizationCreatePayload,
+  OrganizationUpdatePayload,
+  SubscriptionStatusResponse,
+  UserSubscriptionItem
 } from '../types';
 import { telegram } from './telegram';
 
@@ -309,6 +315,106 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to cancel event');
+    return res.json();
+  },
+
+  // Organizations & Subscriptions
+  async createOrganization(payload: OrganizationCreatePayload): Promise<OrganizationResponse> {
+    const res = await fetch(`${API_BASE}/organizations`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Ошибка создания организации');
+    }
+    return res.json();
+  },
+
+  async getOrganization(idOrSlug: string): Promise<OrganizationResponse> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(idOrSlug)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Организация не найдена');
+    }
+    return res.json();
+  },
+
+  async updateOrganization(orgId: string, payload: OrganizationUpdatePayload): Promise<OrganizationResponse> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      if (res.status === 403) throw new Error('Нет прав на редактирование этой организации');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Ошибка обновления профиля организации');
+    }
+    return res.json();
+  },
+
+  async getMyOrganizations(): Promise<OrganizationSummary[]> {
+    const res = await fetch(`${API_BASE}/organizations/me`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) return [];
+      throw new Error('Failed to fetch my organizations');
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.organizations || [];
+  },
+
+  async getOrganizationEvents(orgId: string): Promise<EventSummary[]> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/events`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to fetch organization events');
+    }
+    return res.json();
+  },
+
+  async subscribeOrganization(orgId: string): Promise<SubscriptionStatusResponse> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Не удалось подписаться');
+    }
+    return res.json();
+  },
+
+  async unsubscribeOrganization(orgId: string): Promise<SubscriptionStatusResponse> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Не удалось отписаться');
+    }
+    return res.json();
+  },
+
+  async getMySubscriptions(): Promise<UserSubscriptionItem[]> {
+    const res = await fetch(`${API_BASE}/users/me/subscriptions`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) return [];
+      throw new Error('Failed to fetch user subscriptions');
+    }
     return res.json();
   }
 };

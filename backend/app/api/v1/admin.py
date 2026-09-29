@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,6 +14,7 @@ from app.services.moderation_service import (
     cancel_event
 )
 from app.services.event_service import get_event_details, EventNotFoundError
+from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin Moderation"])
 
@@ -38,14 +39,18 @@ async def list_moderation_queue(
 @router.post("/events/{event_id}/publish", response_model=EventResponse)
 async def admin_publish_event(
     event_id: str,
+    background_tasks: BackgroundTasks,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
     Approves and publishes an event, making it immediately visible in public discovery.
+    Triggers asynchronous notification to subscribers if event belongs to an organization.
     """
     try:
-        await publish_event(session, event_id)
+        event = await publish_event(session, event_id)
+        if event.organization_id:
+            background_tasks.add_task(notification_service.notify_organization_subscribers, event.id)
         return await get_event_details(session, event_id)
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

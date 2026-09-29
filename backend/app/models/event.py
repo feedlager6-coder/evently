@@ -35,6 +35,7 @@ class Event(Base):
     price_currency = Column(String(10), nullable=True)
     status = Column(String(20), nullable=False, default=EventStatus.PENDING.value, index=True)
     organizer_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
     rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -43,6 +44,7 @@ class Event(Base):
     city = relationship("City", back_populates="events")
     category = relationship("Category", back_populates="events")
     organizer = relationship("User", back_populates="organized_events", foreign_keys=[organizer_user_id])
+    organization = relationship("Organization", back_populates="events")
     attendees = relationship("EventAttendee", back_populates="event", cascade="all, delete-orphan")
 
     __table_args__ = (

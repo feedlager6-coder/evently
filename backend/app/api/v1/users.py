@@ -46,3 +46,16 @@ async def get_current_user_profile(
         default_city_id=user.default_city_id,
         is_admin=is_admin
     )
+
+
+@router.get("/me/subscriptions")
+async def get_my_subscriptions(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Returns list of all organizations the authenticated user is subscribed to.
+    """
+    from app.services.organization_service import list_user_subscriptions
+    return await list_user_subscriptions(session, user.id)
+

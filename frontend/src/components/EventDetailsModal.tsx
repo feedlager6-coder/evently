@@ -11,8 +11,11 @@ import {
   Share2, 
   Ticket, 
   User as UserIcon,
+  Building2,
+  ChevronRight,
   Loader2
 } from 'lucide-react';
+import { formatFollowers } from './OrganizationModal';
 
 interface EventDetailsModalProps {
   event: EventResponse | null;
@@ -20,6 +23,7 @@ interface EventDetailsModalProps {
   onClose: () => void;
   onToggleRsvp: (eventId: string, currentStatus: boolean) => Promise<void>;
   isRsvpLoading: boolean;
+  onOpenOrgModal?: (orgId: string) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -28,6 +32,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onClose,
   onToggleRsvp,
   isRsvpLoading,
+  onOpenOrgModal,
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -201,7 +206,47 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           </div>
 
           {/* Organizer info */}
-          {event.organizer_name && (
+          {event.organization_id ? (
+            <div
+              onClick={() => onOpenOrgModal?.(event.organization_id!)}
+              className="flex items-center justify-between p-3.5 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-tr from-indigo-900 to-purple-900 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  {event.organization_avatar_url ? (
+                    <img
+                      src={event.organization_avatar_url}
+                      alt={event.organization_name || 'Организация'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Building2 className="w-5 h-5 text-indigo-300" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] text-gray-400 font-medium">Организация</div>
+                  <div className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                    {event.organization_name || 'Организатор'}
+                  </div>
+                  <div className="flex items-center space-x-1.5 text-[11px] text-gray-400">
+                    {event.organization_category && <span>{event.organization_category}</span>}
+                    {event.organization_followers_count !== undefined && (
+                      <>
+                        <span>•</span>
+                        <span className="text-indigo-400 font-medium">
+                          {formatFollowers(event.organization_followers_count)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
+                <span>Профиль</span>
+                <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </div>
+          ) : event.organizer_name ? (
             <div className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29]/60 border border-white/5">
               <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
                 <UserIcon className="w-4 h-4" />
@@ -211,7 +256,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 <div className="font-medium text-white">@{event.organizer_name}</div>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Description */}
           <div className="space-y-2">

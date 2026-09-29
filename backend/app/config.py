@@ -119,6 +119,13 @@ class Settings(BaseSettings):
         """
         return f"https://t.me/{self.clean_bot_username}/app?startapp=event_{event_id}"
 
+    def get_organization_deep_link(self, org_id: str) -> str:
+        """
+        Returns official Telegram Mini App direct link for organization profile.
+        Format: https://t.me/<username>/app?startapp=org_<org_id>
+        """
+        return f"https://t.me/{self.clean_bot_username}/app?startapp=org_{org_id}"
+
     @property
     def async_database_url(self) -> str:
         """

@@ -37,6 +37,10 @@ export interface EventSummary {
   status: EventStatus;
   attendee_count: number;
   is_attending: boolean;
+  organization_id?: string;
+  organization_name?: string;
+  organization_category?: string;
+  organization_avatar_url?: string;
   created_at: string;
 }
 
@@ -44,6 +48,8 @@ export interface EventResponse extends EventSummary {
   description: string;
   organizer_user_id?: number;
   organizer_name?: string;
+  organization_followers_count?: number;
+  organization_is_subscribed?: boolean;
   rejection_reason?: string;
   updated_at: string;
 }
@@ -61,6 +67,88 @@ export interface EventCreatePayload {
   longitude?: number;
   price_amount?: number;
   price_currency?: string;
+  organization_id?: string;
+}
+
+export const ORGANIZATION_CATEGORIES = [
+  'Кафе',
+  'Ресторан',
+  'Бар',
+  'Клуб',
+  'Концертная площадка',
+  'Театр',
+  'Спорт',
+  'Образование',
+  'Культура',
+  'Другое'
+] as const;
+
+export type OrganizationCategory = typeof ORGANIZATION_CATEGORIES[number] | string;
+
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  city_id?: string;
+  city_name?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  avatar_url?: string;
+  status: string;
+  is_verified: boolean;
+  followers_count: number;
+  is_subscribed: boolean;
+  is_owner: boolean;
+  created_at: string;
+}
+
+export interface OrganizationResponse extends OrganizationSummary {
+  description?: string;
+  website?: string;
+  social_link?: string;
+  owner_user_id: number;
+  updated_at: string;
+}
+
+export interface OrganizationCreatePayload {
+  name: string;
+  category: string;
+  description?: string;
+  city_id?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  avatar_url?: string;
+  website?: string;
+  social_link?: string;
+}
+
+export interface OrganizationUpdatePayload {
+  name?: string;
+  category?: string;
+  description?: string;
+  city_id?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  avatar_url?: string;
+  website?: string;
+  social_link?: string;
+  status?: string;
+}
+
+export interface SubscriptionStatusResponse {
+  is_subscribed: boolean;
+  followers_count: number;
+  message: string;
+}
+
+export interface UserSubscriptionItem {
+  id: string;
+  organization: OrganizationSummary;
+  created_at: string;
 }
 
 export interface LocationSuggestion {

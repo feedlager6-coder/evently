@@ -1,10 +1,11 @@
 import React from 'react';
 import type { City, TelegramWebAppUser } from '../types';
-import { MapPin, ChevronDown, Ticket } from 'lucide-react';
+import { MapPin, ChevronDown, Ticket, Bookmark } from 'lucide-react';
 
 interface HeaderProps {
   currentCity?: City;
   onOpenCityModal: () => void;
+  onOpenSubscriptionsModal?: () => void;
   user?: TelegramWebAppUser | null;
   isAdmin: boolean;
 }
@@ -12,6 +13,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentCity,
   onOpenCityModal,
+  onOpenSubscriptionsModal,
   isAdmin
 }) => {
   return (
@@ -33,20 +35,33 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Prominent City Selector on the right */}
-        <button
-          onClick={onOpenCityModal}
-          className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#181C2A] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#202538] transition-all text-xs font-semibold text-white shadow-sm active:scale-95"
-          aria-label="Выбрать город"
-        >
-          <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          <span className="max-w-[140px] truncate">
-            {currentCity ? currentCity.name : 'Выбрать город'}
-          </span>
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-        </button>
+        {/* Right Actions: Subscriptions & City Selector */}
+        <div className="flex items-center space-x-2">
+          {onOpenSubscriptionsModal && (
+            <button
+              onClick={onOpenSubscriptionsModal}
+              className="p-2 rounded-full bg-[#181C2A] border border-white/10 hover:border-indigo-500/40 text-gray-300 hover:text-white transition-all active:scale-95"
+              title="Мои подписки"
+              aria-label="Мои подписки"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-indigo-400" />
+            </button>
+          )}
+
+          {/* Prominent City Selector */}
+          <button
+            onClick={onOpenCityModal}
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#181C2A] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#202538] transition-all text-xs font-semibold text-white shadow-sm active:scale-95"
+            aria-label="Выбрать город"
+          >
+            <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="max-w-[120px] truncate">
+              {currentCity ? currentCity.name : 'Выбрать город'}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          </button>
+        </div>
       </div>
     </header>
   );
 };
-

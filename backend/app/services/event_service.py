@@ -5,11 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete
 from sqlalchemy.orm import selectinload
 
+from fastapi import HTTPException, status
+
 from app.models.event import Event, EventStatus
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
 from app.models.user import User
+from app.models.organization import Organization
+from app.models.subscription import Subscription
 from app.schemas.event import EventCreate, EventSummary, EventResponse
 
 
@@ -104,10 +108,14 @@ async def list_published_events(
             Category.name.label("category_name"),
             City.name.label("city_name"),
             City.timezone.label("city_timezone"),
-            attendee_count_subq.label("attendee_count")
+            attendee_count_subq.label("attendee_count"),
+            Organization.name.label("org_name"),
+            Organization.category.label("org_category"),
+            Organization.avatar_url.label("org_avatar")
         )
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
+        .outerjoin(Organization, Event.organization_id == Organization.id)
         .where(Event.status == EventStatus.PUBLISHED.value)
     )
 
@@ -153,7 +161,7 @@ async def list_published_events(
         attending_event_ids = set(att_res.scalars().all())
 
     summaries: List[EventSummary] = []
-    for event, cat_name, c_name, c_tz, att_count in rows:
+    for event, cat_name, c_name, c_tz, att_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -172,7 +180,11 @@ async def list_published_events(
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,
-                is_attending=(event.id in attending_event_ids)
+                is_attending=(event.id in attending_event_ids),
+                organization_id=event.organization_id,
+                organization_name=org_name,
+                organization_category=org_category,
+                organization_avatar_url=org_avatar
             )
         )
 
@@ -200,11 +212,16 @@ async def get_event_details(
             City.name.label("city_name"),
             attendee_count_subq.label("attendee_count"),
             User.username.label("org_username"),
-            User.first_name.label("org_first_name")
+            User.first_name.label("org_first_name"),
+            Organization.id.label("org_id"),
+            Organization.name.label("org_name"),
+            Organization.category.label("org_category"),
+            Organization.avatar_url.label("org_avatar")
         )
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
         .outerjoin(User, Event.organizer_user_id == User.id)
+        .outerjoin(Organization, Event.organization_id == Organization.id)
         .where(Event.id == event_id)
     )
 
@@ -213,7 +230,7 @@ async def get_event_details(
     if not row:
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
-    event, cat_name, c_name, att_count, org_username, org_first_name = row
+    event, cat_name, c_name, att_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
     organizer_display = org_username or org_first_name or None
 
     # Check RSVP
@@ -225,6 +242,24 @@ async def get_event_details(
             )
         )
         is_attending = rsvp_res.scalar_one_or_none() is not None
+
+    # Organization follower stats and subscription status
+    org_followers_count = None
+    org_is_subscribed = None
+    if org_id:
+        f_count_res = await session.execute(
+            select(func.count(Subscription.id)).where(Subscription.organization_id == org_id)
+        )
+        org_followers_count = f_count_res.scalar() or 0
+        if current_user_id:
+            sub_res = await session.execute(
+                select(Subscription.id).where(
+                    and_(Subscription.organization_id == org_id, Subscription.user_id == current_user_id)
+                )
+            )
+            org_is_subscribed = sub_res.scalar_one_or_none() is not None
+        else:
+            org_is_subscribed = False
 
     return EventResponse(
         id=event.id,
@@ -246,6 +281,12 @@ async def get_event_details(
         status=event.status,
         organizer_user_id=event.organizer_user_id,
         organizer_name=organizer_display,
+        organization_id=org_id,
+        organization_name=org_name,
+        organization_category=org_category,
+        organization_avatar_url=org_avatar,
+        organization_followers_count=org_followers_count,
+        organization_is_subscribed=org_is_subscribed,
         rejection_reason=event.rejection_reason,
         attendee_count=att_count or 0,
         is_attending=is_attending,
@@ -339,6 +380,19 @@ async def create_organizer_event(
     if not cat_res.scalar_one_or_none():
         raise EventValidationError(f"Invalid category_id '{data.category_id}'")
 
+    org_id = None
+    if data.organization_id:
+        org_res = await session.execute(select(Organization).where(Organization.id == data.organization_id))
+        org = org_res.scalar_one_or_none()
+        if not org or org.status != "active":
+            raise EventValidationError("Указанная организация не найдена или отключена")
+        if org.owner_user_id != organizer_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Вы не можете создавать мероприятия от имени чужой организации"
+            )
+        org_id = org.id
+
     event = Event(
         title=data.title,
         description=data.description,
@@ -353,7 +407,8 @@ async def create_organizer_event(
         price_amount=data.price_amount,
         price_currency=data.price_currency or "RUB",
         status=EventStatus.PENDING.value,
-        organizer_user_id=organizer_user_id
+        organizer_user_id=organizer_user_id,
+        organization_id=org_id
     )
 
     session.add(event)
@@ -380,10 +435,14 @@ async def get_organizer_events(
             Event,
             Category.name.label("category_name"),
             City.name.label("city_name"),
-            attendee_count_subq.label("attendee_count")
+            attendee_count_subq.label("attendee_count"),
+            Organization.name.label("org_name"),
+            Organization.category.label("org_category"),
+            Organization.avatar_url.label("org_avatar")
         )
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
+        .outerjoin(Organization, Event.organization_id == Organization.id)
         .where(Event.organizer_user_id == organizer_user_id)
         .order_by(Event.created_at.desc())
     )
@@ -392,7 +451,7 @@ async def get_organizer_events(
     rows = results.all()
 
     summaries = []
-    for event, cat_name, c_name, att_count in rows:
+    for event, cat_name, c_name, att_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -411,7 +470,11 @@ async def get_organizer_events(
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,
-                is_attending=False
+                is_attending=False,
+                organization_id=event.organization_id,
+                organization_name=org_name,
+                organization_category=org_category,
+                organization_avatar_url=org_avatar
             )
         )
     return summaries
