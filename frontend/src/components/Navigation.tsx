@@ -15,7 +15,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   isAdmin,
 }) => {
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/95 backdrop-blur-md border-t border-white/8 py-2 px-4">
+    <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/95 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {/* Feed Tab */}
         <button

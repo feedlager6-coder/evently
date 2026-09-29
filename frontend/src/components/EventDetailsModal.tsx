@@ -179,7 +179,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         </div>
 
         {/* Sticky Bottom RSVP Action Bar */}
-        <div className="p-4 bg-[#141724] border-t border-white/8 shrink-0">
+        <div className="modal-safe-bottom bg-[#141724] border-t border-white/8 shrink-0">
           <button
             onClick={handleRsvpClick}
             disabled={isRsvpLoading}

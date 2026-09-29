@@ -42,3 +42,32 @@
   transform: scale(0.985);
   border-color: rgba(99, 102, 241, 0.4);
 }
+
+/* Safe Area Insets for iOS & Telegram Mini App */
+:root {
+  --safe-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--tg-safe-area-inset-bottom, 0px),
+    var(--tg-content-safe-area-inset-bottom, 0px)
+  );
+}
+
+/* Fixed Bottom Navigation: sits safely above iOS Home Indicator, 0 extra gap on Android/Desktop */
+.nav-safe-bottom {
+  padding-top: 0.5rem;
+  padding-bottom: calc(0.5rem + var(--safe-bottom, 0px));
+}
+
+/* Scrollable Container Bottom Padding: ensures feed items aren't occluded by elevated navigation */
+.content-safe-bottom {
+  padding-bottom: calc(6rem + var(--safe-bottom, 0px));
+}
+
+/* Bottom Sheet Action Bar: ensures RSVP button floats comfortably above iOS Home Indicator */
+.modal-safe-bottom {
+  padding-top: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: calc(1rem + var(--safe-bottom, 0px));
+}
+

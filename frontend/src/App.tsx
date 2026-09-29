@@ -214,7 +214,7 @@ export const App: React.FC = () => {
   const currentCity = cities.find((c) => c.id === selectedCityId);
 
   return (
-    <div className="min-h-screen bg-[#0B0D13] text-[#F3F4F6] pb-24 selection:bg-indigo-500">
+    <div className="min-h-screen bg-[#0B0D13] text-[#F3F4F6] content-safe-bottom selection:bg-indigo-500">
       {/* Top Header */}
       <Header
         currentCity={currentCity}

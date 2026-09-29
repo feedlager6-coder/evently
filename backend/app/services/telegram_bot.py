@@ -66,6 +66,22 @@ def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     }
 
 
+def build_catalog_inline_keyboard() -> Dict[str, Any]:
+    """
+    Constructs compliant inline keyboard for inline query empty state.
+    Uses direct 'url' button for Telegram inline query compatibility in all chat types.
+    """
+    mini_app_url = settings.effective_mini_app_url
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🎟️ Открыть Evently Mini App", "url": mini_app_url}
+            ]
+        ]
+    }
+
+
+
 async def handle_inline_query(
     session: AsyncSession,
     inline_query: Dict[str, Any]
@@ -127,13 +143,7 @@ async def handle_inline_query(
                 ),
                 "parse_mode": "HTML"
             },
-            "reply_markup": {
-                "inline_keyboard": [
-                    [
-                        build_mini_app_button("🎟️ Открыть Evently Mini App")
-                    ]
-                ]
-            }
+            "reply_markup": build_catalog_inline_keyboard()
         })
 
     return {
