@@ -71,7 +71,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
     const shareTitle = `${event.title} — Ivently`;
-    const shareText = `🎟️ ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\nСмотрите в Ivently:`;
+    const shareText = `🧭 ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\nСмотрите в Ivently:`;
 
     let shared = false;
     if (navigator.share) {

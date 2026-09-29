@@ -104,7 +104,8 @@ async def health_check():
         "status": "healthy",
         "app": settings.APP_NAME,
         "env": settings.APP_ENV,
-        "debug": settings.DEBUG
+        "debug": settings.DEBUG,
+        "storage": storage_service.get_storage_diagnostics()
     }
 
 

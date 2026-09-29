@@ -99,7 +99,7 @@ async def _dispatch_notifications(
 
     message_text = (
         f"🔔 <b>Новое мероприятие от {org.name}</b>\n\n"
-        f"🎟️ <b>{event.title}</b>\n"
+        f"🧭 <b>{event.title}</b>\n"
         f"📅 {date_str}\n"
         f"📍 {event.venue_name} ({city_name or event.city_id or 'город не указан'})\n"
     )
@@ -108,9 +108,9 @@ async def _dispatch_notifications(
         "inline_keyboard": [
             [
                 {
-                    "text": "Открыть событие 🎟",
+                    "text": "Открыть событие 🧭",
                     "url": deep_link,
-                    "style": "success"
+                    "style": "primary"
                 }
             ]
         ]

@@ -79,27 +79,38 @@ export const telegram = {
       return tgParam.trim();
     }
 
-    // 2. Check window.Telegram?.WebApp?.initData raw query string
+    // 2. Check window.Telegram?.WebApp?.initParams (used by certain Telegram client versions)
+    try {
+      const rawInitParams = (window.Telegram?.WebApp as any)?.initParams;
+      if (rawInitParams) {
+        const initParams = new URLSearchParams(typeof rawInitParams === 'string' ? rawInitParams : '');
+        const p = initParams.get('start_param') || initParams.get('tgWebAppStartParam') || initParams.get('startapp');
+        if (p && p.trim()) return p.trim();
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Check window.Telegram?.WebApp?.initData raw query string
     if (window.Telegram?.WebApp?.initData) {
       try {
         const initDataParams = new URLSearchParams(window.Telegram.WebApp.initData);
-        const p = initDataParams.get('start_param');
+        const p = initDataParams.get('start_param') || initDataParams.get('tgWebAppStartParam') || initDataParams.get('startapp');
         if (p && p.trim()) return p.trim();
       } catch {
         // ignore parsing errors
       }
     }
 
-    // 3. Check window.location.hash (Standard for Telegram Mobile Webview)
+    // 4. Check window.location.hash (Standard for Telegram Mobile Webview)
     // Telegram loads webviews with URL fragment:
     // #tgWebAppData=...&tgWebAppStartParam=event_123&tgWebAppVersion=...
-    // or #startapp=event_123
+    // or #/tgWebAppStartParam=... or #startapp=event_123
     if (typeof window !== 'undefined' && window.location.hash) {
       try {
-        const hashStr = window.location.hash.startsWith('#')
-          ? window.location.hash.substring(1)
-          : window.location.hash;
-        const hashParams = new URLSearchParams(hashStr);
+        // Clean leading hash symbols and slashes: #, #/, #!/, #?
+        const cleanHash = window.location.hash.replace(/^#[!/?]*/, '');
+        const hashParams = new URLSearchParams(cleanHash);
 
         const startFromHash =
           hashParams.get('tgWebAppStartParam') ||
@@ -113,7 +124,7 @@ export const telegram = {
         const rawAppData = hashParams.get('tgWebAppData');
         if (rawAppData) {
           const appDataParams = new URLSearchParams(rawAppData);
-          const p = appDataParams.get('start_param');
+          const p = appDataParams.get('start_param') || appDataParams.get('tgWebAppStartParam') || appDataParams.get('startapp');
           if (p && p.trim()) return p.trim();
         }
       } catch {
@@ -121,10 +132,11 @@ export const telegram = {
       }
     }
 
-    // 4. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
+    // 5. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
     if (typeof window !== 'undefined' && window.location.search) {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
+        const cleanSearch = window.location.search.replace(/^\/[?]/, '?');
+        const urlParams = new URLSearchParams(cleanSearch);
         const startAppParam =
           urlParams.get('tgWebAppStartParam') ||
           urlParams.get('startapp') ||
@@ -139,6 +151,19 @@ export const telegram = {
         }
       } catch {
         // ignore parsing errors
+      }
+    }
+
+    // 6. Direct Regex fallback on entire window.location.href (guards against non-standard WebView encoding)
+    if (typeof window !== 'undefined' && window.location.href) {
+      try {
+        const match = /(?:tgWebAppStartParam|startapp|start_param)=([^&#?]+)/i.exec(window.location.href);
+        if (match && match[1]) {
+          const decoded = decodeURIComponent(match[1]).trim();
+          if (decoded) return decoded;
+        }
+      } catch {
+        // ignore regex/decoding errors
       }
     }
 

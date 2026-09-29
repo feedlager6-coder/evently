@@ -44,33 +44,46 @@ def format_event_message(event: EventSummary) -> str:
     )
 
 
-def build_mini_app_button(text: str, start_param: Optional[str] = None) -> Dict[str, Any]:
+def build_mini_app_button(
+    text: str,
+    start_param: Optional[str] = None,
+    style: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Builds compliant button for private bot messages.
+    Supports official Telegram Bot API 'style' parameter ('primary', 'success', 'danger').
     Priority 1: If effective_public_host is available (e.g. Railway HTTPS), use 'web_app' button.
     This launches the native Telegram Mini App webview directly with initData,
     without requiring a custom BotFather short name.
     Priority 2: If a t.me link is configured, use 'url'.
     """
+    btn: Dict[str, Any] = {"text": text}
+    if style:
+        btn["style"] = style
+
     public_host = settings.effective_public_host
     if public_host and public_host.startswith("https://"):
         target_url = f"{public_host.rstrip('/')}/"
         if start_param:
             target_url = f"{target_url}?startapp={start_param}"
-        return {"text": text, "web_app": {"url": target_url}}
+        btn["web_app"] = {"url": target_url}
+        return btn
 
     base_url = settings.effective_mini_app_url
     if base_url.startswith("https://t.me/"):
         if start_param:
             sep = "&" if "?" in base_url else "?"
-            return {"text": text, "url": f"{base_url}{sep}startapp={start_param}"}
-        return {"text": text, "url": base_url}
+            btn["url"] = f"{base_url}{sep}startapp={start_param}"
+            return btn
+        btn["url"] = base_url
+        return btn
 
     if start_param:
         target_url = f"{base_url.rstrip('/')}/?startapp={start_param}"
     else:
         target_url = base_url
-    return {"text": text, "web_app": {"url": target_url}}
+    btn["web_app"] = {"url": target_url}
+    return btn
 
 
 def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
@@ -237,7 +250,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Ivently", start_param or None)
+                        build_mini_app_button("🧭 Открыть Ivently", start_param or None, style="primary")
                     ],
                     [
                         {"text": "🔎 Найти события", "switch_inline_query": ""}
@@ -301,7 +314,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return {
             "chat_id": chat_id,
             "text": (
-                "🎟️ <b>Афиша мероприятий Ivently</b>\n\n"
+                "🧭 <b>Афиша мероприятий Ivently</b>\n\n"
                 "Смотрите актуальные концерты, спектакли, лекции, вечеринки и спорт в вашем городе!\n\n"
                 "Нажмите кнопку ниже, чтобы открыть афишу в Mini App:"
             ),
@@ -309,7 +322,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть афишу")
+                        build_mini_app_button("🧭 Открыть афишу", style="primary")
                     ],
                     [
                         {"text": "🔎 Поиск в чате", "switch_inline_query": ""}
@@ -336,7 +349,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Ivently")
+                        build_mini_app_button("🧭 Открыть Ivently", style="primary")
                     ],
                     [
                         {"text": "🔎 Найти события", "switch_inline_query": ""}
@@ -357,7 +370,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🎟️ Открыть Ivently")
+                        build_mini_app_button("🧭 Открыть Ivently", style="primary")
                     ]
                 ]
             }

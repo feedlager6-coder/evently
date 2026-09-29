@@ -1,6 +1,7 @@
 import React from 'react';
 import type { City, TelegramWebAppUser } from '../types';
-import { MapPin, ChevronDown, Compass, Bookmark } from 'lucide-react';
+import { MapPin, ChevronDown, Bookmark } from 'lucide-react';
+import { BrandIcon } from './BrandIcon';
 
 interface HeaderProps {
   currentCity?: City;
@@ -21,9 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center justify-between max-w-lg mx-auto">
         {/* Brand */}
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <Compass className="w-4 h-4 text-white" />
-          </div>
+          <BrandIcon className="w-8 h-8" iconClassName="w-4 h-4 text-white" />
           <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
             Ivently
           </span>

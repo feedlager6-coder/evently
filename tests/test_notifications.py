@@ -79,9 +79,9 @@ async def test_notification_service_dispatches_messages(client, test_session):
     assert "Acoustic Live Music" in first_payload["text"]
     # Check button text, url, and style
     button = first_payload["reply_markup"]["inline_keyboard"][0][0]
-    assert button["text"] == "Открыть событие 🎟"
+    assert button["text"] == "Открыть событие 🧭"
     assert button["url"] == f"https://t.me/{settings.clean_bot_username}/app?startapp=event_{event_id}"
-    assert button.get("style") == "success"
+    assert button.get("style") == "primary"
     assert "callback_data" not in button
     assert "web_app" not in button
 

@@ -83,3 +83,20 @@ async def test_upload_event_cover_endpoint(client: AsyncClient):
     fake_files = {"file": ("hack.jpg", b"fake binary payload", "image/jpeg")}
     err_response = await client.post("/api/v1/events/upload-cover", files=fake_files, headers=headers)
     assert err_response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_health_check_storage_diagnostics(client: AsyncClient):
+    """Verifies that /health safely reports storage diagnostics without secrets."""
+    resp = await client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "storage" in data
+    storage_info = data["storage"]
+    assert "backend" in storage_info
+    assert "persistent" in storage_info
+    assert storage_info["backend"] in ("s3", "railway_volume", "ephemeral_container")
+    # Verify no credentials leaked
+    assert "secret" not in str(storage_info).lower()
+    assert "token" not in str(storage_info).lower()
+    assert "password" not in str(storage_info).lower()

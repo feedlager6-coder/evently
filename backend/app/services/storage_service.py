@@ -5,7 +5,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
 import httpx
@@ -77,6 +77,9 @@ class StorageService:
 
         if env_dir:
             p = Path(env_dir).resolve()
+        elif Path("/data").exists() and Path("/data").is_dir() and os.access("/data", os.W_OK):
+            # Standard persistent volume mounted at /data
+            p = Path("/data/uploads").resolve()
         else:
             # Resolve to root uploads directory: backend/app/services -> repo_root/uploads
             p = Path(__file__).resolve().parent.parent.parent.parent / "uploads"
@@ -84,6 +87,43 @@ class StorageService:
         p.mkdir(parents=True, exist_ok=True)
         self._local_dir = p
         return self._local_dir
+
+    def get_storage_diagnostics(self) -> Dict[str, Any]:
+        """
+        Returns safe storage diagnostic metadata for observability.
+        NEVER leaks tokens, credentials, or secret keys.
+        """
+        is_s3 = settings.is_s3_storage_configured and settings.STORAGE_BACKEND != "local"
+        local_dir = self.get_local_storage_dir()
+
+        # Check if local storage is backed by a mounted volume
+        is_volume_env = bool(settings.STORAGE_LOCAL_DIR or os.getenv("RAILWAY_VOLUME_MOUNT_PATH"))
+        is_mount_point = False
+        try:
+            is_mount_point = os.path.ismount(str(local_dir)) or os.path.ismount(str(local_dir.parent))
+        except Exception:
+            pass
+
+        is_volume = is_volume_env or is_mount_point or str(local_dir).startswith("/data")
+
+        if is_s3:
+            backend_type = "s3"
+            persistent = True
+        elif is_volume:
+            backend_type = "railway_volume"
+            persistent = True
+        else:
+            backend_type = "ephemeral_container"
+            persistent = False
+
+        return {
+            "backend": backend_type,
+            "persistent": persistent,
+            "active_dir": str(local_dir),
+            "s3_configured": is_s3,
+            "s3_bucket": settings.effective_storage_bucket if is_s3 else None,
+            "volume_detected": is_volume,
+        }
 
     def validate_image(self, content: bytes, content_type: str) -> str:
         """

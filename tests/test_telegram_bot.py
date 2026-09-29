@@ -81,6 +81,9 @@ def test_private_start_command():
     # Check buttons: Mini App + switch_inline_query
     ikb = reply["reply_markup"]["inline_keyboard"]
     assert len(ikb) >= 2
+    main_btn = ikb[0][0]
+    assert main_btn["text"] == "🧭 Открыть Ivently"
+    assert main_btn.get("style") == "primary"
     # Verify switch_inline_query button
     inline_btn_row = next((row for row in ikb if any("switch_inline_query" in b for b in row)), None)
     assert inline_btn_row is not None

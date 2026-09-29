@@ -120,10 +120,23 @@ export const App: React.FC = () => {
     const tgUser = telegram.getUser();
     setUser(tgUser);
 
+    let t1: ReturnType<typeof setTimeout> | undefined;
+    let t2: ReturnType<typeof setTimeout> | undefined;
+
     // Process deep link IMMEDIATELY on mount without waiting for metadata
     const initialParam = telegram.getStartParam();
     if (initialParam) {
       processStartParam(initialParam);
+    } else {
+      // Async retries in case Telegram WebApp SDK finishes initialization after initial render
+      t1 = setTimeout(() => {
+        const p = telegram.getStartParam();
+        if (p) processStartParam(p);
+      }, 150);
+      t2 = setTimeout(() => {
+        const p = telegram.getStartParam();
+        if (p) processStartParam(p);
+      }, 500);
     }
 
     const initMetadata = async () => {
@@ -163,9 +176,14 @@ export const App: React.FC = () => {
     };
 
     initMetadata();
+
+    return () => {
+      if (t1) clearTimeout(t1);
+      if (t2) clearTimeout(t2);
+    };
   }, [processStartParam]);
 
-  // 1.1 Listen for URL/hash changes while app is running
+  // 1.1 Listen for URL, hash, visibility, and focus changes while app is running
   useEffect(() => {
     const handleUrlChange = () => {
       const param = telegram.getStartParam();
@@ -176,10 +194,14 @@ export const App: React.FC = () => {
 
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
+    document.addEventListener('visibilitychange', handleUrlChange);
+    window.addEventListener('focus', handleUrlChange);
 
     return () => {
       window.removeEventListener('hashchange', handleUrlChange);
       window.removeEventListener('popstate', handleUrlChange);
+      document.removeEventListener('visibilitychange', handleUrlChange);
+      window.removeEventListener('focus', handleUrlChange);
     };
   }, [processStartParam]);
 

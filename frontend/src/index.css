@@ -209,9 +209,9 @@
   50% { transform: translateY(-1.5px); }
 }
 
-@keyframes ticketGlow {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px #34D399); }
-  50% { transform: scale(1.2); filter: drop-shadow(0 0 6px #10B981); }
+@keyframes compassGlow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px #6366F1); }
+  50% { transform: scale(1.2); filter: drop-shadow(0 0 6px #818CF8); }
 }
 
 .animate-scale-pop {
@@ -234,8 +234,9 @@
   animation: legStride 260ms ease-in-out infinite;
 }
 
+.animate-compass-glow,
 .animate-ticket-glow {
-  animation: ticketGlow 550ms ease-in-out infinite;
+  animation: compassGlow 550ms ease-in-out infinite;
 }
 
 /* Accessibility: Reduced Motion Support */

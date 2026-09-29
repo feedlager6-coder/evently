@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import type { EventSummary, EventStatus } from '../types';
 import { api } from '../services/api';
 import { telegram } from '../services/telegram';
-import { Shield, Check, X, Ban, Calendar, MapPin, Loader2, AlertCircle } from 'lucide-react';
+import { Check, X, Ban, Calendar, MapPin, Loader2, AlertCircle, Compass } from 'lucide-react';
+import { BrandIcon } from './BrandIcon';
 
 interface AdminTabProps {
   events: EventSummary[];
@@ -79,12 +80,14 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       {/* Admin Header */}
       <div className="p-4 rounded-2xl bg-[#171A29] border border-indigo-500/30 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-            <Shield className="w-4 h-4" />
-          </div>
+          <BrandIcon className="w-8 h-8" iconClassName="w-4 h-4 text-white" />
           <div>
-            <h3 className="font-bold text-sm text-white">Модерация Ivently</h3>
-
+            <div className="flex items-center space-x-1.5">
+              <h3 className="font-bold text-sm text-white">Модерация Ivently</h3>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                Admin
+              </span>
+            </div>
             <p className="text-[11px] text-gray-400">Проверка и управление событиями</p>
           </div>
         </div>
@@ -145,8 +148,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
         {isLoading ? (
           <div className="py-12 text-center text-xs text-gray-400">Загрузка очереди...</div>
         ) : events.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl bg-[#141724] border border-white/5 text-xs text-gray-400">
-            В этой категории нет событий
+          <div className="py-12 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-2.5">
+            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-indigo-400">
+              <Compass className="w-5 h-5" />
+            </div>
+            <p className="text-xs text-gray-400">В этой категории нет событий</p>
           </div>
         ) : (
           events.map((ev) => {

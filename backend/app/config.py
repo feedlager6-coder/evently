@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ_testtoken"
     TELEGRAM_BOT_USERNAME: str = "Ivently_bot"
     TELEGRAM_MINI_APP_URL: str = "https://t.me/Ivently_bot/app"
+    TELEGRAM_MINI_APP_SHORT_NAME: Optional[str] = "app"
 
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
@@ -64,6 +65,7 @@ class Settings(BaseSettings):
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_BOT_USERNAME",
         "TELEGRAM_MINI_APP_URL",
+        "TELEGRAM_MINI_APP_SHORT_NAME",
         "ADMIN_USER_IDS",
         "SECRET_KEY",
         "PUBLIC_HOST",
@@ -136,27 +138,37 @@ class Settings(BaseSettings):
     @property
     def effective_mini_app_url(self) -> str:
         """
-        Resolves the Telegram Mini App launch URL: https://t.me/<username>/app.
-        If TELEGRAM_MINI_APP_URL was set to a custom URL, uses it.
+        Resolves the Telegram Mini App launch URL.
+        Priority:
+        1. Explicit custom TELEGRAM_MINI_APP_URL if provided and different from default.
+        2. Named Mini App direct link: https://t.me/<username>/<short_name> (if short_name configured).
+        3. Main Mini App direct link: https://t.me/<username> (if short_name is empty).
         """
         custom_url = (self.TELEGRAM_MINI_APP_URL or "").strip().strip("'\"").strip()
         if custom_url and custom_url not in ("https://t.me/evently_bot/app", "https://t.me/Ivently_bot/app"):
             return custom_url
-        return f"https://t.me/{self.clean_bot_username}/app"
+
+        short_name = (self.TELEGRAM_MINI_APP_SHORT_NAME or "").strip().strip("'\"").lstrip("/")
+        if short_name:
+            return f"https://t.me/{self.clean_bot_username}/{short_name}"
+        return f"https://t.me/{self.clean_bot_username}"
 
     def get_event_deep_link(self, event_id: str) -> str:
         """
         Returns official Telegram Mini App direct link with startapp parameter.
-        Format: https://t.me/<username>/app?startapp=event_<event_id>
+        Supports both named Mini App (https://t.me/<username>/<short_name>?startapp=...)
+        and Main Mini App (https://t.me/<username>?startapp=...).
         """
-        return f"https://t.me/{self.clean_bot_username}/app?startapp=event_{event_id}"
+        base = self.effective_mini_app_url.split("?")[0].rstrip("/")
+        return f"{base}?startapp=event_{event_id}"
 
     def get_organization_deep_link(self, org_id: str) -> str:
         """
         Returns official Telegram Mini App direct link for organization profile.
-        Format: https://t.me/<username>/app?startapp=org_<org_id>
+        Supports both named Mini App and Main Mini App.
         """
-        return f"https://t.me/{self.clean_bot_username}/app?startapp=org_{org_id}"
+        base = self.effective_mini_app_url.split("?")[0].rstrip("/")
+        return f"{base}?startapp=org_{org_id}"
 
     @property
     def async_database_url(self) -> str:
