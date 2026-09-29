@@ -96,7 +96,7 @@ export const CityModal: React.FC<CityModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-fade-in">
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-fade-in">
       <div 
         className="w-full max-w-sm max-h-[85vh] rounded-t-[28px] sm:rounded-3xl bg-[#131722] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3 sheet-slide-up"
         onClick={(e) => e.stopPropagation()}

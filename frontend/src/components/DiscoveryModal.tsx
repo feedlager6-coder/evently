@@ -87,6 +87,13 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
     }
   }, [isOpen, onClose]);
 
+  // Re-run search if city changes while modal is open and has an active query
+  useEffect(() => {
+    if (isOpen && query.trim()) {
+      executeSearch(query, currentCity?.id);
+    }
+  }, [currentCity?.id]);
+
   // Perform search with debounce
   const executeSearch = useCallback(async (searchQuery: string, cityId?: string) => {
     const cleanQ = searchQuery.trim();

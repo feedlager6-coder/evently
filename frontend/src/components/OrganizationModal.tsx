@@ -171,7 +171,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
       <div
         className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}

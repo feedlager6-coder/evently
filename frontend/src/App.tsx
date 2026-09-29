@@ -90,6 +90,7 @@ export const App: React.FC = () => {
   // Helper to handle Venue click in Discovery
   const handleVenueClick = useCallback((venue: VenueSummary) => {
     if (venue.organization_id) {
+      setIsSearchOpen(false);
       openOrgById(venue.organization_id);
     } else {
       // Standalone venue: keep search query focused on this venue or filter events
@@ -337,11 +338,6 @@ export const App: React.FC = () => {
         currentCity={currentCity}
         onOpenCityModal={() => setIsCityModalOpen(true)}
         onOpenSubscriptionsModal={() => setIsSubscriptionsModalOpen(true)}
-        onOpenSearch={() => {
-          telegram.hapticImpact('light');
-          setSearchInitialQuery('');
-          setIsSearchOpen(true);
-        }}
         user={user}
         isAdmin={isAdmin}
       />
@@ -512,7 +508,10 @@ export const App: React.FC = () => {
         onClose={() => setIsDetailsOpen(false)}
         onToggleRsvp={handleToggleRsvp}
         isRsvpLoading={isRsvpLoading}
-        onOpenOrgModal={(orgId) => openOrgById(orgId)}
+        onOpenOrgModal={(orgId) => {
+          setIsDetailsOpen(false);
+          openOrgById(orgId);
+        }}
       />
 
       {/* Organization Details Modal */}
@@ -568,8 +567,14 @@ export const App: React.FC = () => {
         onClose={() => setIsSearchOpen(false)}
         currentCity={currentCity}
         onOpenCityModal={() => setIsCityModalOpen(true)}
-        onEventClick={(ev) => openEventById(ev.id)}
-        onOrgClick={(orgId) => openOrgById(orgId)}
+        onEventClick={(ev) => {
+          setIsSearchOpen(false);
+          openEventById(ev.id);
+        }}
+        onOrgClick={(orgId) => {
+          setIsSearchOpen(false);
+          openOrgById(orgId);
+        }}
         onVenueClick={handleVenueClick}
         initialQuery={searchInitialQuery}
       />

@@ -144,7 +144,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-fade-in p-0 sm:p-4">
       {/* Bottom Sheet Modal Container with physics slide up */}
       <div 
         className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
@@ -178,7 +178,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
           {/* Toast Notification */}
           {shareToast && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-semibold shadow-2xl backdrop-blur-md animate-fade-in flex items-center space-x-1.5 pointer-events-none">
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-semibold shadow-2xl backdrop-blur-md animate-fade-in flex items-center space-x-1.5 pointer-events-none">
               <Check className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>{shareToast}</span>
             </div>
