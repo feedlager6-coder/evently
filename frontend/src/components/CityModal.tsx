@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { City } from '../types';
-import { api } from '../services/api';
+import { api, DEFAULT_CITIES } from '../services/api';
 import { telegram } from '../services/telegram';
 import { MapPin, Check, X, Search, Navigation, Loader2, AlertCircle } from 'lucide-react';
 
@@ -19,6 +19,7 @@ const CITY_EMOJIS: Record<string, string> = {
   kazan: '🕌',
   krasnodar: '☀️',
   rostov_on_don: '🌊',
+  yekaterinburg: '💎',
   ekaterinburg: '💎',
   novosibirsk: '🌲',
   nizhny_novgorod: '🏰',
@@ -42,9 +43,10 @@ export const CityModal: React.FC<CityModalProps> = ({
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const filteredCities = useMemo(() => {
-    if (!searchQuery.trim()) return cities;
+    const list = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase().trim();
-    return cities.filter(
+    return list.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.id.toLowerCase().includes(q)

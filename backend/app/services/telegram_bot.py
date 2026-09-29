@@ -27,10 +27,18 @@ def format_event_message(event: EventSummary) -> str:
 def build_mini_app_button(text: str, start_param: Optional[str] = None) -> Dict[str, Any]:
     """
     Builds compliant button for private bot messages.
-    If Mini App URL is a direct web URL (https://... and not t.me), uses 'web_app' button
-    which launches the native Telegram Mini App viewport inside Telegram.
-    If it is a t.me direct link, uses 'url' button.
+    Priority 1: If effective_public_host is available (e.g. Railway HTTPS), use 'web_app' button.
+    This launches the native Telegram Mini App webview directly with initData,
+    without requiring a custom BotFather short name.
+    Priority 2: If a t.me link is configured, use 'url'.
     """
+    public_host = settings.effective_public_host
+    if public_host and public_host.startswith("https://"):
+        target_url = f"{public_host.rstrip('/')}/"
+        if start_param:
+            target_url = f"{target_url}?startapp={start_param}"
+        return {"text": text, "web_app": {"url": target_url}}
+
     base_url = settings.effective_mini_app_url
     if base_url.startswith("https://t.me/"):
         if start_param:
@@ -38,7 +46,6 @@ def build_mini_app_button(text: str, start_param: Optional[str] = None) -> Dict[
             return {"text": text, "url": f"{base_url}{sep}startapp={start_param}"}
         return {"text": text, "url": base_url}
 
-    # Direct HTTPS Web URL (e.g. Railway public domain)
     if start_param:
         target_url = f"{base_url.rstrip('/')}/?startapp={start_param}"
     else:

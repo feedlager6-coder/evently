@@ -31,66 +31,70 @@ async def telegram_webhook(
     update_id = update.get("update_id")
     logger.info(f"Received Telegram update: update_id={update_id}, keys={list(update.keys())}")
 
-    if "inline_query" in update:
-        inline_query = update["inline_query"]
-        answer_payload = await handle_inline_query(session, inline_query)
+    try:
+        if "inline_query" in update:
+            inline_query = update["inline_query"]
+            answer_payload = await handle_inline_query(session, inline_query)
 
-        dispatched = False
-        if settings.is_live_bot:
-            try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    resp = await client.post(
-                        f"https://api.telegram.org/bot{settings.clean_bot_token}/answerInlineQuery",
-                        json=answer_payload
-                    )
-                    if resp.status_code == 200 and resp.json().get("ok"):
-                        dispatched = True
-                        logger.info(f"Dispatched answerInlineQuery upstream for query {answer_payload.get('inline_query_id')}")
-                    else:
-                        logger.warning(f"Telegram answerInlineQuery upstream returned ({resp.status_code}): {resp.text}")
-            except Exception as e:
-                logger.error(f"Failed to post answerInlineQuery upstream to Telegram: {e}")
-
-        # If not dispatched upstream, return the method directly as webhook response
-        if not dispatched:
-            return {
-                "method": "answerInlineQuery",
-                **answer_payload
-            }
-
-        return {"ok": True, "type": "inline_query", "dispatched": True, "method": "answerInlineQuery"}
-
-    elif "message" in update:
-        msg = update["message"]
-        reply_payload = handle_private_message(msg)
-        if reply_payload:
             dispatched = False
             if settings.is_live_bot:
                 try:
                     async with httpx.AsyncClient(timeout=5.0) as client:
                         resp = await client.post(
-                            f"https://api.telegram.org/bot{settings.clean_bot_token}/sendMessage",
-                            json=reply_payload
+                            f"https://api.telegram.org/bot{settings.clean_bot_token}/answerInlineQuery",
+                            json=answer_payload
                         )
                         if resp.status_code == 200 and resp.json().get("ok"):
                             dispatched = True
-                            logger.info(f"Dispatched sendMessage upstream for chat {reply_payload.get('chat_id')}")
+                            logger.info(f"Dispatched answerInlineQuery upstream for query {answer_payload.get('inline_query_id')}")
                         else:
-                            logger.warning(f"Telegram sendMessage upstream returned ({resp.status_code}): {resp.text}")
+                            logger.warning(f"Telegram answerInlineQuery upstream returned ({resp.status_code}): {resp.text}")
                 except Exception as e:
-                    logger.error(f"Failed to post sendMessage upstream to Telegram: {e}")
+                    logger.error(f"Failed to post answerInlineQuery upstream to Telegram: {e}")
 
-            # If not dispatched upstream, return the method directly in webhook response
-            # Telegram Bot API will execute this immediately!
+            # If not dispatched upstream, return the method directly as webhook response
             if not dispatched:
                 return {
-                    "method": "sendMessage",
-                    **reply_payload
+                    "method": "answerInlineQuery",
+                    **answer_payload
                 }
 
-            return {"ok": True, "type": "message", "dispatched": True, "method": "sendMessage"}
+            return {"ok": True, "type": "inline_query", "dispatched": True, "method": "answerInlineQuery"}
 
-    return {"ok": True, "type": "ignored", "update_id": update_id}
+        elif "message" in update:
+            msg = update["message"]
+            reply_payload = handle_private_message(msg)
+            if reply_payload:
+                dispatched = False
+                if settings.is_live_bot:
+                    try:
+                        async with httpx.AsyncClient(timeout=5.0) as client:
+                            resp = await client.post(
+                                f"https://api.telegram.org/bot{settings.clean_bot_token}/sendMessage",
+                                json=reply_payload
+                            )
+                            if resp.status_code == 200 and resp.json().get("ok"):
+                                dispatched = True
+                                logger.info(f"Dispatched sendMessage upstream for chat {reply_payload.get('chat_id')}")
+                            else:
+                                logger.warning(f"Telegram sendMessage upstream returned ({resp.status_code}): {resp.text}")
+                    except Exception as e:
+                        logger.error(f"Failed to post sendMessage upstream to Telegram: {e}")
+
+                # If not dispatched upstream, return the method directly in webhook response
+                # Telegram Bot API will execute this immediately!
+                if not dispatched:
+                    return {
+                        "method": "sendMessage",
+                        **reply_payload
+                    }
+
+                return {"ok": True, "type": "message", "dispatched": True, "method": "sendMessage"}
+
+        return {"ok": True, "type": "ignored", "update_id": update_id}
+    except Exception as e:
+        logger.error(f"Error handling Telegram webhook update {update_id}: {e}", exc_info=True)
+        return {"ok": False, "error": str(e), "update_id": update_id}
 
 
 @router.get("/info")

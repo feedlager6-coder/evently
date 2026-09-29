@@ -25,22 +25,66 @@ function getAuthHeaders(isJson: boolean = true): HeadersInit {
   return headers;
 }
 
+export const DEFAULT_CITIES: City[] = [
+  { id: 'makhachkala', name: 'Махачкала', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 42.9849, longitude: 47.5047, is_active: true },
+  { id: 'moscow', name: 'Москва', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 55.7558, longitude: 37.6173, is_active: true },
+  { id: 'spb', name: 'Санкт-Петербург', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 59.9343, longitude: 30.3351, is_active: true },
+  { id: 'kazan', name: 'Казань', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 55.7961, longitude: 49.1064, is_active: true },
+  { id: 'krasnodar', name: 'Краснодар', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 45.0355, longitude: 38.9753, is_active: true },
+  { id: 'rostov_on_don', name: 'Ростов-на-Дону', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 47.2357, longitude: 39.7015, is_active: true },
+  { id: 'yekaterinburg', name: 'Екатеринбург', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 56.8389, longitude: 60.6057, is_active: true },
+  { id: 'novosibirsk', name: 'Новосибирск', country: 'Россия', timezone: 'Asia/Novosibirsk', currency: 'RUB', latitude: 55.0084, longitude: 82.9357, is_active: true },
+  { id: 'nizhny_novgorod', name: 'Нижний Новгород', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 56.3269, longitude: 44.0059, is_active: true },
+  { id: 'samara', name: 'Самара', country: 'Россия', timezone: 'Europe/Samara', currency: 'RUB', latitude: 53.1959, longitude: 50.1002, is_active: true },
+  { id: 'ufa', name: 'Уфа', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 54.7388, longitude: 55.9721, is_active: true },
+  { id: 'voronezh', name: 'Воронеж', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 51.6755, longitude: 39.2089, is_active: true },
+  { id: 'perm', name: 'Пермь', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 58.0105, longitude: 56.2502, is_active: true },
+  { id: 'volgograd', name: 'Волгоград', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 48.7080, longitude: 44.5133, is_active: true },
+  { id: 'sochi', name: 'Сочи', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.6028, longitude: 39.7342, is_active: true },
+];
+
 export const api = {
   async getCities(search?: string): Promise<City[]> {
-    const params = new URLSearchParams();
-    if (search && search.trim()) {
-      params.append('q', search.trim());
+    try {
+      const params = new URLSearchParams();
+      if (search && search.trim()) {
+        params.append('q', search.trim());
+      }
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${API_BASE}/cities${queryStr}`);
+      if (!res.ok) throw new Error('Failed to fetch cities');
+      const data = await res.json();
+      return Array.isArray(data) && data.length > 0 ? data : DEFAULT_CITIES;
+    } catch {
+      if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+        return DEFAULT_CITIES.filter(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+      }
+      return DEFAULT_CITIES;
     }
-    const queryStr = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE}/cities${queryStr}`);
-    if (!res.ok) throw new Error('Failed to fetch cities');
-    return res.json();
   },
 
   async getNearestCity(latitude: number, longitude: number): Promise<City> {
-    const res = await fetch(`${API_BASE}/cities/nearest?latitude=${latitude}&longitude=${longitude}`);
-    if (!res.ok) throw new Error('Failed to determine nearest city');
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/cities/nearest?latitude=${latitude}&longitude=${longitude}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Local fallback
+    }
+    let closest = DEFAULT_CITIES[0];
+    let minD = Infinity;
+    for (const c of DEFAULT_CITIES) {
+      if (c.latitude != null && c.longitude != null) {
+        const d = Math.hypot(c.latitude - latitude, c.longitude - longitude);
+        if (d < minD) {
+          minD = d;
+          closest = c;
+        }
+      }
+    }
+    return closest;
   },
 
   async getCategories(): Promise<Category[]> {
@@ -91,13 +135,30 @@ export const api = {
   },
 
   async suggestLocations(q: string, cityId?: string): Promise<LocationSuggestion[]> {
-    const params = new URLSearchParams();
-    params.append('q', q);
-    if (cityId) params.append('city_id', cityId);
+    try {
+      const params = new URLSearchParams();
+      params.append('q', q);
+      if (cityId) params.append('city_id', cityId);
 
-    const res = await fetch(`${API_BASE}/locations/suggest?${params.toString()}`);
-    if (!res.ok) return [];
-    return res.json();
+      const res = await fetch(`${API_BASE}/locations/suggest?${params.toString()}`);
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list) && list.length > 0) return list;
+      }
+    } catch {
+      // Fall through to resilient local suggestion
+    }
+
+    const city = DEFAULT_CITIES.find(c => c.id === cityId) || DEFAULT_CITIES[0];
+    const cleanQ = q.trim();
+    return [
+      {
+        display_name: `${cleanQ}, ${city.name}`,
+        address: `${cleanQ}, ${city.name}`,
+        latitude: city.latitude || 42.9849,
+        longitude: city.longitude || 47.5047,
+      }
+    ];
   },
 
   async getCurrentUser(): Promise<UserProfile | null> {

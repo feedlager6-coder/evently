@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { City, Category, EventCreatePayload, LocationSuggestion } from '../types';
-import { api } from '../services/api';
+import { api, DEFAULT_CITIES } from '../services/api';
 import { telegram } from '../services/telegram';
 import { 
   X, 
@@ -84,9 +84,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   }, [defaultCityId]);
 
-  // Debounced address search
+  // Debounced address search (starts at 2 chars, 300ms)
   useEffect(() => {
-    if (!address || address.length < 3 || !showSuggestions) {
+    if (!address || address.trim().length < 2 || !showSuggestions) {
       setLocationSuggestions([]);
       return;
     }
@@ -101,14 +101,15 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       } finally {
         setIsLoadingSuggestions(false);
       }
-    }, 400);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [address, cityId, showSuggestions]);
 
   if (!isOpen) return null;
 
-  const currentCity = cities.find((c) => c.id === cityId);
+  const availableCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  const currentCity = availableCities.find((c) => c.id === cityId);
   const currency = currentCity?.currency || 'RUB';
 
   // Handle Cover Photo upload
@@ -271,7 +272,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   onChange={(e) => setCityId(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500"
                 >
-                  {cities.map((c) => (
+                  {availableCities.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
@@ -358,13 +359,17 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 {/* Suggestions Dropdown */}
                 {showSuggestions && locationSuggestions.length > 0 && (
                   <div 
-                    className="absolute z-20 top-full left-0 right-0 mt-1 rounded-xl bg-[#181C2B] border border-white/10 shadow-xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar"
+                    className="absolute z-50 top-full left-0 right-0 mt-1 rounded-xl bg-[#181C2B] border border-white/10 shadow-2xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {locationSuggestions.map((item, idx) => (
                       <button
                         key={`${item.display_name}-${idx}`}
                         type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectSuggestion(item);
+                        }}
                         onClick={() => handleSelectSuggestion(item)}
                         className="w-full p-2.5 text-left border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors flex items-start space-x-2"
                       >

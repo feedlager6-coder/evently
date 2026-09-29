@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.models.city import City
 from app.models.category import Category
@@ -652,11 +652,17 @@ async def seed_database(session: AsyncSession) -> None:
             existing_city.longitude = c_data.get("longitude")
             existing_city.is_active = c_data.get("is_active", True)
 
-    # Deactivate Warsaw if present from previous deployment
+    # Deactivate Warsaw if present from previous deployment and migrate references
     waw_res = await session.execute(select(City).where(City.id == "warsaw"))
     waw_city = waw_res.scalar_one_or_none()
     if waw_city:
         waw_city.is_active = False
+
+    try:
+        await session.execute(text("UPDATE events SET city_id = 'makhachkala' WHERE city_id = 'warsaw'"))
+        await session.execute(text("UPDATE users SET default_city_id = 'makhachkala' WHERE default_city_id = 'warsaw'"))
+    except Exception as e:
+        logger.warning(f"Note updating legacy Warsaw references: {e}")
 
     await session.commit()
 

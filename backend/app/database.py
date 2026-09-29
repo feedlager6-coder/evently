@@ -2,7 +2,7 @@ import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import event
+from sqlalchemy import event, text
 from app.config import settings
 
 logger = logging.getLogger("evently.database")
@@ -54,10 +54,43 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Creates database tables if they do not exist."""
+    """
+    Creates database tables if they do not exist and performs idempotent schema migrations
+    to ensure all model columns exist across PostgreSQL and SQLite.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables initialized successfully.")
+
+        # Idempotent column migrations for existing tables
+        migrations = [
+            ("cities", "latitude", "DOUBLE PRECISION", "FLOAT"),
+            ("cities", "longitude", "DOUBLE PRECISION", "FLOAT"),
+            ("events", "latitude", "DOUBLE PRECISION", "FLOAT"),
+            ("events", "longitude", "DOUBLE PRECISION", "FLOAT"),
+            ("events", "rejection_reason", "TEXT", "TEXT"),
+            ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
+            ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
+        ]
+
+        dialect_name = conn.dialect.name
+        if "postgres" in dialect_name:
+            for table, col, pg_type, _ in migrations:
+                try:
+                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {pg_type};"))
+                except Exception as e:
+                    logger.warning(f"PostgreSQL column migration note ({table}.{col}): {e}")
+        elif "sqlite" in dialect_name:
+            for table, col, _, sqlite_type in migrations:
+                try:
+                    res = await conn.execute(text(f"PRAGMA table_info({table});"))
+                    existing_cols = [row[1] for row in res.fetchall()]
+                    if col not in existing_cols:
+                        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {sqlite_type};"))
+                        logger.info(f"Added column {col} to SQLite table {table}")
+                except Exception as e:
+                    logger.warning(f"SQLite column migration note ({table}.{col}): {e}")
+
+    logger.info("Database tables and migrations initialized successfully.")
 
 
 async def close_db() -> None:

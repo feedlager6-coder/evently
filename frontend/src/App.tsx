@@ -8,7 +8,7 @@ import type {
   EventStatus,
   TelegramWebAppUser 
 } from './types';
-import { api } from './services/api';
+import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
 import { Header } from './components/Header';
 import { CityModal } from './components/CityModal';
@@ -20,17 +20,20 @@ import { OrganizerTab } from './components/OrganizerTab';
 import { AdminTab } from './components/AdminTab';
 import { Navigation } from './components/Navigation';
 import type { TabType } from './components/Navigation';
-import { Loader2, Ticket, AlertCircle } from 'lucide-react';
+import { Loader2, Ticket, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Navigation & UI state
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
-  // Core metadata
-  const [cities, setCities] = useState<City[]>([]);
+  // Core metadata - initialize with DEFAULT_CITIES so cities is never empty
+  const [cities, setCities] = useState<City[]>(DEFAULT_CITIES);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCityId, setSelectedCityId] = useState<string>('makhachkala');
+  const [selectedCityId, setSelectedCityId] = useState<string>(() => {
+    const saved = localStorage.getItem('evently_selected_city_id');
+    return saved && DEFAULT_CITIES.some((c) => c.id === saved) ? saved : 'makhachkala';
+  });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
 
@@ -69,15 +72,20 @@ export const App: React.FC = () => {
           api.getCities(),
           api.getCategories(),
         ]);
-        setCities(loadedCities);
-        setCategories(loadedCategories);
+        if (loadedCities && loadedCities.length > 0) {
+          setCities(loadedCities);
+        }
+        if (loadedCategories && loadedCategories.length > 0) {
+          setCategories(loadedCategories);
+        }
 
-        // City selection preference: localStorage -> geolocation -> makhachkala / first
+        // City selection preference: localStorage -> defaultCity
         const savedCityId = localStorage.getItem('evently_selected_city_id');
-        if (savedCityId && loadedCities.some((c) => c.id === savedCityId)) {
+        const effectiveCities = (loadedCities && loadedCities.length > 0) ? loadedCities : DEFAULT_CITIES;
+        if (savedCityId && effectiveCities.some((c) => c.id === savedCityId)) {
           setSelectedCityId(savedCityId);
-        } else if (loadedCities.length > 0) {
-          const defaultCity = loadedCities.find((c) => c.id === 'makhachkala') || loadedCities[0];
+        } else if (effectiveCities.length > 0) {
+          const defaultCity = effectiveCities.find((c) => c.id === 'makhachkala') || effectiveCities[0];
           setSelectedCityId(defaultCity.id);
         }
 
@@ -215,7 +223,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const currentCity = cities.find((c) => c.id === selectedCityId);
+  const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
     <div className="min-h-screen bg-[#0B0D13] text-[#F3F4F6] content-safe-bottom selection:bg-indigo-500">
@@ -248,9 +256,18 @@ export const App: React.FC = () => {
                   <span className="text-xs">Загрузка афиши...</span>
                 </div>
               ) : feedError ? (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{feedError}</span>
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex flex-col items-center space-y-2 text-center">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{feedError}</span>
+                  </div>
+                  <button
+                    onClick={() => loadFeedEvents()}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium hover:bg-indigo-600/40 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Повторить попытку</span>
+                  </button>
                 </div>
               ) : events.length === 0 ? (
                 <div className="py-16 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">

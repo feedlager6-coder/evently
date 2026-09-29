@@ -38,13 +38,16 @@ async def suggest_locations(
     city_lon = 37.6173
 
     if city_id:
-        c_res = await session.execute(select(City).where(City.id == city_id))
-        city_obj = c_res.scalar_one_or_none()
-        if city_obj:
-            city_name = city_obj.name
-            if city_obj.latitude and city_obj.longitude:
-                city_lat = city_obj.latitude
-                city_lon = city_obj.longitude
+        try:
+            c_res = await session.execute(select(City).where(City.id == city_id))
+            city_obj = c_res.scalar_one_or_none()
+            if city_obj:
+                city_name = city_obj.name
+                if city_obj.latitude and city_obj.longitude:
+                    city_lat = city_obj.latitude
+                    city_lon = city_obj.longitude
+        except Exception as e:
+            logger.warning(f"Error querying city in suggest_locations: {e}")
 
     # Build search query for OSM Nominatim
     search_q = clean_query
