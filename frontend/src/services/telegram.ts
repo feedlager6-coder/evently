@@ -73,17 +73,74 @@ export const telegram = {
   },
 
   getStartParam(): string | null {
-    // 1. Check Telegram's native start_param
+    // 1. Check Telegram's native initDataUnsafe.start_param
     const tgParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    if (tgParam) return tgParam;
+    if (tgParam && typeof tgParam === 'string' && tgParam.trim()) {
+      return tgParam.trim();
+    }
 
-    // 2. Check URL search query (e.g. ?startapp=event_waw_01 or ?event_id=waw_01)
-    const urlParams = new URLSearchParams(window.location.search);
-    const startAppParam = urlParams.get('startapp') || urlParams.get('tgWebAppStartParam');
-    if (startAppParam) return startAppParam;
+    // 2. Check window.Telegram?.WebApp?.initData raw query string
+    if (window.Telegram?.WebApp?.initData) {
+      try {
+        const initDataParams = new URLSearchParams(window.Telegram.WebApp.initData);
+        const p = initDataParams.get('start_param');
+        if (p && p.trim()) return p.trim();
+      } catch {
+        // ignore parsing errors
+      }
+    }
 
-    const eventIdParam = urlParams.get('event_id');
-    if (eventIdParam) return `event_${eventIdParam}`;
+    // 3. Check window.location.hash (Standard for Telegram Mobile Webview)
+    // Telegram loads webviews with URL fragment:
+    // #tgWebAppData=...&tgWebAppStartParam=event_123&tgWebAppVersion=...
+    // or #startapp=event_123
+    if (typeof window !== 'undefined' && window.location.hash) {
+      try {
+        const hashStr = window.location.hash.startsWith('#')
+          ? window.location.hash.substring(1)
+          : window.location.hash;
+        const hashParams = new URLSearchParams(hashStr);
+
+        const startFromHash =
+          hashParams.get('tgWebAppStartParam') ||
+          hashParams.get('startapp') ||
+          hashParams.get('start_param');
+        if (startFromHash && startFromHash.trim()) {
+          return startFromHash.trim();
+        }
+
+        // Check if start_param is encoded inside tgWebAppData parameter within hash
+        const rawAppData = hashParams.get('tgWebAppData');
+        if (rawAppData) {
+          const appDataParams = new URLSearchParams(rawAppData);
+          const p = appDataParams.get('start_param');
+          if (p && p.trim()) return p.trim();
+        }
+      } catch {
+        // ignore parsing errors
+      }
+    }
+
+    // 4. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
+    if (typeof window !== 'undefined' && window.location.search) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const startAppParam =
+          urlParams.get('tgWebAppStartParam') ||
+          urlParams.get('startapp') ||
+          urlParams.get('start_param');
+        if (startAppParam && startAppParam.trim()) {
+          return startAppParam.trim();
+        }
+
+        const eventIdParam = urlParams.get('event_id');
+        if (eventIdParam && eventIdParam.trim()) {
+          return `event_${eventIdParam.trim()}`;
+        }
+      } catch {
+        // ignore parsing errors
+      }
+    }
 
     return null;
   },

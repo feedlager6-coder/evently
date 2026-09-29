@@ -84,22 +84,47 @@ export const App: React.FC = () => {
   // Helper to open Event details
   const openEventById = useCallback(async (eventId: string) => {
     try {
-      setIsRsvpLoading(true);
       const details = await api.getEventDetails(eventId);
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to open event details:', err);
-    } finally {
-      setIsRsvpLoading(false);
+      alert(err.message || 'Мероприятие не найдено или было удалено');
     }
   }, []);
+
+  // Helper to process deep link parameters (event_<id>, org_<id>, create)
+  const processStartParam = useCallback((rawParam: string | null) => {
+    if (!rawParam) return;
+    const clean = rawParam.trim();
+    if (!clean) return;
+
+    if (clean.startsWith('event_')) {
+      const eventId = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      if (eventId) {
+        openEventById(eventId);
+      }
+    } else if (clean.startsWith('org_')) {
+      const orgId = clean.slice(4).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      if (orgId) {
+        openOrgById(orgId);
+      }
+    } else if (clean === 'create') {
+      setCurrentTab('create');
+    }
+  }, [openEventById, openOrgById]);
 
   // 1. Initial Load: Metadata & Telegram initialization
   useEffect(() => {
     telegram.ready();
     const tgUser = telegram.getUser();
     setUser(tgUser);
+
+    // Process deep link IMMEDIATELY on mount without waiting for metadata
+    const initialParam = telegram.getStartParam();
+    if (initialParam) {
+      processStartParam(initialParam);
+    }
 
     const initMetadata = async () => {
       try {
@@ -132,31 +157,31 @@ export const App: React.FC = () => {
         } catch {
           setIsAdmin(false);
         }
-
-        // Handle Deep Linking via start_param (e.g., event_mkh_01, org_123, or create)
-        const startParam = telegram.getStartParam();
-        if (startParam) {
-          if (startParam.startsWith('event_')) {
-            const eventId = startParam.replace(/^event_/, '').trim();
-            if (eventId) {
-              openEventById(eventId);
-            }
-          } else if (startParam.startsWith('org_')) {
-            const orgId = startParam.replace(/^org_/, '').trim();
-            if (orgId) {
-              openOrgById(orgId);
-            }
-          } else if (startParam === 'create') {
-            setCurrentTab('create');
-          }
-        }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
       }
     };
 
     initMetadata();
-  }, [openEventById, openOrgById]);
+  }, [processStartParam]);
+
+  // 1.1 Listen for URL/hash changes while app is running
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const param = telegram.getStartParam();
+      if (param) {
+        processStartParam(param);
+      }
+    };
+
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, [processStartParam]);
 
   // 2. Fetch Discovery Feed Events
   const loadFeedEvents = useCallback(async () => {

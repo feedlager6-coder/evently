@@ -107,7 +107,11 @@ async def _dispatch_notifications(
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "🎟️ Открыть мероприятие", "url": deep_link}
+                {
+                    "text": "Открыть событие 🎟",
+                    "url": deep_link,
+                    "style": "success"
+                }
             ]
         ]
     }
