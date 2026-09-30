@@ -71,6 +71,10 @@ async def init_db() -> None:
             ("events", "organization_id", "VARCHAR(36)", "VARCHAR(36)"),
             ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
             ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
+            ("broadcasts", "attribution_token", "VARCHAR(32)", "VARCHAR(32)"),
+            ("broadcast_recipients", "opened_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+            ("broadcast_recipients", "attributed_interest_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+            ("broadcast_recipients", "attributed_rsvp_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
         ]
 
         dialect_name = conn.dialect.name
@@ -85,11 +89,22 @@ async def init_db() -> None:
                 try:
                     res = await conn.execute(text(f"PRAGMA table_info({table});"))
                     existing_cols = [row[1] for row in res.fetchall()]
-                    if col not in existing_cols:
+                    if existing_cols and col not in existing_cols:
                         await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {sqlite_type};"))
                         logger.info(f"Added column {col} to SQLite table {table}")
                 except Exception as e:
                     logger.warning(f"SQLite column migration note ({table}.{col}): {e}")
+
+        # Idempotent index creation
+        indexes = [
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_broadcasts_attribution_token ON broadcasts (attribution_token);",
+            "CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_attr ON broadcast_recipients (user_id, broadcast_id, opened_at);",
+        ]
+        for idx_sql in indexes:
+            try:
+                await conn.execute(text(idx_sql))
+            except Exception as e:
+                logger.warning(f"Index migration note ({idx_sql}): {e}")
 
     logger.info("Database tables and migrations initialized successfully.")
 

@@ -210,6 +210,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setTimeout(() => setBroadcastNotice(null), 5000);
     } catch (err: any) {
       telegram.hapticImpact('heavy');
+      console.error('Failed to send broadcast:', err);
       setPreviewError(err.message || 'Не удалось отправить рассылку');
     } finally {
       setIsSubmittingBroadcast(false);

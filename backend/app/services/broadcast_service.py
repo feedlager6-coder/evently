@@ -889,14 +889,20 @@ async def get_broadcast_detail(
     interest_conversion = min(round((interest_count / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0
     rsvp_conversion = min(round((rsvp_count / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0
 
-    message_text, button_text, button_url = format_broadcast_content(
-        organization=org,
-        template_key=bcast.template_key,
-        event=event,
-        custom_text=bcast.custom_text,
-        broadcast_id=bcast.id,
-        attribution_token=bcast.attribution_token,
-    )
+    try:
+        message_text, button_text, button_url = format_broadcast_content(
+            organization=org,
+            template_key=bcast.template_key,
+            event=event,
+            custom_text=bcast.custom_text,
+            broadcast_id=bcast.id,
+            attribution_token=bcast.attribution_token,
+        )
+    except HTTPException:
+        # Graceful fallback for historical broadcasts if linked event was removed
+        message_text = bcast.custom_text or f"Рассылка от {org.name}"
+        button_text = "Открыть профиль 🏛"
+        button_url = settings.get_organization_deep_link(org.id)
 
     return BroadcastDetail(
         id=bcast.id,
