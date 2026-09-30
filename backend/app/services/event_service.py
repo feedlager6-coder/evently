@@ -413,6 +413,13 @@ async def remove_event_rsvp(
     await session.execute(del_stmt)
     await session.commit()
 
+    # Hook: auto-disable company discovery profile if user has neither interest nor attendance
+    try:
+        from app.services.company_service import auto_deactivate_profile_if_not_participating
+        await auto_deactivate_profile_if_not_participating(session, event_id, user_id)
+    except Exception as e:
+        logger.warning(f"Company profile auto-deactivate note: {e}")
+
     count_res = await session.execute(
         select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
     )
@@ -487,6 +494,13 @@ async def remove_event_interest(
     )
     await session.execute(del_stmt)
     await session.commit()
+
+    # Hook: auto-disable company discovery profile if user has neither interest nor attendance
+    try:
+        from app.services.company_service import auto_deactivate_profile_if_not_participating
+        await auto_deactivate_profile_if_not_participating(session, event_id, user_id)
+    except Exception as e:
+        logger.warning(f"Company profile auto-deactivate note: {e}")
 
     int_count_res = await session.execute(
         select(func.count(EventInterest.id)).where(EventInterest.event_id == event_id)

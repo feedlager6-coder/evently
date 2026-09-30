@@ -221,3 +221,56 @@ export interface UnifiedDiscoveryResponse {
   total_venues: number;
 }
 
+export interface CompanyStatusResponse {
+  event_id: string;
+  is_opted_in: boolean;
+  is_active: boolean;
+  note?: string;
+  active_members_count: number;
+  matches_count: number;
+  pending_incoming_count: number;
+}
+
+export interface CompanyMemberItem {
+  user_id: number;
+  display_name: string;
+  avatar_url?: string;
+  attendance_status: string;
+  note?: string;
+  relationship_status: 'none' | 'pending_outgoing' | 'pending_incoming' | 'matched';
+  is_me: boolean;
+}
+
+export interface CompanyRequestItem {
+  request_id: string;
+  other_user_id: number;
+  other_user_display_name: string;
+  other_user_avatar_url?: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  created_at: string;
+}
+
+export interface CompanyRequestsResponse {
+  incoming: CompanyRequestItem[];
+  outgoing: CompanyRequestItem[];
+}
+
+export interface CompanyMatchItem {
+  match_id: string;
+  partner_id: number;
+  partner_display_name: string;
+  partner_avatar_url?: string;
+  partner_telegram_username?: string;
+  partner_telegram_url?: string;
+  has_telegram_username: boolean;
+  attendance_status: string;
+  matched_at: string;
+}
+
+export interface CompanyActionResponse {
+  success: boolean;
+  message: string;
+  match_created: boolean;
+  match?: CompanyMatchItem;
+}
+

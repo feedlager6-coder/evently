@@ -157,3 +157,69 @@ async def _dispatch_notifications(
 
     logger.info(f"Completed notification dispatch for event '{event.id}': {sent_count}/{len(telegram_ids)} sent.")
     return sent_count
+
+
+async def notify_company_request(
+    event_id: str,
+    event_title: str,
+    sender_first_name: str,
+    receiver_telegram_id: Optional[int],
+    http_client: Optional[httpx.AsyncClient] = None
+) -> bool:
+    """
+    Sends a discreet Telegram notification to receiver when someone wants to attend an event together.
+    Strict privacy: does NOT leak sender's username before mutual match.
+    Uses existing event deep-link. Never throws (failure does not break company request).
+    """
+    if not receiver_telegram_id:
+        return False
+
+    deep_link = settings.get_event_deep_link(event_id)
+    message_text = (
+        f"👋 <b>{sender_first_name}</b> хочет пойти с вами на событие!\n\n"
+        f"🧭 <b>{event_title}</b>"
+    )
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Открыть событие 🧭",
+                    "url": deep_link,
+                    "style": "primary"
+                }
+            ]
+        ]
+    }
+
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated company request notification to telegram_id {receiver_telegram_id}. Deep link: {deep_link}")
+        return True
+
+    payload = {
+        "chat_id": receiver_telegram_id,
+        "text": message_text,
+        "parse_mode": "HTML",
+        "reply_markup": reply_markup
+    }
+    bot_token = settings.clean_bot_token
+
+    try:
+        if http_client:
+            resp = await http_client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json=payload,
+                timeout=5.0
+            )
+            return resp.status_code == 200
+        else:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json=payload,
+                    timeout=5.0
+                )
+                return resp.status_code == 200
+    except Exception as e:
+        logger.warning(f"Failed to deliver company request notification to {receiver_telegram_id}: {e}")
+        return False
+

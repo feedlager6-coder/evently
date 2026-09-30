@@ -15,7 +15,12 @@ import type {
   SubscriptionStatusResponse,
   UserSubscriptionItem,
   UnifiedDiscoveryResponse,
-  EventInterestResponse
+  EventInterestResponse,
+  CompanyStatusResponse,
+  CompanyMemberItem,
+  CompanyRequestsResponse,
+  CompanyMatchItem,
+  CompanyActionResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -524,6 +529,124 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) return [];
       throw new Error('Failed to fetch user subscriptions');
+    }
+    return res.json();
+  },
+
+  // Event Company Discovery ("Найти компанию")
+  async getCompanyStatus(eventId: string): Promise<CompanyStatusResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error('Не удалось получить статус поиска компании');
+    }
+    return res.json();
+  },
+
+  async updateCompanyProfile(eventId: string, payload: { is_active?: boolean; note?: string }): Promise<CompanyStatusResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось обновить статус поиска компании'));
+    }
+    return res.json();
+  },
+
+  async optOutCompany(eventId: string): Promise<CompanyStatusResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось скрыть анкету'));
+    }
+    return res.json();
+  },
+
+  async getCompanyMembers(eventId: string): Promise<CompanyMemberItem[]> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/members`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить список участников'));
+    }
+    return res.json();
+  },
+
+  async sendCompanyRequest(eventId: string, targetUserId: number): Promise<CompanyActionResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось отправить запрос'));
+    }
+    return res.json();
+  },
+
+  async getCompanyRequests(eventId: string): Promise<CompanyRequestsResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить запросы'));
+    }
+    return res.json();
+  },
+
+  async acceptCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/accept`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось принять запрос'));
+    }
+    return res.json();
+  },
+
+  async declineCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/decline`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось отклонить запрос'));
+    }
+    return res.json();
+  },
+
+  async cancelCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось отменить запрос'));
+    }
+    return res.json();
+  },
+
+  async getCompanyMatches(eventId: string): Promise<CompanyMatchItem[]> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/matches`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить совпадения'));
     }
     return res.json();
   }

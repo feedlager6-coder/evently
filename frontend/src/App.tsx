@@ -27,6 +27,7 @@ import { OrganizationModal } from './components/OrganizationModal';
 import { CreateOrganizationModal } from './components/CreateOrganizationModal';
 import { MySubscriptionsModal } from './components/MySubscriptionsModal';
 import { DiscoveryModal } from './components/DiscoveryModal';
+import { EventCompanyModal } from './components/EventCompanyModal';
 import type { TabType } from './components/Navigation';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search } from 'lucide-react';
 
@@ -55,6 +56,10 @@ export const App: React.FC = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isRsvpLoading, setIsRsvpLoading] = useState(false);
   const [isInterestLoading, setIsInterestLoading] = useState(false);
+
+  // Event Company Modal state
+  const [companyEvent, setCompanyEvent] = useState<EventResponse | null>(null);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   // Organizer tab state
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
@@ -621,6 +626,20 @@ export const App: React.FC = () => {
         onOpenOrgModal={(orgId) => {
           setIsDetailsOpen(false);
           openOrgById(orgId);
+        }}
+        onOpenCompanyModal={(ev) => {
+          setCompanyEvent(ev);
+          setIsCompanyModalOpen(true);
+        }}
+      />
+
+      {/* Event Company Discovery Modal */}
+      <EventCompanyModal
+        event={companyEvent}
+        isOpen={isCompanyModalOpen}
+        onClose={() => setIsCompanyModalOpen(false)}
+        onRequireParticipation={() => {
+          setIsCompanyModalOpen(false);
         }}
       />
 

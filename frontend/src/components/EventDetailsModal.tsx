@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { EventResponse } from '../types';
 import { telegram } from '../services/telegram';
 import { api } from '../services/api';
@@ -39,6 +39,15 @@ export function getInterestedWord(count: number): string {
   return 'хотят пойти';
 }
 
+export function getCompanyMembersWord(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'человек ищут компанию';
+  if (mod10 === 1) return 'человек ищет компанию';
+  if (mod10 >= 2 && mod10 <= 4) return 'человека ищут компанию';
+  return 'человек ищут компанию';
+}
+
 interface EventDetailsModalProps {
   event: EventResponse | null;
   isOpen: boolean;
@@ -48,6 +57,7 @@ interface EventDetailsModalProps {
   onToggleInterest?: (eventId: string, currentStatus: boolean) => Promise<void>;
   isInterestLoading?: boolean;
   onOpenOrgModal?: (orgId: string) => void;
+  onOpenCompanyModal?: (event: EventResponse) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -59,10 +69,24 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onToggleInterest,
   isInterestLoading = false,
   onOpenOrgModal,
+  onOpenCompanyModal,
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [rsvpAnimationPhase, setRsvpAnimationPhase] = useState<GoingAnimationState>('idle');
+  const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
+  const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && event) {
+      api.getCompanyStatus(event.id)
+        .then(st => {
+          setCompanyMembersCount(st.active_members_count);
+          setIsCompanyOptedIn(st.is_active);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, event]);
 
   if (!isOpen || !event) return null;
 
@@ -333,6 +357,38 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Social Discovery: «Найти компанию» entry card */}
+          <div
+            onClick={() => {
+              telegram.hapticImpact('light');
+              onOpenCompanyModal?.(event);
+            }}
+            className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/30 to-purple-950/30 border border-indigo-500/20 hover:border-indigo-500/40 transition-all cursor-pointer group shadow-sm"
+          >
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0 text-indigo-400 group-hover:scale-105 transition-transform">
+                <Users className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-white group-hover:text-indigo-200 transition-colors flex items-center space-x-1.5">
+                  <span>Найти компанию</span>
+                  {isCompanyOptedIn && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Ваша анкета активна" />
+                  )}
+                </div>
+                <div className="text-[11px] text-gray-400 truncate mt-0.5">
+                  {companyMembersCount > 0
+                    ? `${companyMembersCount} ${getCompanyMembersWord(companyMembersCount)}`
+                    : 'Познакомьтесь с теми, кто тоже идёт'}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
+              <span>{isCompanyOptedIn ? 'Моя анкета' : 'Открыть'}</span>
+              <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </div>
         </div>
 

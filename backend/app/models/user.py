@@ -28,6 +28,9 @@ class User(Base):
     owned_organizations = relationship("Organization", back_populates="owner", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     interests = relationship("EventInterest", back_populates="user", cascade="all, delete-orphan")
+    company_profiles = relationship("EventCompanyProfile", back_populates="user", cascade="all, delete-orphan")
+    sent_company_requests = relationship("EventCompanyRequest", foreign_keys="EventCompanyRequest.sender_id", back_populates="sender", cascade="all, delete-orphan")
+    received_company_requests = relationship("EventCompanyRequest", foreign_keys="EventCompanyRequest.receiver_id", back_populates="receiver", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username='{self.username}')>"
