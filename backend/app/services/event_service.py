@@ -131,6 +131,8 @@ async def list_published_events(
         .where(Event.status == EventStatus.PUBLISHED.value)
     )
 
+    now_utc = datetime.now(timezone.utc)
+
     if city_id:
         query = query.where(Event.city_id == city_id)
         # Apply city timezone-aware date range
@@ -139,12 +141,18 @@ async def list_published_events(
         if city and date_filter in ("today", "tomorrow", "weekend"):
             start_utc, end_utc = get_city_timezone_range(city.timezone, date_filter)
             if start_utc and end_utc:
-                query = query.where(and_(Event.start_at >= start_utc, Event.start_at < end_utc))
+                effective_start = max(start_utc, now_utc) if date_filter == "today" else start_utc
+                query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
+        else:
+            query = query.where(Event.start_at >= now_utc)
     elif date_filter in ("today", "tomorrow", "weekend"):
         # Default UTC range if city not selected
         start_utc, end_utc = get_city_timezone_range("UTC", date_filter)
         if start_utc and end_utc:
-            query = query.where(and_(Event.start_at >= start_utc, Event.start_at < end_utc))
+            effective_start = max(start_utc, now_utc) if date_filter == "today" else start_utc
+            query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
+    else:
+        query = query.where(Event.start_at >= now_utc)
 
     if category_id:
         query = query.where(Event.category_id == category_id)
@@ -791,8 +799,8 @@ async def get_user_personal_events(
         target_event_ids_q = select(EventAttendee.event_id).where(EventAttendee.user_id == user_id)
         query = query.where(Event.id.in_(target_event_ids_q))
 
-    # Only show published events
-    query = query.where(Event.status == EventStatus.PUBLISHED.value)
+    # Show published or cancelled events (preserve personal event history)
+    query = query.where(Event.status.in_([EventStatus.PUBLISHED.value, EventStatus.CANCELLED.value]))
     # Order by start_at ascending (upcoming events first)
     query = query.order_by(Event.start_at.asc()).limit(limit).offset(offset)
 

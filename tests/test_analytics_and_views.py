@@ -319,3 +319,285 @@ async def test_source_values_handled_correctly(client, test_session):
         select(EventView).where(EventView.event_id == event_id, EventView.user_id == db_u2)
     )).scalar_one()
     assert v2.source == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_past_published_event_absent_from_public_discovery(client, test_session):
+    """13. Past published event is absent from public discovery and search."""
+    now = datetime.now(timezone.utc)
+    past_event = Event(
+        id="past_ev_test_101",
+        title="Прошедший Концерт 101",
+        description="Концерт, который уже прошел",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now - timedelta(days=2),
+        venue_name="Старый Клуб",
+        address="Невский пр., 1",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=1
+    )
+    test_session.add(past_event)
+    await test_session.commit()
+
+    # 1. Main public feed
+    resp = await client.get("/api/v1/events?city_id=spb")
+    assert resp.status_code == 200
+    event_ids = [e["id"] for e in resp.json()["events"]]
+    assert past_event.id not in event_ids
+
+    # 2. Unified discovery search
+    search_res = await client.get("/api/v1/discovery/search?q=Прошедший&city_id=spb")
+    assert search_res.status_code == 200
+    found_ids = [e["id"] for e in search_res.json()["events"]]
+    assert past_event.id not in found_ids
+
+
+@pytest.mark.asyncio
+async def test_future_published_event_present_in_public_discovery(client, test_session):
+    """14. Future published event is present in public discovery and search."""
+    now = datetime.now(timezone.utc)
+    future_event = Event(
+        id="future_ev_test_102",
+        title="Будущий Концерт 102",
+        description="Грядущий грандиозный концерт",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now + timedelta(days=3),
+        venue_name="Новый Клуб",
+        address="Невский пр., 2",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=1
+    )
+    test_session.add(future_event)
+    await test_session.commit()
+
+    # 1. Main public feed
+    resp = await client.get("/api/v1/events?city_id=spb")
+    assert resp.status_code == 200
+    event_ids = [e["id"] for e in resp.json()["events"]]
+    assert future_event.id in event_ids
+
+    # 2. Unified discovery search
+    search_res = await client.get("/api/v1/discovery/search?q=Будущий&city_id=spb")
+    assert search_res.status_code == 200
+    found_ids = [e["id"] for e in search_res.json()["events"]]
+    assert future_event.id in found_ids
+
+
+@pytest.mark.asyncio
+async def test_cancelled_event_absent_from_public_discovery(client, test_session):
+    """15. Cancelled event is absent from public discovery and search."""
+    now = datetime.now(timezone.utc)
+    cancelled_event = Event(
+        id="cancelled_ev_test_103",
+        title="Отмененный Спектакль 103",
+        description="Спектакль был отменен",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now + timedelta(days=2),
+        venue_name="Драматический Театр",
+        address="Фонтанка, 10",
+        status=EventStatus.CANCELLED.value,
+        organizer_user_id=1
+    )
+    test_session.add(cancelled_event)
+    await test_session.commit()
+
+    # 1. Main feed
+    resp = await client.get("/api/v1/events?city_id=spb")
+    assert resp.status_code == 200
+    event_ids = [e["id"] for e in resp.json()["events"]]
+    assert cancelled_event.id not in event_ids
+
+    # 2. Discovery search
+    search_res = await client.get("/api/v1/discovery/search?q=Отмененный&city_id=spb")
+    assert search_res.status_code == 200
+    found_ids = [e["id"] for e in search_res.json()["events"]]
+    assert cancelled_event.id not in found_ids
+
+
+@pytest.mark.asyncio
+async def test_past_event_still_available_in_organizer_events(client, test_session):
+    """16. Past event is still available in GET /organizer/events."""
+    org_user_id = 9182
+    auth_header = {"Authorization": f"tma {make_test_init_data(user_id=org_user_id, username='retro_org')}"}
+    me_res = await client.get("/api/v1/users/me", headers=auth_header)
+    db_user_id = me_res.json()["id"]
+
+    now = datetime.now(timezone.utc)
+    past_event = Event(
+        id="org_past_ev_104",
+        title="Прошедший Исторический Фестиваль",
+        description="Фестиваль завершен на прошлой неделе",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now - timedelta(days=7),
+        venue_name="Парк 300-летия",
+        address="Приморский пр., 74",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=db_user_id
+    )
+    test_session.add(past_event)
+    await test_session.commit()
+
+    resp = await client.get("/api/v1/organizer/events", headers=auth_header)
+    assert resp.status_code == 200
+    org_event_ids = [e["id"] for e in resp.json()]
+    assert past_event.id in org_event_ids
+
+
+@pytest.mark.asyncio
+async def test_past_event_still_available_in_personal_events_history(client, test_session):
+    """17. Past event is still available in personal events history (attending and interested)."""
+    from app.models.attendee import EventAttendee
+
+    visitor_id = 8391
+    v_auth = {"Authorization": f"tma {make_test_init_data(user_id=visitor_id, username='nostalgic_visitor')}"}
+    me_res = await client.get("/api/v1/users/me", headers=v_auth)
+    db_user_id = me_res.json()["id"]
+
+    now = datetime.now(timezone.utc)
+    past_event = Event(
+        id="history_past_ev_105",
+        title="Памятный Концерт в Прошлом",
+        description="Концерт прошел, но память осталась",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now - timedelta(days=4),
+        venue_name="Филармония",
+        address="Михайловская ул., 2",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=1
+    )
+    test_session.add(past_event)
+    await test_session.flush()
+
+    # User attended
+    attendee_record = EventAttendee(event_id=past_event.id, user_id=db_user_id)
+    test_session.add(attendee_record)
+    await test_session.commit()
+
+    res = await client.get("/api/v1/users/me/events?type=attending", headers=v_auth)
+    assert res.status_code == 200
+    my_ids = [e["id"] for e in res.json()]
+    assert past_event.id in my_ids
+
+
+@pytest.mark.asyncio
+async def test_event_specific_counters_remain_correct(client, test_session):
+    """18. Individual event counters (views, attendees, interest) remain specific to that event."""
+    org_user_id = 9183
+    auth_header = {"Authorization": f"tma {make_test_init_data(user_id=org_user_id, username='counter_org')}"}
+    me_res = await client.get("/api/v1/users/me", headers=auth_header)
+    db_user_id = me_res.json()["id"]
+
+    now = datetime.now(timezone.utc)
+    ev = Event(
+        id="counter_ev_106",
+        title="Событие со Счётчиками",
+        description="Проверка точных счетчиков",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now + timedelta(days=5),
+        venue_name="Тестовый Зал",
+        address="Тестовая ул., 10",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=db_user_id
+    )
+    test_session.add(ev)
+    await test_session.commit()
+
+    # Record 2 views
+    for vid in [9201, 9202]:
+        v_auth = {"Authorization": f"tma {make_test_init_data(user_id=vid, username=f'v_{vid}')}"}
+        await client.post(f"/api/v1/events/{ev.id}/view", headers=v_auth)
+
+    # Record 1 interest
+    i_auth = {"Authorization": f"tma {make_test_init_data(user_id=9203, username='fan_interest')}"}
+    await client.post(f"/api/v1/events/{ev.id}/interest", headers=i_auth)
+
+    # Check organizer events response
+    resp = await client.get("/api/v1/organizer/events", headers=auth_header)
+    assert resp.status_code == 200
+    target = next(e for e in resp.json() if e["id"] == ev.id)
+    assert target["views_count"] == 2
+    assert target["interest_count"] == 1
+    assert target["attendee_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_aggregate_organizer_counters_remain_clearly_aggregate(client, test_session):
+    """19. Aggregate organizer counters correctly sum across multiple events."""
+    org_user_id = 9184
+    auth_header = {"Authorization": f"tma {make_test_init_data(user_id=org_user_id, username='multi_org')}"}
+    me_res = await client.get("/api/v1/users/me", headers=auth_header)
+    db_user_id = me_res.json()["id"]
+
+    now = datetime.now(timezone.utc)
+    ev1 = Event(
+        id="multi_ev_107_a",
+        title="Событие A",
+        description="Описание A",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now + timedelta(days=2),
+        venue_name="Зал A",
+        address="Ул. A, 1",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=db_user_id
+    )
+    ev2 = Event(
+        id="multi_ev_107_b",
+        title="Событие B",
+        description="Описание B",
+        category_id="concerts",
+        city_id="spb",
+        start_at=now + timedelta(days=4),
+        venue_name="Зал B",
+        address="Ул. B, 2",
+        status=EventStatus.PUBLISHED.value,
+        organizer_user_id=db_user_id
+    )
+    test_session.add_all([ev1, ev2])
+    await test_session.commit()
+
+    # Views on event A
+    for vid in [9301, 9302, 9303]:
+        v_auth = {"Authorization": f"tma {make_test_init_data(user_id=vid, username=f'v_{vid}')}"}
+        await client.post(f"/api/v1/events/{ev1.id}/view", headers=v_auth)
+
+    # Views on event B
+    for vid in [9304, 9305]:
+        v_auth = {"Authorization": f"tma {make_test_init_data(user_id=vid, username=f'v_{vid}')}"}
+        await client.post(f"/api/v1/events/{ev2.id}/view", headers=v_auth)
+
+    resp = await client.get("/api/v1/organizer/events", headers=auth_header)
+    assert resp.status_code == 200
+    my_events = [e for e in resp.json() if e["id"] in (ev1.id, ev2.id)]
+    total_views = sum(e["views_count"] for e in my_events)
+    assert total_views == 5
+
+
+@pytest.mark.asyncio
+async def test_conversion_percentages_are_no_longer_displayed_in_overview():
+    """20. OrganizerWorkspace component removes conversion percentage labels and includes clear aggregate labels."""
+    import os
+    frontend_workspace_path = os.path.join(
+        os.path.dirname(__file__), "..", "frontend", "src", "components", "OrganizerWorkspace.tsx"
+    )
+    assert os.path.exists(frontend_workspace_path), "OrganizerWorkspace.tsx must exist"
+
+    with open(frontend_workspace_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Must NOT contain conversion percentages indicators
+    assert "interestConversion" not in content
+    assert "rsvpConversion" not in content
+    assert "Конверсия в интерес" not in content
+    assert "Конверсия в гостей" not in content
+    assert "TrendingUp" not in content
+
+    # MUST contain clear aggregate labels
+    assert "Статистика всех событий" in content
+    assert "По всем событиям" in content

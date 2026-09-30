@@ -22,6 +22,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
     ? 'Бесплатно'
     : `${event.price_amount} ${event.price_currency || 'RUB'}`;
 
+  const isPast = eventDate < new Date();
+  const isCancelled = event.status === 'cancelled';
+
   return (
     <div
       onClick={onClick}
@@ -39,9 +42,21 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
 
         {/* Top Badges (Frosted Glass) */}
         <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none">
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-black/65 backdrop-blur-md text-white border border-white/10 shadow-sm">
-            {event.category_name}
-          </span>
+          <div className="flex items-center space-x-1.5">
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-black/65 backdrop-blur-md text-white border border-white/10 shadow-sm">
+              {event.category_name}
+            </span>
+            {isPast && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/65 backdrop-blur-md text-gray-300 border border-white/10 shadow-sm">
+                Прошло
+              </span>
+            )}
+            {isCancelled && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-950/80 backdrop-blur-md text-red-300 border border-red-500/30 shadow-sm">
+                Отменено
+              </span>
+            )}
+          </div>
           <span
             className={`px-2.5 py-1 rounded-full text-[11px] font-bold backdrop-blur-md border shadow-sm ${
               event.is_free

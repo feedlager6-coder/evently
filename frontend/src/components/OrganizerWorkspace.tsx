@@ -13,7 +13,6 @@ import {
   Users,
   Eye,
   Heart,
-  TrendingUp,
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
@@ -60,18 +59,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     (e) => e.status === 'pending' || e.status === 'rejected'
   );
   const pastEvents = events.filter(
-    (e) => e.status === 'published' && new Date(e.start_at) < now
+    (e) => (e.status === 'published' && new Date(e.start_at) < now) || e.status === 'cancelled'
   );
 
-  // Aggregated overview metrics
+  // Aggregated overview metrics (across all organizer events)
   const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
   const totalAttendees = events.reduce((acc, e) => acc + (e.attendee_count || 0), 0);
   const totalInterests = events.reduce((acc, e) => acc + (e.interest_count || 0), 0);
   const totalViews = events.reduce((acc, e) => acc + (e.views_count || 0), 0);
-
-  // Conversion rates (Phase 10: safe formatting)
-  const interestConversion = totalViews > 0 ? `${((totalInterests / totalViews) * 100).toFixed(1)}%` : '—';
-  const rsvpConversion = totalViews > 0 ? `${((totalAttendees / totalViews) * 100).toFixed(1)}%` : '—';
 
   // Top upcoming 2 events
   const topUpcoming = upcomingEvents.slice(0, 2);
@@ -189,51 +184,47 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
-            {/* Stat Grid */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-indigo-400">
-                  <Eye className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Просмотры</span>
-                </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalViews}</div>
+            {/* Aggregate Stats Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Статистика всех событий
+                </h3>
+                <span className="text-[11px] text-gray-500 font-medium">По всем событиям</span>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-emerald-400">
-                  <Users className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Гости (RSVP)</span>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                  <div className="flex items-center space-x-2 text-indigo-400">
+                    <Eye className="w-4 h-4" />
+                    <span className="text-[11px] font-medium text-gray-400">Просмотры</span>
+                  </div>
+                  <div className="text-xl font-bold text-white tracking-tight">{totalViews.toLocaleString('ru-RU')}</div>
                 </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalAttendees}</div>
-              </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-pink-400">
-                  <Heart className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Интерес</span>
+                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                  <div className="flex items-center space-x-2 text-emerald-400">
+                    <Users className="w-4 h-4" />
+                    <span className="text-[11px] font-medium text-gray-400">Гости</span>
+                  </div>
+                  <div className="text-xl font-bold text-white tracking-tight">{totalAttendees.toLocaleString('ru-RU')}</div>
                 </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalInterests}</div>
-              </div>
 
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-indigo-400">
-                  <Building2 className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Подписчики</span>
+                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                  <div className="flex items-center space-x-2 text-pink-400">
+                    <Heart className="w-4 h-4" />
+                    <span className="text-[11px] font-medium text-gray-400">Интерес</span>
+                  </div>
+                  <div className="text-xl font-bold text-white tracking-tight">{totalInterests.toLocaleString('ru-RU')}</div>
                 </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalFollowers}</div>
-              </div>
-            </div>
 
-            {/* Conversion Indicators */}
-            <div className="p-3 rounded-2xl bg-[#141724] border border-white/5 flex items-center justify-between text-xs text-gray-400">
-              <div className="flex items-center space-x-1.5 text-indigo-400">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span className="text-[11px] font-medium text-gray-300">Конверсия</span>
-              </div>
-              <div className="flex items-center space-x-3 text-[11px]">
-                <span>В интерес: <strong className="text-pink-400 font-semibold">{interestConversion}</strong></span>
-                <span>•</span>
-                <span>В гостей: <strong className="text-emerald-400 font-semibold">{rsvpConversion}</strong></span>
+                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                  <div className="flex items-center space-x-2 text-purple-400">
+                    <Building2 className="w-4 h-4" />
+                    <span className="text-[11px] font-medium text-gray-400">Подписчики</span>
+                  </div>
+                  <div className="text-xl font-bold text-white tracking-tight">{totalFollowers.toLocaleString('ru-RU')}</div>
+                </div>
               </div>
             </div>
 

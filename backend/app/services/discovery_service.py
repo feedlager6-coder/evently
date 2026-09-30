@@ -120,6 +120,7 @@ class DiscoveryService:
             .scalar_subquery()
         )
 
+        now_utc = datetime.now(timezone.utc)
         stmt = (
             select(
                 Event,
@@ -135,7 +136,12 @@ class DiscoveryService:
             .join(Category, Event.category_id == Category.id)
             .join(City, Event.city_id == City.id)
             .outerjoin(Organization, Event.organization_id == Organization.id)
-            .where(Event.status == EventStatus.PUBLISHED.value)
+            .where(
+                and_(
+                    Event.status == EventStatus.PUBLISHED.value,
+                    Event.start_at >= now_utc
+                )
+            )
         )
 
         if city_id:
@@ -241,13 +247,15 @@ class DiscoveryService:
             .scalar_subquery()
         )
 
+        now_utc = datetime.now(timezone.utc)
         # Published upcoming events count subquery (No N+1)
         events_count_subq = (
             select(func.count(Event.id))
             .where(
                 and_(
                     Event.organization_id == Organization.id,
-                    Event.status == EventStatus.PUBLISHED.value
+                    Event.status == EventStatus.PUBLISHED.value,
+                    Event.start_at >= now_utc
                 )
             )
             .scalar_subquery()
@@ -359,6 +367,7 @@ class DiscoveryService:
                 Event.address.ilike(t_term),
             ])
 
+        now_utc = datetime.now(timezone.utc)
         event_venue_stmt = (
             select(
                 Event.venue_name,
@@ -377,6 +386,7 @@ class DiscoveryService:
             .where(
                 and_(
                     Event.status == EventStatus.PUBLISHED.value,
+                    Event.start_at >= now_utc,
                     or_(*event_match)
                 )
             )
@@ -434,7 +444,8 @@ class DiscoveryService:
                     .where(
                         and_(
                             Event.organization_id == Organization.id,
-                            Event.status == EventStatus.PUBLISHED.value
+                            Event.status == EventStatus.PUBLISHED.value,
+                            Event.start_at >= now_utc
                         )
                     )
                     .scalar_subquery()
