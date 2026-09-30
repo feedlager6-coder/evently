@@ -30,11 +30,13 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   }, [src]);
 
   const initials = name.trim() ? name.trim().slice(0, 2).toUpperCase() : '';
+  const hasExplicitSize = /\b(w-\d+|h-\d+|size-\d+|w-\[|h-\[)/.test(className);
+  const effectiveSize = sizeClassName === 'w-full h-full' && hasExplicitSize ? '' : sizeClassName;
 
   const renderFallback = () => {
     return (
       <div
-        className={`w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center text-indigo-300 font-bold select-none ${className}`}
+        className={`relative overflow-hidden shrink-0 flex items-center justify-center text-indigo-300 font-bold select-none bg-gradient-to-tr from-indigo-900 to-purple-900 ${effectiveSize} ${className}`}
       >
         {initials ? (
           <span className="leading-none text-xs sm:text-sm">{initials}</span>
@@ -52,7 +54,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   }
 
   return (
-    <div className={`relative overflow-hidden ${sizeClassName} ${className}`}>
+    <div className={`relative overflow-hidden shrink-0 ${effectiveSize} ${className}`}>
       {/* Loading Skeleton / Gradient */}
       {imageState === 'loading' && (
         <div className="absolute inset-0 bg-[#171B29] animate-pulse flex items-center justify-center">
@@ -69,7 +71,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
           console.warn('[Ivently Media] Avatar image failed to load, switching to graceful fallback:', src);
           setImageState('error');
         }}
-        className={`w-full h-full object-cover transition-opacity duration-200 ${
+        className={`w-full h-full max-w-full max-h-full object-cover block transition-opacity duration-200 ${
           imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
         }`}
       />
