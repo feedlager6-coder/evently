@@ -43,8 +43,10 @@ export interface EventSummary {
   organization_name?: string;
   organization_category?: string;
   organization_avatar_url?: string;
+  rejection_reason?: string;
   created_at: string;
 }
+
 
 export interface EventInterestResponse {
   event_id: string;

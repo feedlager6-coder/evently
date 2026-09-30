@@ -21,6 +21,7 @@ import { EventCard } from './components/EventCard';
 import { EventDetailsModal } from './components/EventDetailsModal';
 import { CreateEventModal } from './components/CreateEventModal';
 import { OrganizerTab } from './components/OrganizerTab';
+import { OrganizerWorkspace } from './components/OrganizerWorkspace';
 import { AdminTab } from './components/AdminTab';
 import { Navigation } from './components/Navigation';
 import { OrganizationModal } from './components/OrganizationModal';
@@ -29,6 +30,7 @@ import { MySubscriptionsModal } from './components/MySubscriptionsModal';
 import { DiscoveryModal } from './components/DiscoveryModal';
 import { EventCompanyModal } from './components/EventCompanyModal';
 import type { TabType } from './components/Navigation';
+import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -61,7 +63,17 @@ export const App: React.FC = () => {
   const [companyEvent, setCompanyEvent] = useState<EventResponse | null>(null);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
-  // Organizer tab state
+  // Personal Hub state (attending, interested, subscriptions)
+  const [attendingEvents, setAttendingEvents] = useState<EventSummary[]>([]);
+  const [isLoadingAttending, setIsLoadingAttending] = useState(false);
+  const [interestedEvents, setInterestedEvents] = useState<EventSummary[]>([]);
+  const [isLoadingInterested, setIsLoadingInterested] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscriptionItem[]>([]);
+  const [isLoadingUserSubscriptions, setIsLoadingUserSubscriptions] = useState(false);
+
+  // Organizer workspace & creation state
+  const [isOrganizerWorkspaceOpen, setIsOrganizerWorkspaceOpen] = useState(false);
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
   const [isLoadingOrganizer, setIsLoadingOrganizer] = useState(false);
   const [myOrganizations, setMyOrganizations] = useState<OrganizationSummary[]>([]);
@@ -83,6 +95,7 @@ export const App: React.FC = () => {
 
   // Telegram User
   const [user, setUser] = useState<TelegramWebAppUser | null>(null);
+
 
   // Unified Discovery search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -134,8 +147,9 @@ export const App: React.FC = () => {
         openOrgById(orgId);
       }
     } else if (clean === 'create') {
-      setCurrentTab('create');
+      setIsCreateEventModalOpen(true);
     }
+
   }, [openEventById, openOrgById]);
 
   // 1. Initial Load: Metadata & Telegram initialization
@@ -247,7 +261,30 @@ export const App: React.FC = () => {
     loadFeedEvents();
   }, [loadFeedEvents]);
 
-  // 3. Fetch Organizer Events & Organizations
+  // 3. Fetch Personal Hub Events & Subscriptions
+  const loadPersonalEvents = useCallback(async () => {
+    try {
+      setIsLoadingAttending(true);
+      setIsLoadingInterested(true);
+      setIsLoadingUserSubscriptions(true);
+      const [att, inter, subs] = await Promise.all([
+        api.getMyPersonalEvents('attending').catch(() => []),
+        api.getMyPersonalEvents('interested').catch(() => []),
+        api.getMySubscriptions().catch(() => [])
+      ]);
+      setAttendingEvents(att);
+      setInterestedEvents(inter);
+      setUserSubscriptions(subs);
+    } catch (err) {
+      console.error('Error loading personal events:', err);
+    } finally {
+      setIsLoadingAttending(false);
+      setIsLoadingInterested(false);
+      setIsLoadingUserSubscriptions(false);
+    }
+  }, []);
+
+  // 4. Fetch Organizer Events & Organizations
   const loadOrganizerEvents = useCallback(async () => {
     try {
       setIsLoadingOrganizer(true);
@@ -272,7 +309,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // 4. Fetch Admin Events
+  // 5. Fetch Admin Events
   const loadAdminEvents = useCallback(async () => {
     if (!isAdmin) return;
     try {
@@ -287,15 +324,34 @@ export const App: React.FC = () => {
   }, [isAdmin, adminStatusFilter]);
 
   useEffect(() => {
-    if (currentTab === 'organizer') {
+    if (currentTab === 'my_events' || currentTab === 'organizer') {
+      loadPersonalEvents();
       loadOrganizerEvents();
-      loadMyOrganizations();
-    } else if (currentTab === 'create') {
       loadMyOrganizations();
     } else if (currentTab === 'admin') {
       loadAdminEvents();
     }
-  }, [currentTab, loadOrganizerEvents, loadMyOrganizations, loadAdminEvents]);
+  }, [currentTab, loadPersonalEvents, loadOrganizerEvents, loadMyOrganizations, loadAdminEvents]);
+
+  // BackButton support for Organizer Workspace and modals
+  useEffect(() => {
+    if (isOrganizerWorkspaceOpen) {
+      telegram.showBackButton(() => {
+        setIsOrganizerWorkspaceOpen(false);
+      });
+    } else if (isCreateEventModalOpen) {
+      telegram.showBackButton(() => {
+        setIsCreateEventModalOpen(false);
+      });
+    } else {
+      telegram.hideBackButton();
+    }
+    return () => {
+      if (isOrganizerWorkspaceOpen || isCreateEventModalOpen) {
+        telegram.hideBackButton();
+      }
+    };
+  }, [isOrganizerWorkspaceOpen, isCreateEventModalOpen]);
 
   const handleCardClick = async (event: EventSummary) => {
     openEventById(event.id);
@@ -545,46 +601,52 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {currentTab === 'create' && (
-          <div className="p-4">
-            <CreateEventModal
-              isOpen={true}
-              onClose={() => {
-                setPreselectedOrgForEventCreate(undefined);
+        {(currentTab === 'my_events' || currentTab === 'organizer') && (
+          isOrganizerWorkspaceOpen ? (
+            <OrganizerWorkspace
+              onBack={() => setIsOrganizerWorkspaceOpen(false)}
+              organizations={myOrganizations}
+              events={organizerEvents}
+              isLoading={isLoadingOrganizer || isLoadingMyOrganizations}
+              onOpenCreateEvent={(orgId) => {
+                setPreselectedOrgForEventCreate(orgId);
+                setIsCreateEventModalOpen(true);
+              }}
+              onOpenCreateOrg={() => {
+                setEditingOrgData(null);
+                setIsCreateOrgModalOpen(true);
+              }}
+              onEditOrg={(org) => {
+                setEditingOrgData(org as any);
+                setIsCreateOrgModalOpen(true);
+              }}
+              onOrgClick={(org) => openOrgById(org.id)}
+              onEventClick={(ev) => openEventById(ev.id)}
+            />
+          ) : (
+            <OrganizerTab
+              attendingEvents={attendingEvents}
+              isLoadingAttending={isLoadingAttending}
+              interestedEvents={interestedEvents}
+              isLoadingInterested={isLoadingInterested}
+              subscriptions={userSubscriptions}
+              isLoadingSubscriptions={isLoadingUserSubscriptions}
+              organizations={myOrganizations}
+              myCreatedEvents={organizerEvents}
+              onOpenOrganizerWorkspace={() => setIsOrganizerWorkspaceOpen(true)}
+              onOpenCreateOrg={() => {
+                setEditingOrgData(null);
+                setIsCreateOrgModalOpen(true);
+              }}
+              onEventClick={(ev) => openEventById(ev.id)}
+              onOrgClick={(orgId) => openOrgById(orgId)}
+              onExplore={() => {
                 setCurrentTab('feed');
               }}
-              cities={cities}
-              categories={categories}
-              defaultCityId={selectedCityId}
-              myOrganizations={myOrganizations}
-              initialOrganizationId={preselectedOrgForEventCreate}
-              onEventCreated={() => {
-                setPreselectedOrgForEventCreate(undefined);
-                loadFeedEvents();
-                setCurrentTab('organizer');
-              }}
             />
-          </div>
+          )
         )}
 
-        {currentTab === 'organizer' && (
-          <OrganizerTab
-            events={organizerEvents}
-            isLoading={isLoadingOrganizer}
-            organizations={myOrganizations}
-            isLoadingOrganizations={isLoadingMyOrganizations}
-            onOpenCreateOrgModal={() => {
-              setEditingOrgData(null);
-              setIsCreateOrgModalOpen(true);
-            }}
-            onOrgClick={(org) => openOrgById(org.id)}
-            onOpenCreateModal={() => {
-              setPreselectedOrgForEventCreate(undefined);
-              setCurrentTab('create');
-            }}
-            onEventClick={(ev) => openEventById(ev.id)}
-          />
-        )}
 
         {currentTab === 'admin' && (
           <AdminTab
@@ -655,7 +717,7 @@ export const App: React.FC = () => {
         onOpenCreateEvent={(orgId) => {
           setIsOrgModalOpen(false);
           setPreselectedOrgForEventCreate(orgId);
-          setCurrentTab('create');
+          setIsCreateEventModalOpen(true);
         }}
         onEditOrg={(org) => {
           setIsOrgModalOpen(false);
@@ -664,6 +726,29 @@ export const App: React.FC = () => {
         }}
         onSubscriptionChanged={() => {
           loadMyOrganizations();
+          loadPersonalEvents();
+        }}
+      />
+
+      {/* Create Event Modal */}
+      <CreateEventModal
+        isOpen={isCreateEventModalOpen}
+        onClose={() => {
+          setPreselectedOrgForEventCreate(undefined);
+          setIsCreateEventModalOpen(false);
+        }}
+        cities={cities}
+        categories={categories}
+        defaultCityId={selectedCityId}
+        myOrganizations={myOrganizations}
+        initialOrganizationId={preselectedOrgForEventCreate}
+        onEventCreated={() => {
+          setPreselectedOrgForEventCreate(undefined);
+          setIsCreateEventModalOpen(false);
+          loadFeedEvents();
+          loadOrganizerEvents();
+          loadMyOrganizations();
+          loadPersonalEvents();
         }}
       />
 
@@ -679,9 +764,11 @@ export const App: React.FC = () => {
         initialData={editingOrgData}
         onSaved={(savedOrg) => {
           loadMyOrganizations();
+          loadPersonalEvents();
           openOrgById(savedOrg.id);
         }}
       />
+
 
       {/* My Subscriptions Modal */}
       <MySubscriptionsModal

@@ -1,9 +1,8 @@
 import React from 'react';
-import { Compass, PlusCircle, Calendar, Shield } from 'lucide-react';
-
+import { Compass, Calendar, Shield } from 'lucide-react';
 import { telegram } from '../services/telegram';
 
-export type TabType = 'feed' | 'create' | 'organizer' | 'admin';
+export type TabType = 'feed' | 'my_events' | 'admin' | 'organizer';
 
 interface NavigationProps {
   currentTab: TabType;
@@ -23,13 +22,15 @@ export const Navigation: React.FC<NavigationProps> = ({
     onChangeTab(tab);
   };
 
+  const isMyEventsActive = currentTab === 'my_events' || currentTab === 'organizer';
+
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/92 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {/* Feed Tab */}
         <button
           onClick={() => handleTabClick('feed')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
+          className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
             currentTab === 'feed'
               ? 'text-indigo-400 font-semibold'
               : 'text-gray-400 hover:text-gray-200'
@@ -40,31 +41,17 @@ export const Navigation: React.FC<NavigationProps> = ({
           <span className="text-[10px] tracking-tight">Афиша</span>
         </button>
 
-        {/* Create Event Tab */}
+        {/* My Events Tab (Personal Hub) */}
         <button
-          onClick={() => handleTabClick('create')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
-            currentTab === 'create'
-              ? 'text-indigo-400 font-semibold'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-          aria-label="Создать"
-        >
-          <PlusCircle className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'create' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
-          <span className="text-[10px] tracking-tight">Создать</span>
-        </button>
-
-        {/* Organizer Tab */}
-        <button
-          onClick={() => handleTabClick('organizer')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
-            currentTab === 'organizer'
+          onClick={() => handleTabClick('my_events')}
+          className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
+            isMyEventsActive
               ? 'text-indigo-400 font-semibold'
               : 'text-gray-400 hover:text-gray-200'
           }`}
           aria-label="Мои события"
         >
-          <Calendar className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${currentTab === 'organizer' ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
+          <Calendar className={`w-5 h-5 mb-0.5 transition-transform duration-150 ${isMyEventsActive ? 'scale-105 stroke-[2.25]' : 'stroke-2'}`} />
           <span className="text-[10px] tracking-tight">Мои события</span>
         </button>
 
@@ -72,7 +59,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {isAdmin && (
           <button
             onClick={() => handleTabClick('admin')}
-            className={`flex flex-col items-center py-1.5 px-3 rounded-lg btn-press transition-colors duration-150 ${
+            className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
               currentTab === 'admin'
                 ? 'text-indigo-400 font-semibold'
                 : 'text-gray-400 hover:text-gray-200'

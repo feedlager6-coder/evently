@@ -603,6 +603,11 @@ async def get_organizer_events(
         .where(EventAttendee.event_id == Event.id)
         .scalar_subquery()
     )
+    interest_count_subq = (
+        select(func.count(EventInterest.user_id))
+        .where(EventInterest.event_id == Event.id)
+        .scalar_subquery()
+    )
 
     query = (
         select(
@@ -610,6 +615,7 @@ async def get_organizer_events(
             Category.name.label("category_name"),
             City.name.label("city_name"),
             attendee_count_subq.label("attendee_count"),
+            interest_count_subq.label("interest_count"),
             Organization.name.label("org_name"),
             Organization.category.label("org_category"),
             Organization.avatar_url.label("org_avatar")
@@ -625,7 +631,7 @@ async def get_organizer_events(
     rows = results.all()
 
     summaries = []
-    for event, cat_name, c_name, att_count, org_name, org_category, org_avatar in rows:
+    for event, cat_name, c_name, att_count, int_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -645,6 +651,8 @@ async def get_organizer_events(
                 attendee_count=att_count or 0,
                 status=event.status,
                 is_attending=False,
+                interest_count=int_count or 0,
+                current_user_interested=False,
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
@@ -652,3 +660,92 @@ async def get_organizer_events(
             )
         )
     return summaries
+
+
+async def get_user_personal_events(
+    session: AsyncSession,
+    user_id: int,
+    event_type: str = "attending",
+    limit: int = 50,
+    offset: int = 0
+) -> List[EventSummary]:
+    """
+    Returns events for the authenticated user based on type:
+    - 'attending': events where user clicked 'Я иду' (EventAttendee)
+    - 'interested': events where user clicked 'Хочу пойти' (EventInterest)
+    """
+    attendee_count_subq = (
+        select(func.count(EventAttendee.user_id))
+        .where(EventAttendee.event_id == Event.id)
+        .correlate(Event)
+        .scalar_subquery()
+    )
+    interest_count_subq = (
+        select(func.count(EventInterest.user_id))
+        .where(EventInterest.event_id == Event.id)
+        .correlate(Event)
+        .scalar_subquery()
+    )
+
+    query = (
+        select(
+            Event,
+            Category.name.label("category_name"),
+            City.name.label("city_name"),
+            attendee_count_subq.label("attendee_count"),
+            interest_count_subq.label("interest_count"),
+            Organization.name.label("org_name"),
+            Organization.category.label("org_category"),
+            Organization.avatar_url.label("org_avatar")
+        )
+        .join(Category, Event.category_id == Category.id)
+        .join(City, Event.city_id == City.id)
+        .outerjoin(Organization, Event.organization_id == Organization.id)
+    )
+
+    if event_type == "interested":
+        target_event_ids_q = select(EventInterest.event_id).where(EventInterest.user_id == user_id)
+        query = query.where(Event.id.in_(target_event_ids_q))
+    else:
+        target_event_ids_q = select(EventAttendee.event_id).where(EventAttendee.user_id == user_id)
+        query = query.where(Event.id.in_(target_event_ids_q))
+
+    # Only show published events
+    query = query.where(Event.status == EventStatus.PUBLISHED.value)
+    # Order by start_at ascending (upcoming events first)
+    query = query.order_by(Event.start_at.asc()).limit(limit).offset(offset)
+
+    results = await session.execute(query)
+    rows = results.all()
+
+    summaries = []
+    for event, cat_name, c_name, att_count, int_count, org_name, org_category, org_avatar in rows:
+        summaries.append(
+            EventSummary(
+                id=event.id,
+                title=event.title,
+                cover_image_url=event.cover_image_url,
+                category_id=event.category_id,
+                category_name=cat_name,
+                city_id=event.city_id,
+                city_name=c_name,
+                start_at=event.start_at,
+                venue_name=event.venue_name,
+                latitude=event.latitude,
+                longitude=event.longitude,
+                price_amount=event.price_amount,
+                price_currency=event.price_currency,
+                is_free=(event.price_amount is None or event.price_amount == 0),
+                attendee_count=att_count or 0,
+                status=event.status,
+                is_attending=(event_type == "attending"),
+                interest_count=int_count or 0,
+                current_user_interested=(event_type == "interested"),
+                organization_id=event.organization_id,
+                organization_name=org_name,
+                organization_category=org_category,
+                organization_avatar_url=org_avatar
+            )
+        )
+    return summaries
+

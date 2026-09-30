@@ -1,12 +1,14 @@
-from typing import Optional
-from fastapi import APIRouter, Depends
+from typing import Optional, List
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import settings
 from app.models.user import User
+from app.schemas.event import EventSummary
 from app.api.deps import get_current_user_optional, get_current_user
+from app.services.event_service import get_user_personal_events
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -58,4 +60,26 @@ async def get_my_subscriptions(
     """
     from app.services.organization_service import list_user_subscriptions
     return await list_user_subscriptions(session, user.id)
+
+
+@router.get("/me/events", response_model=List[EventSummary])
+async def get_my_personal_events(
+    type: str = Query("attending", pattern="^(attending|interested)$", description="Filter personal events: 'attending' (Я иду) or 'interested' (Хочу пойти)"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Returns personal events for the authenticated user:
+    - 'attending': events user has RSVP'd to ('Я иду')
+    - 'interested': events user has marked with interest ('Хочу пойти')
+    """
+    return await get_user_personal_events(
+        session,
+        user_id=user.id,
+        event_type=type,
+        limit=limit,
+        offset=offset
+    )
 

@@ -533,6 +533,18 @@ export const api = {
     return res.json();
   },
 
+  async getMyPersonalEvents(type: 'attending' | 'interested' = 'attending'): Promise<EventSummary[]> {
+    const res = await fetch(`${API_BASE}/users/me/events?type=${encodeURIComponent(type)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) return [];
+      throw new Error('Не удалось загрузить ваши события');
+    }
+    return res.json();
+  },
+
+
   // Event Company Discovery ("Найти компанию")
   async getCompanyStatus(eventId: string): Promise<CompanyStatusResponse> {
     const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/status`, {

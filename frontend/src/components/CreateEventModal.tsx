@@ -90,6 +90,14 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
   }, [defaultCityId]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setSuccess(false);
+      setError(null);
+    }
+  }, [isOpen]);
+
+
   const handleSelectOrg = (orgId: string | undefined) => {
     setSelectedOrgId(orgId);
     if (orgId) {
@@ -237,6 +245,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setIsLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in overflow-y-auto">
