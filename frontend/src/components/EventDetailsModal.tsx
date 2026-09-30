@@ -326,8 +326,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               </span>
             </div>
             {event.interest_count > 0 && (
-              <div className="flex items-center space-x-1.5 text-rose-400">
-                <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-400 shrink-0" />
+              <div className="flex items-center space-x-1.5 text-purple-300">
+                <Heart className="w-3.5 h-3.5 fill-purple-500/20 text-purple-400 shrink-0" />
                 <span>
                   <strong className="text-white font-semibold">{event.interest_count}</strong> {getInterestedWord(event.interest_count)}
                 </span>
@@ -381,28 +381,26 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               title={event.current_user_interested ? 'Нажмите, чтобы отменить интерес' : 'Хочу пойти'}
               className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
                 event.current_user_interested
-                  ? 'bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25'
+                  ? 'bg-purple-500/15 border border-purple-500/35 text-purple-200 hover:bg-purple-500/25'
                   : 'bg-[#181C2B] border border-white/8 text-gray-300 hover:text-white hover:border-white/20'
               } disabled:opacity-60`}
             >
               <Heart
                 className={`w-3.5 h-3.5 transition-transform duration-200 ${
                   event.current_user_interested
-                    ? 'fill-rose-500 text-rose-500 scale-110'
+                    ? 'fill-purple-400 text-purple-400 scale-110'
                     : 'text-gray-400'
                 }`}
               />
               <span>
                 {isInterestLoading
                   ? 'Обновление...'
-                  : event.current_user_interested
-                  ? 'Вы хотите пойти'
                   : 'Хочу пойти'}
               </span>
               {event.interest_count > 0 && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
                   event.current_user_interested
-                    ? 'bg-rose-500/25 text-rose-200'
+                    ? 'bg-purple-500/25 text-purple-200'
                     : 'bg-white/10 text-gray-400'
                 }`}>
                   {event.interest_count}

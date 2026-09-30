@@ -60,7 +60,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
             <span>Вы идёте</span>
           </div>
         ) : event.current_user_interested ? (
-          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/90 text-white shadow-lg backdrop-blur-sm animate-scale-pop">
+          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-600/90 text-white shadow-lg shadow-purple-600/20 backdrop-blur-sm animate-scale-pop">
             <Heart className="w-3 h-3 fill-white" />
             <span>Хочу пойти</span>
           </div>
@@ -92,8 +92,8 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
               <span>{event.attendee_count}</span>
             </div>
             {event.interest_count > 0 && (
-              <div className="flex items-center space-x-1 text-rose-400/90">
-                <Heart className="w-3.5 h-3.5 fill-rose-500/20 text-rose-400" />
+              <div className="flex items-center space-x-1 text-purple-300/90">
+                <Heart className="w-3.5 h-3.5 fill-purple-500/20 text-purple-400" />
                 <span>{event.interest_count}</span>
               </div>
             )}

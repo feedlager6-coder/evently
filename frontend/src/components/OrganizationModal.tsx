@@ -254,19 +254,19 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 {/* Owner or Subscriber Action */}
                 <div className="w-full pt-1">
                   {org.is_owner ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="grid grid-cols-2 gap-2.5 w-full">
                       <button
                         onClick={() => onEditOrg?.(org)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors border border-white/10 btn-press"
+                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10 btn-press text-center leading-tight"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-3.5 h-3.5 shrink-0" />
                         <span>Редактировать профиль</span>
                       </button>
                       <button
                         onClick={() => onOpenCreateEvent?.(org.id)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-indigo-600/30 btn-press"
+                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-indigo-600/25 border border-indigo-500/30 btn-press text-center leading-tight"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
                         <span>Создать событие</span>
                       </button>
                     </div>
