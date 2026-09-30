@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.event import EventSummary
 from app.schemas.audience import OrganizerAudienceResponse
+from app.schemas.insights import OrganizerInsightsResponse
 from app.schemas.broadcast import (
     BroadcastPreviewRequest,
     BroadcastPreviewResponse,
@@ -16,6 +17,7 @@ from app.schemas.broadcast import (
 from app.api.deps import get_current_user
 from app.services.event_service import get_organizer_events
 from app.services.audience_service import get_organizer_audience
+from app.services.insights_service import get_organizer_insights
 from app.services.broadcast_service import (
     preview_broadcast,
     create_broadcast,
@@ -49,6 +51,18 @@ async def get_audience_overview(
     Includes subscriber totals, 7d/30d growth, event interaction metrics, and deduplicated unique reach.
     """
     return await get_organizer_audience(session, organizer_user_id=user.id, target_org_id=org_id)
+
+
+@router.get("/insights", response_model=OrganizerInsightsResponse)
+async def get_my_organizer_insights(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Returns unified organizer insights covering audience growth, event performance totals,
+    broadcast attribution totals, and discovery source breakdown.
+    """
+    return await get_organizer_insights(session, organizer_user_id=user.id)
 
 
 @router.post("/broadcasts/preview", response_model=BroadcastPreviewResponse)

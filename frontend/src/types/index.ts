@@ -44,6 +44,9 @@ export interface EventSummary {
   organization_category?: string;
   organization_avatar_url?: string;
   views_count?: number;
+  broadcast_opens_count?: number;
+  broadcast_interest_count?: number;
+  broadcast_rsvp_count?: number;
   rejection_reason?: string;
   created_at: string;
 }
@@ -387,5 +390,48 @@ export interface BroadcastCreateRequest {
   template_key: BroadcastTemplateKey;
   event_id?: string | null;
   custom_text?: string | null;
+}
+
+export interface AudienceGrowthMetrics {
+  total_subscribers: number;
+  new_subscribers_7d: number;
+  new_subscribers_30d: number;
+  total_unique_engaged: number;
+}
+
+export interface EventPerformanceTotals {
+  total_events: number;
+  upcoming_events_count: number;
+  past_events_count: number;
+  total_views: number;
+  total_interest: number;
+  total_rsvps: number;
+}
+
+export interface BroadcastPerformanceTotals {
+  total_broadcasts: number;
+  total_delivered: number;
+  total_opened: number;
+  total_attributed_interest: number;
+  total_attributed_rsvp: number;
+  overall_open_rate: number;
+  overall_interest_conversion: number;
+  overall_rsvp_conversion: number;
+}
+
+export interface ViewSourceMetric {
+  source: string;
+  label: string;
+  views_count: number;
+  percentage: number;
+}
+
+export interface OrganizerInsightsResponse {
+  audience: AudienceGrowthMetrics;
+  events: EventPerformanceTotals;
+  broadcasts: BroadcastPerformanceTotals;
+  sources: ViewSourceMetric[];
+  fact_sentence: string;
+  has_data: boolean;
 }
 

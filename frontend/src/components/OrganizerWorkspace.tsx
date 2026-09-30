@@ -9,6 +9,7 @@ import type {
   BroadcastTargetType,
   BroadcastType,
   BroadcastTemplateKey,
+  OrganizerInsightsResponse,
 } from '../types';
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
@@ -34,6 +35,8 @@ import {
   Info,
   Send,
   X,
+  Sparkles,
+  Compass,
 } from 'lucide-react';
 
 export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience' | 'broadcasts';
@@ -67,6 +70,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
   const [isLoadingAudience, setIsLoadingAudience] = useState<boolean>(false);
   const [selectedAudienceOrgId, setSelectedAudienceOrgId] = useState<string | null>(null);
+
+  const [insightsData, setInsightsData] = useState<OrganizerInsightsResponse | null>(null);
+
+  const loadInsights = () => {
+    api.getOrganizerInsights()
+      .then((data) => setInsightsData(data))
+      .catch((err) => console.error('Failed to load organizer insights:', err));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      loadInsights();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'audience') {
@@ -378,49 +395,193 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
-            {/* Aggregate Stats Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Статистика всех событий
-                </h3>
-                <span className="text-[11px] text-gray-500 font-medium">По всем событиям</span>
+            {/* Grounded Factual Insight Banner */}
+            {insightsData?.fact_sentence && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-500/15 via-purple-500/10 to-transparent border border-indigo-500/25 flex items-start space-x-2.5">
+                <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-semibold text-indigo-300 uppercase tracking-wider">Инсайт</div>
+                  <div className="text-xs font-medium text-white leading-snug mt-0.5">{insightsData.fact_sentence}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Pillar 1: Audience Growth */}
+            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-purple-400">
+                  <Users className="w-4 h-4" />
+                  <span className="text-xs font-semibold text-white">Аудитория</span>
+                </div>
+                <button
+                  onClick={() => handleTabChange('audience')}
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center space-x-0.5 btn-press"
+                >
+                  <span>Подробнее</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                  <div className="flex items-center space-x-2 text-indigo-400">
-                    <Eye className="w-4 h-4" />
-                    <span className="text-[11px] font-medium text-gray-400">Просмотры</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">Всего подписчиков</div>
+                  <div className="text-base font-bold text-white tracking-tight">
+                    {(insightsData?.audience.total_subscribers ?? totalFollowers).toLocaleString('ru-RU')}
                   </div>
-                  <div className="text-xl font-bold text-white tracking-tight">{totalViews.toLocaleString('ru-RU')}</div>
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                  <div className="flex items-center space-x-2 text-emerald-400">
-                    <Users className="w-4 h-4" />
-                    <span className="text-[11px] font-medium text-gray-400">Гости</span>
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">Вовлеченный охват</div>
+                  <div className="text-base font-bold text-white tracking-tight">
+                    {(insightsData?.audience.total_unique_engaged ?? 0).toLocaleString('ru-RU')}
                   </div>
-                  <div className="text-xl font-bold text-white tracking-tight">{totalAttendees.toLocaleString('ru-RU')}</div>
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                  <div className="flex items-center space-x-2 text-pink-400">
-                    <Heart className="w-4 h-4" />
-                    <span className="text-[11px] font-medium text-gray-400">Интерес</span>
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">За 7 дней</div>
+                  <div className="text-base font-bold text-emerald-400 tracking-tight">
+                    +{(insightsData?.audience.new_subscribers_7d ?? 0).toLocaleString('ru-RU')}
                   </div>
-                  <div className="text-xl font-bold text-white tracking-tight">{totalInterests.toLocaleString('ru-RU')}</div>
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                  <div className="flex items-center space-x-2 text-purple-400">
-                    <Building2 className="w-4 h-4" />
-                    <span className="text-[11px] font-medium text-gray-400">Подписчики</span>
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">За 30 дней</div>
+                  <div className="text-base font-bold text-emerald-400 tracking-tight">
+                    +{(insightsData?.audience.new_subscribers_30d ?? 0).toLocaleString('ru-RU')}
                   </div>
-                  <div className="text-xl font-bold text-white tracking-tight">{totalFollowers.toLocaleString('ru-RU')}</div>
                 </div>
               </div>
             </div>
+
+            {/* Pillar 2: Events Performance */}
+            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-indigo-400">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-xs font-semibold text-white">Статистика всех событий</span>
+                </div>
+                <span className="text-[10px] text-gray-500 font-medium">По всем событиям</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">Просмотры</div>
+                  <div className="text-base font-bold text-white tracking-tight">
+                    {(insightsData?.events.total_views ?? totalViews).toLocaleString('ru-RU')}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">Интерес</div>
+                  <div className="text-base font-bold text-pink-400 tracking-tight">
+                    {(insightsData?.events.total_interest ?? totalInterests).toLocaleString('ru-RU')}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                  <div className="text-[10px] text-gray-400">Идут (RSVP)</div>
+                  <div className="text-base font-bold text-emerald-400 tracking-tight">
+                    {(insightsData?.events.total_rsvps ?? totalAttendees).toLocaleString('ru-RU')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pillar 3: Telegram Broadcasts & Attribution */}
+            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-sky-400">
+                  <Send className="w-4 h-4" />
+                  <span className="text-xs font-semibold text-white">Рассылки в Telegram</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-medium">
+                  Атрибуция
+                </span>
+              </div>
+
+              {(insightsData?.broadcasts.total_broadcasts ?? 0) === 0 ? (
+                <div className="p-3 text-center rounded-xl bg-white/5 space-y-1.5">
+                  <p className="text-[11px] text-gray-400">Рассылки еще не отправлялись</p>
+                  {organizations.length > 0 && (
+                    <button
+                      onClick={() => {
+                        handleTabChange('broadcasts');
+                        handleOpenComposer();
+                      }}
+                      className="text-[11px] text-sky-400 hover:text-sky-300 font-medium btn-press"
+                    >
+                      + Создать первую рассылку →
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                      <div className="text-[10px] text-gray-400">Доставлено</div>
+                      <div className="text-sm font-bold text-white">
+                        {(insightsData?.broadcasts.total_delivered ?? 0).toLocaleString('ru-RU')}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                      <div className="text-[10px] text-gray-400">Открыли</div>
+                      <div className="text-sm font-bold text-white">
+                        {(insightsData?.broadcasts.total_opened ?? 0).toLocaleString('ru-RU')}
+                      </div>
+                      <div className="text-[9.5px] text-sky-400 font-medium">
+                        {insightsData?.broadcasts.overall_open_rate ?? 0}%
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 space-y-0.5">
+                      <div className="text-[10px] text-gray-400">Идут из рассылок</div>
+                      <div className="text-sm font-bold text-emerald-400">
+                        {(insightsData?.broadcasts.total_attributed_rsvp ?? 0).toLocaleString('ru-RU')}
+                      </div>
+                      <div className="text-[9.5px] text-emerald-400 font-medium">
+                        {insightsData?.broadcasts.overall_rsvp_conversion ?? 0}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {(insightsData?.broadcasts.total_attributed_interest ?? 0) > 0 && (
+                    <div className="text-[10.5px] text-gray-400 px-1 flex items-center justify-between">
+                      <span>«Хочу пойти» из рассылок:</span>
+                      <span className="font-semibold text-pink-400">
+                        +{insightsData?.broadcasts.total_attributed_interest}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Discovery Sources Breakdown */}
+            {(insightsData?.sources && insightsData.sources.length > 0) && (
+              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-indigo-400">
+                    <Compass className="w-4 h-4" />
+                    <span className="text-xs font-semibold text-white">Источники просмотров</span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-medium">Каналы переходов</span>
+                </div>
+
+                <div className="space-y-2">
+                  {insightsData.sources.map((src) => (
+                    <div key={src.source} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-gray-300 font-medium">{src.label}</span>
+                        <div className="flex items-center space-x-2 text-gray-400">
+                          <span>{src.views_count.toLocaleString('ru-RU')}</span>
+                          <span className="text-indigo-400 font-semibold w-10 text-right">{src.percentage}%</span>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300"
+                          style={{ width: `${Math.min(src.percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Quick Action Buttons */}
             <div className="grid grid-cols-2 gap-2.5">
@@ -573,6 +734,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             </span>
                           </div>
                         </div>
+
+                        {((ev.broadcast_opens_count ?? 0) > 0 || (ev.broadcast_rsvp_count ?? 0) > 0 || (ev.broadcast_interest_count ?? 0) > 0) && (
+                          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[10px] text-sky-300">
+                            <Send className="w-3 h-3 text-sky-400 shrink-0" />
+                            <span className="text-gray-400">Из рассылок:</span>
+                            <span className="font-semibold text-white">{ev.broadcast_opens_count ?? 0}</span>
+                            <span className="text-gray-400">переходов •</span>
+                            <span className="font-semibold text-pink-300">{ev.broadcast_interest_count ?? 0}</span>
+                            <span className="text-gray-400">интерес •</span>
+                            <span className="font-semibold text-emerald-300">{ev.broadcast_rsvp_count ?? 0}</span>
+                            <span className="text-gray-400">идут</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -721,6 +895,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           </span>
                         </div>
                       </div>
+
+                      {((ev.broadcast_opens_count ?? 0) > 0 || (ev.broadcast_rsvp_count ?? 0) > 0 || (ev.broadcast_interest_count ?? 0) > 0) && (
+                        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[10px] text-sky-300">
+                          <Send className="w-3 h-3 text-sky-400 shrink-0" />
+                          <span className="text-gray-400">Из рассылок:</span>
+                          <span className="font-semibold text-white">{ev.broadcast_opens_count ?? 0}</span>
+                          <span className="text-gray-400">переходов •</span>
+                          <span className="font-semibold text-pink-300">{ev.broadcast_interest_count ?? 0}</span>
+                          <span className="text-gray-400">интерес •</span>
+                          <span className="font-semibold text-emerald-300">{ev.broadcast_rsvp_count ?? 0}</span>
+                          <span className="text-gray-400">идут</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

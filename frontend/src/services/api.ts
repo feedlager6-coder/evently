@@ -27,7 +27,8 @@ import type {
   BroadcastItem,
   BroadcastDetail,
   BroadcastPreviewResponse,
-  BroadcastCreateRequest
+  BroadcastCreateRequest,
+  OrganizerInsightsResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -422,6 +423,26 @@ export const api = {
         };
       }
       throw new Error('Failed to fetch organizer audience');
+    }
+    return res.json();
+  },
+
+  async getOrganizerInsights(): Promise<OrganizerInsightsResponse> {
+    const res = await fetch(`${API_BASE}/organizer/insights`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        return {
+          audience: { total_subscribers: 0, new_subscribers_7d: 0, new_subscribers_30d: 0, total_unique_engaged: 0 },
+          events: { total_events: 0, upcoming_events_count: 0, past_events_count: 0, total_views: 0, total_interest: 0, total_rsvps: 0 },
+          broadcasts: { total_broadcasts: 0, total_delivered: 0, total_opened: 0, total_attributed_interest: 0, total_attributed_rsvp: 0, overall_open_rate: 0, overall_interest_conversion: 0, overall_rsvp_conversion: 0 },
+          sources: [],
+          fact_sentence: 'Создайте первое событие или организацию, чтобы начать привлекать аудиторию.',
+          has_data: false,
+        };
+      }
+      throw new Error('Failed to fetch organizer insights');
     }
     return res.json();
   },

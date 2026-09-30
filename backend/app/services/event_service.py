@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, delete
+from sqlalchemy import select, func, and_, or_, delete, case
 from sqlalchemy.orm import selectinload
 
 from fastapi import HTTPException, status
@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.organization import Organization
 from app.models.subscription import Subscription
 from app.models.view import EventView
+from app.models.broadcast import Broadcast, BroadcastRecipient
 from app.schemas.event import EventCreate, EventSummary, EventResponse
 from app.schemas.interest import EventInterestResponse
 
@@ -742,8 +743,28 @@ async def get_organizer_events(
     results = await session.execute(query)
     rows = results.all()
 
+    # Aggregate broadcast attribution metrics for organizer's events
+    broadcast_stats_map = {}
+    event_ids = [event.id for event, *_ in rows]
+    if event_ids:
+        bcast_subq = (
+            select(
+                Broadcast.event_id,
+                func.count(case((BroadcastRecipient.opened_at.isnot(None), 1))).label("opened_count"),
+                func.count(case((BroadcastRecipient.attributed_interest_at.isnot(None), 1))).label("interest_count"),
+                func.count(case((BroadcastRecipient.attributed_rsvp_at.isnot(None), 1))).label("rsvp_count"),
+            )
+            .join(BroadcastRecipient, Broadcast.id == BroadcastRecipient.broadcast_id)
+            .where(Broadcast.event_id.in_(event_ids))
+            .group_by(Broadcast.event_id)
+        )
+        bcast_res = await session.execute(bcast_subq)
+        for ev_id, o_cnt, i_cnt, r_cnt in bcast_res.all():
+            broadcast_stats_map[ev_id] = (o_cnt or 0, i_cnt or 0, r_cnt or 0)
+
     summaries = []
     for event, cat_name, c_name, att_count, int_count, v_count, org_name, org_category, org_avatar in rows:
+        b_opens, b_interest, b_rsvp = broadcast_stats_map.get(event.id, (0, 0, 0))
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -769,7 +790,10 @@ async def get_organizer_events(
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
-                organization_avatar_url=org_avatar
+                organization_avatar_url=org_avatar,
+                broadcast_opens_count=b_opens,
+                broadcast_interest_count=b_interest,
+                broadcast_rsvp_count=b_rsvp,
             )
         )
     return summaries

@@ -53,6 +53,9 @@ class EventSummary(BaseModel):
     organization_name: Optional[str] = None
     organization_category: Optional[str] = None
     organization_avatar_url: Optional[str] = None
+    broadcast_opens_count: int = 0
+    broadcast_interest_count: int = 0
+    broadcast_rsvp_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
