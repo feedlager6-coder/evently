@@ -73,15 +73,26 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
     }
   }, [initialQuery]);
 
-  // Handle Telegram BackButton
+  // Handle Telegram BackButton and search autofocus
   useEffect(() => {
     if (isOpen) {
       telegram.showBackButton(onClose);
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
+
+      const triggerFocus = () => {
+        if (inputRef.current) {
+          inputRef.current.focus({ preventScroll: true });
+        }
+      };
+
+      triggerFocus();
+      const raf = requestAnimationFrame(triggerFocus);
+      const timer50 = setTimeout(triggerFocus, 50);
+      const timer150 = setTimeout(triggerFocus, 150);
+
       return () => {
-        clearTimeout(timer);
+        cancelAnimationFrame(raf);
+        clearTimeout(timer50);
+        clearTimeout(timer150);
         telegram.hideBackButton();
       };
     }
@@ -194,7 +205,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
             <Search className="w-4 h-4 text-indigo-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               ref={inputRef}
-              type="text"
+              type="search"
+              inputMode="search"
+              autoFocus
               value={query}
               onChange={handleInputChange}
               placeholder="События, места и организации"

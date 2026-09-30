@@ -452,7 +452,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
           </div>
 
           {/* Submit Action */}
-          <div className="pt-2 space-y-2">
+          <div className="pt-2">
             <button
               type="submit"
               disabled={isLoading || isUploadingAvatar || isDeleting}
@@ -467,23 +467,33 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
                 </>
               )}
             </button>
+          </div>
 
-            {isEditing && (
+          {/* Delete Danger Zone */}
+          {isEditing && (
+            <div className="pt-4 border-t border-white/10 space-y-2.5">
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-semibold text-red-400">Удаление организации</h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Это действие нельзя отменить. Связанные мероприятия сохранятся в вашем профиле, но организация будет удалена.
+                </p>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
-                  telegram.hapticImpact('light');
+                  telegram.hapticNotification('warning');
                   setShowDeleteConfirm(true);
                   setDeleteError(null);
                 }}
                 disabled={isLoading || isDeleting}
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
                 <span>Удалить организацию</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </form>
 
         {/* Delete Organization Confirmation Modal */}

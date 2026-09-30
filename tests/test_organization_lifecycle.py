@@ -345,18 +345,20 @@ def test_frontend_confirmation_and_cancel_contract():
     modal_path = Path("frontend/src/components/CreateOrganizationModal.tsx")
 
     assert workspace_path.exists(), "OrganizerWorkspace.tsx must exist"
+    assert modal_path.exists(), "CreateOrganizationModal.tsx must exist"
     workspace_text = workspace_path.read_text(encoding="utf-8")
+    modal_text = modal_path.read_text(encoding="utf-8")
 
-    assert "Удалить организацию?" in workspace_text
-    assert "Организация будет удалена. Перед удалением проверьте связанные мероприятия." in workspace_text
-    assert "Отмена" in workspace_text
+    combined_text = workspace_text + "\n" + modal_text
+
+    assert "Удалить организацию?" in combined_text
+    assert "Организация будет удалена. Перед удалением проверьте связанные мероприятия." in combined_text
+    assert "Отмена" in combined_text
+    assert "Удалить организацию" in combined_text
 
     # Verify no browser confirm() is used
     assert not re.search(r"\bconfirm\(", workspace_text), "Browser confirm() must not be used in OrganizerWorkspace"
-
-    if modal_path.exists():
-        modal_text = modal_path.read_text(encoding="utf-8")
-        assert not re.search(r"\bconfirm\(", modal_text), "Browser confirm() must not be used in CreateOrganizationModal"
+    assert not re.search(r"\bconfirm\(", modal_text), "Browser confirm() must not be used in CreateOrganizationModal"
 
 
 @pytest.mark.asyncio

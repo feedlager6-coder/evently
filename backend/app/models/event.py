@@ -15,6 +15,7 @@ class EventStatus(str, Enum):
     PUBLISHED = "published"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
+    DELETED = "deleted"
 
 
 class Event(Base):

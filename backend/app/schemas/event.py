@@ -67,6 +67,7 @@ class EventResponse(EventSummary):
     organizer_name: Optional[str] = None
     organization_followers_count: Optional[int] = None
     organization_is_subscribed: Optional[bool] = None
+    is_organizer: bool = False
     rejection_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime

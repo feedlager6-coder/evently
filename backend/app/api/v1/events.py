@@ -18,9 +18,11 @@ from app.services.event_service import (
     add_event_interest,
     remove_event_interest,
     create_organizer_event,
+    delete_organizer_event,
     record_event_view,
     EventNotFoundError,
-    EventValidationError
+    EventValidationError,
+    EventForbiddenError
 )
 
 from app.services.storage_service import storage_service, ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE, validate_image_bytes
@@ -240,3 +242,29 @@ async def create_event(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_200_OK)
+async def delete_event_endpoint(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Safely marks an organizer's event as deleted.
+    Strictly verifies ownership:
+    - 401 if unauthenticated
+    - 403 if user is not the organizer
+    - 404 if event not found or already deleted
+    Preserves historical analytics, views, RSVPs, and broadcast attribution.
+    """
+    try:
+        await delete_organizer_event(session, event_id=event_id, user_id=user.id)
+        return {"ok": True, "message": "Мероприятие успешно удалено"}
+    except EventNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except EventForbiddenError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+

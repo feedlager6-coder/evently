@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from fastapi import HTTPException, status
 
-from app.models.event import Event, EventStatus
+from app.models.event import Event, EventStatus, utc_now
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
@@ -26,6 +26,10 @@ class EventNotFoundError(Exception):
 
 
 class EventValidationError(Exception):
+    pass
+
+
+class EventForbiddenError(Exception):
     pass
 
 
@@ -287,7 +291,11 @@ async def get_event_details(
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
     event, cat_name, c_name, att_count, int_count, raw_views_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
+    if event.status == EventStatus.DELETED.value:
+        raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
+
     organizer_display = org_username or org_first_name or None
+    is_organizer = bool(current_user_id and current_user_id == event.organizer_user_id)
     # Phase 6: Organizer sees own views_count; public sees 0
     safe_views_count = (raw_views_count or 0) if (current_user_id and current_user_id == event.organizer_user_id) else 0
 
@@ -353,6 +361,7 @@ async def get_event_details(
         organization_avatar_url=org_avatar,
         organization_followers_count=org_followers_count,
         organization_is_subscribed=org_is_subscribed,
+        is_organizer=is_organizer,
         rejection_reason=event.rejection_reason,
         attendee_count=att_count or 0,
         is_attending=is_attending,
@@ -376,7 +385,7 @@ async def add_event_rsvp(
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
-    if not event:
+    if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
 
     # Confirmed attendance supersedes interest: remove interest if exists
@@ -430,7 +439,7 @@ async def remove_event_rsvp(
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
-    if not event:
+    if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
 
     # Delete attendance if exists
@@ -466,7 +475,7 @@ async def add_event_interest(
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
-    if not event:
+    if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
 
     # If currently attending, remove attendance (downgrade to interested)
@@ -519,7 +528,7 @@ async def remove_event_interest(
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
-    if not event:
+    if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
 
     # Delete interest if exists
@@ -698,6 +707,40 @@ async def create_organizer_event(
     return event
 
 
+async def delete_organizer_event(
+    session: AsyncSession,
+    event_id: str,
+    user_id: int
+) -> Event:
+    """
+    Safely marks an organizer's event as deleted (soft delete).
+    Strictly verifies ownership:
+    - 404 if event not found or already deleted
+    - 403 (EventForbiddenError) if user is not the organizer or organization owner
+    Preserves historical analytics, views, attendees, interests, and broadcasts.
+    """
+    res = await session.execute(select(Event).where(Event.id == event_id))
+    event = res.scalar_one_or_none()
+    if not event or event.status == EventStatus.DELETED.value:
+        raise EventNotFoundError(f"Мероприятие '{event_id}' не найдено.")
+
+    # Check ownership: organizer_user_id or organization owner
+    is_owner = (event.organizer_user_id == user_id)
+    if not is_owner and event.organization_id:
+        org_res = await session.execute(select(Organization).where(Organization.id == event.organization_id))
+        org = org_res.scalar_one_or_none()
+        if org and org.owner_user_id == user_id:
+            is_owner = True
+
+    if not is_owner:
+        raise EventForbiddenError("У вас нет прав для удаления этого мероприятия.")
+
+    event.status = EventStatus.DELETED.value
+    event.updated_at = utc_now()
+    await session.commit()
+    return event
+
+
 async def get_organizer_events(
     session: AsyncSession,
     organizer_user_id: int
@@ -736,7 +779,12 @@ async def get_organizer_events(
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
         .outerjoin(Organization, Event.organization_id == Organization.id)
-        .where(Event.organizer_user_id == organizer_user_id)
+        .where(
+            and_(
+                Event.organizer_user_id == organizer_user_id,
+                Event.status != EventStatus.DELETED.value
+            )
+        )
         .order_by(Event.created_at.desc())
     )
 

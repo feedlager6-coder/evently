@@ -16,7 +16,7 @@ export interface Category {
   is_active: boolean;
 }
 
-export type EventStatus = 'pending' | 'published' | 'rejected' | 'cancelled';
+export type EventStatus = 'pending' | 'published' | 'rejected' | 'cancelled' | 'deleted';
 
 export interface EventSummary {
   id: string;
@@ -73,6 +73,7 @@ export interface EventResponse extends EventSummary {
   organizer_name?: string;
   organization_followers_count?: number;
   organization_is_subscribed?: boolean;
+  is_organizer?: boolean;
   rejection_reason?: string;
   updated_at: string;
 }

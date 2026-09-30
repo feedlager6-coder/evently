@@ -378,6 +378,29 @@ export const App: React.FC = () => {
 
   // 5. Toggle RSVP (Idempotent with optimistic update)
   const handleToggleRsvp = async (eventId: string, currentStatus: boolean) => {
+    // 1. Optimistic update of attendingEvents & interestedEvents
+    const targetEvent = selectedEventDetails?.id === eventId
+      ? selectedEventDetails
+      : events.find((e) => e.id === eventId) || attendingEvents.find((e) => e.id === eventId) || interestedEvents.find((e) => e.id === eventId);
+
+    if (currentStatus) {
+      // User is canceling RSVP
+      setAttendingEvents((prev) => prev.filter((e) => e.id !== eventId));
+    } else if (targetEvent) {
+      // User is confirming RSVP: add to attending, remove from interested
+      const updatedItem: EventSummary = {
+        ...targetEvent,
+        is_attending: true,
+        attendee_count: (targetEvent.attendee_count || 0) + 1,
+        current_user_interested: false,
+        interest_count: targetEvent.current_user_interested
+          ? Math.max(0, (targetEvent.interest_count || 1) - 1)
+          : targetEvent.interest_count || 0,
+      };
+      setAttendingEvents((prev) => [updatedItem, ...prev.filter((e) => e.id !== eventId)]);
+      setInterestedEvents((prev) => prev.filter((e) => e.id !== eventId));
+    }
+
     try {
       setIsRsvpLoading(true);
       let res;
@@ -417,7 +440,11 @@ export const App: React.FC = () => {
           };
         })
       );
+
+      // Immediate reactive background sync of personal hub
+      loadPersonalEvents();
     } catch (err: any) {
+      loadPersonalEvents();
       alert(err.message || 'Ошибка обновления статуса участия');
     } finally {
       setIsRsvpLoading(false);
@@ -428,6 +455,31 @@ export const App: React.FC = () => {
   const handleToggleInterest = async (eventId: string, currentStatus: boolean) => {
     const prevDetails = selectedEventDetails;
     const prevEvents = events;
+    const prevInterested = interestedEvents;
+    const prevAttending = attendingEvents;
+
+    const targetEvent = selectedEventDetails?.id === eventId
+      ? selectedEventDetails
+      : events.find((e) => e.id === eventId) || attendingEvents.find((e) => e.id === eventId) || interestedEvents.find((e) => e.id === eventId);
+
+    // Optimistic update of Personal Hub tabs
+    if (currentStatus) {
+      // User is canceling interest
+      setInterestedEvents((prev) => prev.filter((e) => e.id !== eventId));
+    } else if (targetEvent) {
+      // User is confirming interest: add to interested, remove from attending
+      const updatedItem: EventSummary = {
+        ...targetEvent,
+        current_user_interested: true,
+        interest_count: (targetEvent.interest_count || 0) + 1,
+        is_attending: false,
+        attendee_count: targetEvent.is_attending
+          ? Math.max(0, (targetEvent.attendee_count || 1) - 1)
+          : targetEvent.attendee_count || 0,
+      };
+      setInterestedEvents((prev) => [updatedItem, ...prev.filter((e) => e.id !== eventId)]);
+      setAttendingEvents((prev) => prev.filter((e) => e.id !== eventId));
+    }
 
     try {
       setIsInterestLoading(true);
@@ -508,9 +560,15 @@ export const App: React.FC = () => {
             : e
         )
       );
+
+      // Immediate reactive background sync of personal hub
+      loadPersonalEvents();
     } catch (err: any) {
       if (prevDetails) setSelectedEventDetails(prevDetails);
       setEvents(prevEvents);
+      setInterestedEvents(prevInterested);
+      setAttendingEvents(prevAttending);
+      loadPersonalEvents();
       alert(err.message || 'Ошибка обновления статуса интереса');
     } finally {
       setIsInterestLoading(false);
@@ -714,6 +772,16 @@ export const App: React.FC = () => {
         isRsvpLoading={isRsvpLoading}
         onToggleInterest={handleToggleInterest}
         isInterestLoading={isInterestLoading}
+        isOrganizer={Boolean(selectedEventDetails?.is_organizer || organizerEvents.some((oe) => oe.id === selectedEventDetails?.id))}
+        onEventDeleted={(deletedId) => {
+          setOrganizerEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setAttendingEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setInterestedEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          loadOrganizerEvents();
+          loadFeedEvents();
+          loadPersonalEvents();
+        }}
         onOpenOrgModal={(orgId) => {
           setIsDetailsOpen(false);
           openOrgById(orgId);

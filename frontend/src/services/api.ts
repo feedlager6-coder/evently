@@ -245,6 +245,21 @@ export const api = {
     return res.json();
   },
 
+  async deleteEvent(eventId: string): Promise<{ ok: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      if (res.status === 403) throw new Error('Вы не можете удалить чужое мероприятие');
+      if (res.status === 404) throw new Error('Мероприятие не найдено');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось удалить мероприятие'));
+    }
+    return res.json();
+  },
+
   async uploadCoverImage(file: File): Promise<{ url: string }> {
     const formData = new FormData();
     formData.append('file', file);
