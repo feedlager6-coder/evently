@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Loader2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 import { AnimatedCounter } from './AnimatedCounter';
 import { SafeAvatar } from './SafeAvatar';
@@ -61,6 +62,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 }) => {
   const [org, setOrg] = useState<OrganizationResponse | null>(null);
   const [events, setEvents] = useState<EventSummary[]>([]);
+  const [showPastEvents, setShowPastEvents] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +78,10 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
       const eventsData = await api.getOrganizationEvents(orgData.id);
       setEvents(eventsData);
+
+      const todayStartTs = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+      const hasActive = eventsData.some((e) => new Date(e.start_at).getTime() >= todayStartTs);
+      setShowPastEvents(!hasActive && eventsData.length > 0);
     } catch (err: any) {
       console.error('Failed to load organization:', err);
       setError(err.message || 'Не удалось загрузить данные организации');
@@ -349,70 +355,199 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </div>
               )}
 
-              {/* Upcoming Events */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    События организации ({events.length})
-                  </h4>
-                </div>
+              {/* Event Lifecycle Separation */}
+              {(() => {
+                const nowTime = new Date().getTime();
+                const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
 
-                {events.length === 0 ? (
-                  <div className="p-6 text-center rounded-2xl bg-[#171B29]/40 border border-white/5 space-y-2">
-                    <Calendar className="w-6 h-6 text-gray-500 mx-auto" />
-                    <div className="text-xs text-gray-400">
-                      У организации пока нет предстоящих событий
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {events.map((ev) => {
-                      const dateStr = new Date(ev.start_at).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      });
-                      const priceLabel = ev.is_free
-                        ? 'Бесплатно'
-                        : `${ev.price_amount} ${ev.price_currency || 'RUB'}`;
+                const getLifecycleInfo = (startAt: string) => {
+                  const t = new Date(startAt).getTime();
+                  if (t > nowTime) {
+                    return {
+                      type: 'upcoming',
+                      label: 'Предстоящее',
+                      badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+                    };
+                  }
+                  if (t >= todayStart && t <= nowTime) {
+                    return {
+                      type: 'ongoing',
+                      label: '🔴 Идёт сейчас',
+                      badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+                    };
+                  }
+                  return {
+                    type: 'past',
+                    label: 'Завершено',
+                    badgeClass: 'bg-white/5 text-gray-400 border-white/10',
+                  };
+                };
 
-                      return (
-                        <div
-                          key={ev.id}
-                          onClick={() => {
-                            onClose();
-                            onEventClick(ev);
-                          }}
-                          className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer card-press"
-                        >
-                          <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 shrink-0">
-                            <SafeImage
-                              src={ev.cover_image_url}
-                              alt={ev.title}
-                              fallbackSrc="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
-                              className="w-full h-full object-cover"
-                            />
+                const activeEvents = events
+                  .filter((e) => new Date(e.start_at).getTime() >= todayStart)
+                  .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+
+                const pastEvents = events
+                  .filter((e) => new Date(e.start_at).getTime() < todayStart)
+                  .sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
+
+                return (
+                  <div className="space-y-4 pt-2">
+                    {/* 1. Актуальные события */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Актуальные события</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/10 text-white font-bold">
+                            {activeEvents.length}
+                          </span>
+                        </h4>
+                      </div>
+
+                      {activeEvents.length === 0 ? (
+                        <div className="p-5 text-center rounded-2xl bg-[#171B29]/40 border border-white/5 space-y-1.5">
+                          <Calendar className="w-5 h-5 text-gray-500 mx-auto" />
+                          <div className="text-xs text-gray-300 font-medium">
+                            У организации пока нет предстоящих событий
                           </div>
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="font-semibold text-xs text-white truncate">
-                              {ev.title}
-                            </div>
-                            <div className="flex items-center space-x-2 text-[11px] text-gray-400">
-                              <span className="text-indigo-400 font-medium">{dateStr}</span>
-                              <span>•</span>
-                              <span className="truncate">{ev.venue_name}</span>
-                            </div>
-                            <div className="text-[11px] font-semibold text-emerald-400">
-                              {priceLabel}
-                            </div>
+                          <div className="text-[11px] text-gray-500">
+                            Подпишитесь, чтобы первыми получать анонсы в Telegram
                           </div>
                         </div>
-                      );
-                    })}
+                      ) : (
+                        <div className="space-y-2.5">
+                          {activeEvents.map((ev) => {
+                            const lifecycle = getLifecycleInfo(ev.start_at);
+                            const dateStr = new Date(ev.start_at).toLocaleDateString('ru-RU', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            });
+                            const priceLabel = ev.is_free
+                              ? 'Бесплатно'
+                              : `${ev.price_amount} ${ev.price_currency || 'RUB'}`;
+
+                            return (
+                              <div
+                                key={ev.id}
+                                onClick={() => {
+                                  onClose();
+                                  onEventClick(ev);
+                                }}
+                                className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer card-press"
+                              >
+                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 shrink-0">
+                                  <SafeImage
+                                    src={ev.cover_image_url}
+                                    alt={ev.title}
+                                    fallbackSrc="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <div className="font-semibold text-xs text-white truncate">
+                                      {ev.title}
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-semibold border shrink-0 ${lifecycle.badgeClass}`}>
+                                      {lifecycle.label}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-[11px] text-gray-400">
+                                    <span className="text-indigo-400 font-medium">{dateStr}</span>
+                                    <span>•</span>
+                                    <span className="truncate">{ev.venue_name}</span>
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-emerald-400">
+                                    {priceLabel}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Прошедшие события */}
+                    {pastEvents.length > 0 && (
+                      <div className="space-y-2.5 pt-3 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setShowPastEvents((prev) => !prev)}
+                          className="w-full flex items-center justify-between text-xs font-semibold text-gray-400 hover:text-gray-200 transition-colors uppercase tracking-wider py-1.5 px-1 btn-press"
+                        >
+                          <div className="flex items-center space-x-1.5">
+                            <span>Прошедшие события</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/5 text-gray-400">
+                              {pastEvents.length}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-[11px] font-normal lowercase text-indigo-400">
+                            <span>{showPastEvents ? 'скрыть' : 'показать архив'}</span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showPastEvents ? 'rotate-180' : ''}`} />
+                          </div>
+                        </button>
+
+                        {showPastEvents && (
+                          <div className="space-y-2 opacity-80 animate-fade-in">
+                            {pastEvents.map((ev) => {
+                              const dateStr = new Date(ev.start_at).toLocaleDateString('ru-RU', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              });
+                              const priceLabel = ev.is_free
+                                ? 'Бесплатно'
+                                : `${ev.price_amount} ${ev.price_currency || 'RUB'}`;
+
+                              return (
+                                <div
+                                  key={ev.id}
+                                  onClick={() => {
+                                    onClose();
+                                    onEventClick(ev);
+                                  }}
+                                  className="flex items-center space-x-3 p-3 rounded-2xl bg-[#141724]/70 border border-white/5 hover:border-white/10 transition-all cursor-pointer card-press"
+                                >
+                                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-900 shrink-0 grayscale-[40%]">
+                                    <SafeImage
+                                      src={ev.cover_image_url}
+                                      alt={ev.title}
+                                      fallbackSrc="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <div className="font-medium text-xs text-gray-300 truncate">
+                                        {ev.title}
+                                      </div>
+                                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-medium bg-white/5 text-gray-400 border border-white/5 shrink-0">
+                                        Завершено
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-[11px] text-gray-500">
+                                      <span>{dateStr}</span>
+                                      <span>•</span>
+                                      <span className="truncate">{ev.venue_name}</span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-400">
+                                      {priceLabel}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </>
           ) : null}
         </div>

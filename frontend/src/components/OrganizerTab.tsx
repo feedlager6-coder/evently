@@ -8,6 +8,8 @@ import {
   Building2,
   ChevronRight,
   ShieldCheck,
+  Plus,
+  Calendar,
 } from 'lucide-react';
 
 
@@ -24,6 +26,7 @@ interface OrganizerTabProps {
   organizations?: OrganizationSummary[];
   myCreatedEvents?: EventSummary[];
   onOpenOrganizerWorkspace: () => void;
+  onOpenCreateEvent?: () => void;
   onOpenCreateOrg: () => void;
   // Item actions
   onEventClick: (event: EventSummary) => void;
@@ -41,6 +44,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   organizations = [],
   myCreatedEvents = [],
   onOpenOrganizerWorkspace,
+  onOpenCreateEvent,
   onOpenCreateOrg,
   onEventClick,
   onOrgClick,
@@ -50,6 +54,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
 
   const isOrganizer = organizations.length > 0 || myCreatedEvents.length > 0;
   const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
+  const hasAnyPersonalActivity =
+    attendingEvents.length > 0 || interestedEvents.length > 0 || subscriptions.length > 0;
+  const isBusyLoading =
+    isLoadingAttending || isLoadingInterested || isLoadingSubscriptions;
 
   const handleTabChange = (tab: PersonalHubTab) => {
     if (tab !== activeTab) {
@@ -97,9 +105,78 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
           <h2 className="text-lg font-bold text-white tracking-tight">Мои события</h2>
           <p className="text-xs text-gray-400">Ваши планы, сохранённые мероприятия и подписки</p>
         </div>
+        {onOpenCreateEvent && (
+          <button
+            onClick={() => {
+              telegram.hapticImpact('light');
+              onOpenCreateEvent();
+            }}
+            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 text-xs font-semibold flex items-center space-x-1 btn-press shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Создать</span>
+          </button>
+        )}
       </div>
 
-      {/* 3. Segmented Tabs Switcher */}
+      {/* 3. Empty State for new/unengaged users vs Active Tabs */}
+      {!isBusyLoading && !hasAnyPersonalActivity && !isOrganizer ? (
+        <div className="p-6 text-center rounded-3xl bg-[#141724] border border-white/5 space-y-4 my-2">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+            <Calendar className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1.5 max-w-xs mx-auto">
+            <h3 className="text-base font-bold text-white tracking-tight">
+              У вас пока нет мероприятий
+            </h3>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Отмечайте события в афише («Я иду» или «Хочу пойти»), подписывайтесь на площадки или создайте собственное мероприятие.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 max-w-xs mx-auto">
+            {onOpenCreateEvent && (
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('medium');
+                  onOpenCreateEvent();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Создать событие</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                telegram.hapticImpact('light');
+                onOpenCreateOrg();
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 font-semibold text-xs transition-colors btn-press flex items-center justify-center space-x-2"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Создать профиль организации</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                telegram.hapticImpact('light');
+                onExplore();
+              }}
+              className="w-full py-2 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Смотреть афишу событий →
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Segmented Tabs Switcher */}
       <div className="flex rounded-2xl bg-[#141724] p-1 border border-white/5">
         <button
           onClick={() => handleTabChange('attending')}
@@ -323,6 +400,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

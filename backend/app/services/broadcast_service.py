@@ -252,6 +252,12 @@ async def preview_broadcast(
     """
     Calculates audience preview and renders formatted message preview without persisting anything.
     """
+    if target_type == BroadcastTargetType.EVENT_INTEREST.value and template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Для аудитории с интересом к событию шаблон 'custom_update' (новости организации) недопустим. Рассылка должна быть связана с событием."
+        )
+
     calc = await calculate_audience(
         session=session,
         organizer_user_id=organizer_user_id,
@@ -301,6 +307,12 @@ async def create_broadcast(
     target_type_val = getattr(req.target_type, 'value', req.target_type)
     broadcast_type_val = getattr(req.broadcast_type, 'value', req.broadcast_type)
     template_key_val = getattr(req.template_key, 'value', req.template_key)
+
+    if target_type_val == BroadcastTargetType.EVENT_INTEREST.value and template_key_val == BroadcastTemplateKey.CUSTOM_UPDATE.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Для аудитории с интересом к событию шаблон 'custom_update' (новости организации) недопустим. Рассылка должна быть связана с событием."
+        )
 
     calc = await calculate_audience(
         session=session,

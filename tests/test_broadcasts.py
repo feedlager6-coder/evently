@@ -865,3 +865,146 @@ async def test_existing_organization_publication_notifications_unchanged(client,
     sent = await notify_organization_subscribers(event_id, http_client=mock_client, session=test_session)
     assert sent == 2
     assert mock_client.post.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_event_interest_cannot_use_custom_update_template(client, test_session):
+    """Requirement D4.0.1: event_interest cannot target custom_update (general org news)."""
+    owner_id = 3101
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_restrict')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Science Hub", "category": "Образование", "city_id": "makhachkala"},
+        headers=auth_owner
+    )
+    assert res_org.status_code == 201
+    org_id = res_org.json()["id"]
+
+    ev_res = await client.post(
+        "/api/v1/events",
+        json={
+            "title": "Quantum Talk",
+            "description": "Physics lecture",
+            "category_id": "education",
+            "city_id": "makhachkala",
+            "start_at": "2026-11-01T18:00:00Z",
+            "venue_name": "Main Hall",
+            "organization_id": org_id
+        },
+        headers=auth_owner
+    )
+    assert ev_res.status_code == 201
+    event_id = ev_res.json()["id"]
+
+    # 1. Preview rejection
+    preview_res = await client.post(
+        "/api/v1/organizer/broadcasts/preview",
+        json={
+            "organization_id": org_id,
+            "target_type": "event_interest",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "event_id": event_id,
+            "custom_text": "Несвязанная новость"
+        },
+        headers=auth_owner
+    )
+    assert preview_res.status_code == 400
+    assert "шаблон 'custom_update' (новости организации) недопустим" in preview_res.json()["detail"]
+
+    # 2. Create rejection
+    create_res = await client.post(
+        "/api/v1/organizer/broadcasts",
+        json={
+            "organization_id": org_id,
+            "target_type": "event_interest",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "event_id": event_id,
+            "custom_text": "Несвязанная новость"
+        },
+        headers=auth_owner
+    )
+    assert create_res.status_code == 400
+    assert "шаблон 'custom_update' (новости организации) недопустим" in create_res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_delivered_marketing_messages_permanently_retained_in_db(client, test_session):
+    """Requirement D4.0.1: Delivered messages are never deleted from DB after 24h limit passes."""
+    owner_id = 3102
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_persist')}"}
+    recipient_uid = 3103
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Book Club", "category": "Культура", "city_id": "makhachkala"},
+        headers=auth_owner
+    )
+    assert res_org.status_code == 201
+    org_id = res_org.json()["id"]
+
+    # Recipient subscribes
+    await client.post(
+        f"/api/v1/organizations/{org_id}/subscribe",
+        headers={"Authorization": f"tma {make_test_init_data(user_id=recipient_uid, username='reader')}"}
+    )
+
+    # Dispatch first broadcast
+    mock_client = AsyncMock()
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_client.post.return_value = mock_resp
+
+    create_res = await client.post(
+        "/api/v1/organizer/broadcasts",
+        json={
+            "organization_id": org_id,
+            "target_type": "organization_subscribers",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "custom_text": "Первое сообщение"
+        },
+        headers=auth_owner
+    )
+    assert create_res.status_code == 200
+    bcast_id = create_res.json()["id"]
+
+    # Manually dispatch
+    await dispatch_broadcast(broadcast_id=bcast_id, http_client=mock_client, session=test_session)
+
+    # Verify recipient delivery record exists
+    recip = (await test_session.execute(
+        select(BroadcastRecipient).where(BroadcastRecipient.broadcast_id == bcast_id)
+    )).scalar_one()
+    assert recip.status == RecipientStatus.SENT.value
+
+    # Simulate 25 hours passing
+    recip.sent_at = datetime.now(timezone.utc) - timedelta(hours=25)
+    await test_session.commit()
+
+    # Verify record still exists in DB permanently
+    verified_recip = (await test_session.execute(
+        select(BroadcastRecipient).where(BroadcastRecipient.id == recip.id)
+    )).scalar_one_or_none()
+    assert verified_recip is not None
+    assert verified_recip.status == RecipientStatus.SENT.value
+
+    # Verify that now the user is eligible for a NEW broadcast because 24h limit expired,
+    # but the old delivered broadcast record was NEVER purged or deleted
+    preview_res = await client.post(
+        "/api/v1/organizer/broadcasts/preview",
+        json={
+            "organization_id": org_id,
+            "target_type": "organization_subscribers",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "custom_text": "Второе сообщение"
+        },
+        headers=auth_owner
+    )
+    assert preview_res.status_code == 200
+    assert preview_res.json()["eligible_recipients"] == 1
+    assert preview_res.json()["fatigued_recipients_count"] == 0
+

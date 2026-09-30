@@ -1100,13 +1100,13 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         {activeTab === 'broadcasts' && (
           <div className="space-y-4">
             {/* Header Value Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-900/40 via-purple-900/20 to-[#141724] border border-indigo-500/20 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-                    <Send className="w-4 h-4" />
+            <div className="p-4 rounded-2xl bg-[#141724] border border-white/10 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Send className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h2 className="text-sm font-bold text-white tracking-tight">Рассылки в Telegram</h2>
                     <p className="text-[11px] text-gray-400">Прямое взаимодействие с вашей аудиторией</p>
                   </div>
@@ -1115,14 +1115,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <button
                   onClick={handleOpenComposer}
                   disabled={organizations.length === 0}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center space-x-1"
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-1.5 shrink-0 self-start sm:self-auto"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Создать</span>
+                  <span>Создать рассылку</span>
                 </button>
               </div>
 
-              <div className="text-[11px] text-indigo-200/80 leading-relaxed pt-1 border-t border-indigo-500/10">
+              <div className="text-[11px] text-indigo-200/80 leading-relaxed pt-2 border-t border-white/5">
                 Отправляйте анонсы подписчикам ваших площадок и персональные обновления гостям, нажавшим «Хочу пойти».
               </div>
             </div>
@@ -1296,7 +1296,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   }`}
                 >
                   <div className="text-xs font-semibold">👥 Подписчики</div>
-                  <div className="text-[10px] opacity-70">Все активные читатели</div>
+                  <div className="text-[10px] opacity-70">Все активные подписчики площадки</div>
                 </button>
                 <button
                   type="button"
@@ -1313,7 +1313,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   }`}
                 >
                   <div className="text-xs font-semibold">🎯 «Хочу пойти»</div>
-                  <div className="text-[10px] opacity-70">Интерес к событию</div>
+                  <div className="text-[10px] opacity-70">Интерес к конкретному событию</div>
                 </button>
               </div>
             </div>
@@ -1346,41 +1346,124 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </div>
             )}
 
+            {/* Event Context Card */}
+            {(() => {
+              const selectedEvent = events.find((e) => e.id === composerEventId);
+              if (!selectedEvent || (composerTargetType !== 'event_interest' && composerTemplateKey === 'custom_update')) {
+                return null;
+              }
+              return (
+                <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                      🎟 Рассылка о событии
+                    </span>
+                    <span className="text-[10px] text-indigo-200/70">
+                      Кнопка: «Открыть событие»
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#141724]/90 border border-white/5 space-y-1">
+                    <div className="text-xs font-bold text-white truncate">
+                      {selectedEvent.title}
+                    </div>
+                    <div className="flex items-center space-x-2 text-[11px] text-gray-400">
+                      <span className="text-indigo-400 font-medium">
+                        {new Date(selectedEvent.start_at).toLocaleDateString('ru-RU', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <span>•</span>
+                      <span className="truncate">{selectedEvent.venue_name}</span>
+                    </div>
+                  </div>
+                  {composerTargetType === 'event_interest' ? (
+                    <div className="text-[11px] text-indigo-200/90 leading-snug">
+                      ❤️ <b>Интересовались этим событием:</b> {selectedEvent.interest_count || 0} чел.
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        Эта аудитория получит сообщение только об этом выбранном событии.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-gray-300 leading-snug">
+                      Получатели увидят сообщение с карточкой события и кнопкой «Открыть событие».
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* 4. Broadcast Type */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="text-[11px] font-semibold text-gray-300">Тип сообщения</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setComposerBroadcastType('marketing')}
-                  className={`p-2 rounded-xl border text-left transition-all ${
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
                     composerBroadcastType === 'marketing'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400'
+                      ? 'bg-purple-600/20 border-purple-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
-                  <div className="text-xs font-semibold">📢 Маркетинг</div>
-                  <div className="text-[10px] opacity-70">Анонсы и новости (лимит 24ч)</div>
+                  <div className="text-xs font-semibold flex items-center space-x-1">
+                    <span>🟣</span>
+                    <span>Анонс / новость</span>
+                  </div>
+                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
+                    О мероприятии или программе (не чаще раза в 24 ч)
+                  </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setComposerBroadcastType('transactional')}
-                  className={`p-2 rounded-xl border text-left transition-all ${
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
                     composerBroadcastType === 'transactional'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400'
+                      ? 'bg-sky-600/20 border-sky-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
-                  <div className="text-xs font-semibold">⚡ Обновление</div>
-                  <div className="text-[10px] opacity-70">Смена времени/отмена (без лимита)</div>
+                  <div className="text-xs font-semibold flex items-center space-x-1">
+                    <span>🔵</span>
+                    <span>Изменение события</span>
+                  </div>
+                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
+                    Перенос/отмена (без лимита 24 ч)
+                  </div>
                 </button>
               </div>
+
+              {composerBroadcastType === 'marketing' ? (
+                <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-200 leading-snug space-y-1">
+                  <div className="font-semibold text-purple-300">
+                    🟣 Сообщение вашей аудитории о мероприятии, программе или новости организации
+                  </div>
+                  <div className="text-[10.5px] text-purple-200/90">
+                    Ограничение частоты: одному человеку нельзя отправить маркетинговое сообщение чаще одного раза в 24 часа (защита от спама). <b>Уже доставленные в Telegram сообщения навсегда остаются в чате получателя и никогда не удаляются.</b>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-200 leading-snug space-y-1">
+                  <div className="font-semibold text-sky-300">
+                    🔵 Важное уведомление для людей, связанных с конкретным событием
+                  </div>
+                  <div className="text-[10.5px] text-sky-200/90">
+                    Перенос даты, изменение места, отмена и т.д. Отправляется без суточного ограничения, чтобы участники вовремя получили важную информацию.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 5. Template Key */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-gray-300">Шаблон</label>
-              <div className="grid grid-cols-3 gap-1.5 text-center">
+              <label className="text-[11px] font-semibold text-gray-300">Шаблон сообщения</label>
+              <div
+                className={`grid ${
+                  composerTargetType === 'organization_subscribers' ? 'grid-cols-3' : 'grid-cols-2'
+                } gap-1.5 text-center`}
+              >
                 <button
                   type="button"
                   onClick={() => setComposerTemplateKey('event_announcement')}
@@ -1390,7 +1473,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       : 'bg-white/5 border-white/5 text-gray-400'
                   }`}
                 >
-                  Анонс
+                  Анонс события
                 </button>
                 <button
                   type="button"
@@ -1401,7 +1484,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       : 'bg-white/5 border-white/5 text-gray-400'
                   }`}
                 >
-                  Обновление
+                  Изменение события
                 </button>
                 {composerTargetType === 'organization_subscribers' && (
                   <button
@@ -1413,7 +1496,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         : 'bg-white/5 border-white/5 text-gray-400'
                     }`}
                   >
-                    Новости
+                    Новости площадки
                   </button>
                 )}
               </div>
@@ -1463,9 +1546,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                   )}
                   {previewData.fatigued_recipients_count > 0 && (
-                    <div className="flex items-center justify-between text-[11px] text-amber-300/80">
-                      <span>Лимит (уже получали за 24 ч):</span>
-                      <span>{previewData.fatigued_recipients_count} чел.</span>
+                    <div className="flex items-center justify-between text-[11px] text-amber-300/90">
+                      <span>Лимит отправки (уже получали за 24 ч):</span>
+                      <span className="font-semibold">{previewData.fatigued_recipients_count} чел.</span>
                     </div>
                   )}
                 </div>

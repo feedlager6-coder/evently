@@ -637,6 +637,10 @@ export const App: React.FC = () => {
               organizations={myOrganizations}
               myCreatedEvents={organizerEvents}
               onOpenOrganizerWorkspace={() => setIsOrganizerWorkspaceOpen(true)}
+              onOpenCreateEvent={() => {
+                setPreselectedOrgForEventCreate(undefined);
+                setIsCreateEventModalOpen(true);
+              }}
               onOpenCreateOrg={() => {
                 setEditingOrgData(null);
                 setIsCreateOrgModalOpen(true);
