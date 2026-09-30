@@ -15,6 +15,7 @@ from app.models.interest import EventInterest
 from app.models.user import User
 from app.models.organization import Organization
 from app.models.subscription import Subscription
+from app.models.view import EventView
 from app.schemas.event import EventCreate, EventSummary, EventResponse
 from app.schemas.interest import EventInterestResponse
 
@@ -243,6 +244,12 @@ async def get_event_details(
         .scalar_subquery()
     )
 
+    views_count_subq = (
+        select(func.count(EventView.id))
+        .where(EventView.event_id == Event.id)
+        .scalar_subquery()
+    )
+
     query = (
         select(
             Event,
@@ -250,6 +257,7 @@ async def get_event_details(
             City.name.label("city_name"),
             attendee_count_subq.label("attendee_count"),
             interest_count_subq.label("interest_count"),
+            views_count_subq.label("views_count"),
             User.username.label("org_username"),
             User.first_name.label("org_first_name"),
             Organization.id.label("org_id"),
@@ -269,8 +277,10 @@ async def get_event_details(
     if not row:
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
-    event, cat_name, c_name, att_count, int_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
+    event, cat_name, c_name, att_count, int_count, raw_views_count, org_username, org_first_name, org_id, org_name, org_category, org_avatar = row
     organizer_display = org_username or org_first_name or None
+    # Phase 6: Organizer sees own views_count; public sees 0
+    safe_views_count = (raw_views_count or 0) if (current_user_id and current_user_id == event.organizer_user_id) else 0
 
     # Check RSVP & Interest
     is_attending = False
@@ -339,6 +349,7 @@ async def get_event_details(
         is_attending=is_attending,
         interest_count=int_count or 0,
         current_user_interested=is_interested,
+        views_count=safe_views_count,
         created_at=event.created_at,
         updated_at=event.updated_at
     )
@@ -523,6 +534,69 @@ async def remove_event_interest(
     return False, interest_count, is_attending, attendee_count, "Interest removed"
 
 
+VALID_VIEW_SOURCES = {"discovery", "deep_link", "personal", "organizer", "inline", "unknown"}
+
+
+async def record_event_view(
+    session: AsyncSession,
+    event_id: str,
+    user_id: Optional[int] = None,
+    source: Optional[str] = "unknown"
+) -> Tuple[bool, int]:
+    """
+    Records a canonical event view with 2h deduplication for authenticated users and author exclusion.
+    Returns: (recorded: bool, views_count: int)
+    """
+    event_res = await session.execute(select(Event).where(Event.id == event_id))
+    event = event_res.scalar_one_or_none()
+    if not event:
+        raise EventNotFoundError(f"Мероприятие '{event_id}' не найдено.")
+
+    if event.status != EventStatus.PUBLISHED.value:
+        raise EventValidationError("Нельзя просматривать неопубликованное мероприятие")
+
+    # Author cannot bump their own event view counter
+    if user_id and event.organizer_user_id == user_id:
+        views_cnt_res = await session.execute(
+            select(func.count(EventView.id)).where(EventView.event_id == event_id)
+        )
+        return False, views_cnt_res.scalar() or 0
+
+    clean_source = (source or "unknown").strip().lower()
+    if clean_source not in VALID_VIEW_SOURCES:
+        clean_source = "unknown"
+
+    # Deduplication for authenticated user: max 1 view per 2 hours
+    if user_id is not None:
+        window_start = datetime.now(timezone.utc) - timedelta(hours=2)
+        recent_view_q = select(EventView.id).where(
+            and_(
+                EventView.event_id == event_id,
+                EventView.user_id == user_id,
+                EventView.created_at >= window_start
+            )
+        ).limit(1)
+        recent_view = (await session.execute(recent_view_q)).scalar_one_or_none()
+        if recent_view:
+            views_cnt_res = await session.execute(
+                select(func.count(EventView.id)).where(EventView.event_id == event_id)
+            )
+            return False, views_cnt_res.scalar() or 0
+
+    new_view = EventView(
+        event_id=event_id,
+        user_id=user_id,
+        source=clean_source
+    )
+    session.add(new_view)
+    await session.commit()
+
+    views_cnt_res = await session.execute(
+        select(func.count(EventView.id)).where(EventView.event_id == event_id)
+    )
+    return True, views_cnt_res.scalar() or 0
+
+
 async def create_organizer_event(
     session: AsyncSession,
     data: EventCreate,
@@ -608,6 +682,11 @@ async def get_organizer_events(
         .where(EventInterest.event_id == Event.id)
         .scalar_subquery()
     )
+    views_count_subq = (
+        select(func.count(EventView.id))
+        .where(EventView.event_id == Event.id)
+        .scalar_subquery()
+    )
 
     query = (
         select(
@@ -616,6 +695,7 @@ async def get_organizer_events(
             City.name.label("city_name"),
             attendee_count_subq.label("attendee_count"),
             interest_count_subq.label("interest_count"),
+            views_count_subq.label("views_count"),
             Organization.name.label("org_name"),
             Organization.category.label("org_category"),
             Organization.avatar_url.label("org_avatar")
@@ -631,7 +711,7 @@ async def get_organizer_events(
     rows = results.all()
 
     summaries = []
-    for event, cat_name, c_name, att_count, int_count, org_name, org_category, org_avatar in rows:
+    for event, cat_name, c_name, att_count, int_count, v_count, org_name, org_category, org_avatar in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -653,6 +733,7 @@ async def get_organizer_events(
                 is_attending=False,
                 interest_count=int_count or 0,
                 current_user_interested=False,
+                views_count=v_count or 0,
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.event import EventListResponse, EventResponse, EventCreate
+from app.schemas.event import EventListResponse, EventResponse, EventCreate, EventViewRequest, EventViewResponse
 from app.schemas.rsvp import RSVPResponse
 from app.schemas.interest import EventInterestResponse
 from app.api.deps import get_current_user, get_current_user_optional
@@ -18,6 +18,7 @@ from app.services.event_service import (
     add_event_interest,
     remove_event_interest,
     create_organizer_event,
+    record_event_view,
     EventNotFoundError,
     EventValidationError
 )
@@ -96,6 +97,33 @@ async def get_event(
         return event
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{event_id}/view", response_model=EventViewResponse)
+async def track_event_view(
+    event_id: str,
+    payload: Optional[EventViewRequest] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Records a canonical event view with 2h deduplication for authenticated users and author exclusion.
+    Non-blocking / fire-and-forget compatible: returns recorded status and current total views count.
+    """
+    try:
+        user_id = current_user.id if current_user else None
+        source = payload.source if payload else "unknown"
+        recorded, views_count = await record_event_view(
+            session=session,
+            event_id=event_id,
+            user_id=user_id,
+            source=source
+        )
+        return EventViewResponse(recorded=recorded, views_count=views_count)
+    except EventNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except EventValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{event_id}/rsvp", response_model=RSVPResponse)

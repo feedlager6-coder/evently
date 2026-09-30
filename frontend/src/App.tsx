@@ -10,7 +10,8 @@ import type {
   OrganizationSummary,
   OrganizationResponse,
   VenueSummary,
-  EventInterestResponse
+  EventInterestResponse,
+  TrackingSource
 } from './types';
 import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
@@ -119,11 +120,13 @@ export const App: React.FC = () => {
   }, [openOrgById]);
 
   // Helper to open Event details
-  const openEventById = useCallback(async (eventId: string) => {
+  const openEventById = useCallback(async (eventId: string, source: TrackingSource = 'unknown') => {
     try {
       const details = await api.getEventDetails(eventId);
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
+      // Fire-and-forget background view tracking
+      api.trackEventView(eventId, source);
     } catch (err: any) {
       console.error('Failed to open event details:', err);
       alert(err.message || 'Мероприятие не найдено или было удалено');
@@ -139,7 +142,7 @@ export const App: React.FC = () => {
     if (clean.startsWith('event_')) {
       const eventId = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
       if (eventId) {
-        openEventById(eventId);
+        openEventById(eventId, 'deep_link');
       }
     } else if (clean.startsWith('org_')) {
       const orgId = clean.slice(4).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
@@ -354,7 +357,7 @@ export const App: React.FC = () => {
   }, [isOrganizerWorkspaceOpen, isCreateEventModalOpen]);
 
   const handleCardClick = async (event: EventSummary) => {
-    openEventById(event.id);
+    openEventById(event.id, 'discovery');
   };
 
   // 5. Toggle RSVP (Idempotent with optimistic update)
@@ -621,7 +624,7 @@ export const App: React.FC = () => {
                 setIsCreateOrgModalOpen(true);
               }}
               onOrgClick={(org) => openOrgById(org.id)}
-              onEventClick={(ev) => openEventById(ev.id)}
+              onEventClick={(ev) => openEventById(ev.id, 'organizer')}
             />
           ) : (
             <OrganizerTab
@@ -638,7 +641,7 @@ export const App: React.FC = () => {
                 setEditingOrgData(null);
                 setIsCreateOrgModalOpen(true);
               }}
-              onEventClick={(ev) => openEventById(ev.id)}
+              onEventClick={(ev) => openEventById(ev.id, 'personal')}
               onOrgClick={(orgId) => openOrgById(orgId)}
               onExplore={() => {
                 setCurrentTab('feed');
@@ -655,7 +658,7 @@ export const App: React.FC = () => {
             activeStatus={adminStatusFilter}
             onStatusChange={(st) => setAdminStatusFilter(st)}
             onRefresh={loadAdminEvents}
-            onEventClick={(ev) => openEventById(ev.id)}
+            onEventClick={(ev) => openEventById(ev.id, 'organizer')}
           />
         )}
       </main>
@@ -785,7 +788,7 @@ export const App: React.FC = () => {
         onOpenCityModal={() => setIsCityModalOpen(true)}
         onEventClick={(ev) => {
           setIsSearchOpen(false);
-          openEventById(ev.id);
+          openEventById(ev.id, 'discovery');
         }}
         onOrgClick={(orgId) => {
           setIsSearchOpen(false);

@@ -43,10 +43,17 @@ export interface EventSummary {
   organization_name?: string;
   organization_category?: string;
   organization_avatar_url?: string;
+  views_count?: number;
   rejection_reason?: string;
   created_at: string;
 }
 
+export type TrackingSource = 'discovery' | 'deep_link' | 'personal' | 'organizer' | 'inline' | 'unknown';
+
+export interface EventViewResponse {
+  recorded: boolean;
+  views_count: number;
+}
 
 export interface EventInterestResponse {
   event_id: string;

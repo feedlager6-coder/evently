@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   XCircle,
   Users,
+  Eye,
+  Heart,
+  TrendingUp,
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
@@ -61,10 +64,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   );
 
   // Aggregated overview metrics
-  const totalOrgs = organizations.length;
-  const totalEvents = events.length;
   const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
   const totalAttendees = events.reduce((acc, e) => acc + (e.attendee_count || 0), 0);
+  const totalInterests = events.reduce((acc, e) => acc + (e.interest_count || 0), 0);
+  const totalViews = events.reduce((acc, e) => acc + (e.views_count || 0), 0);
+
+  // Conversion rates (Phase 10: safe formatting)
+  const interestConversion = totalViews > 0 ? `${((totalInterests / totalViews) * 100).toFixed(1)}%` : '—';
+  const rsvpConversion = totalViews > 0 ? `${((totalAttendees / totalViews) * 100).toFixed(1)}%` : '—';
 
   // Top upcoming 2 events
   const topUpcoming = upcomingEvents.slice(0, 2);
@@ -186,34 +193,47 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
                 <div className="flex items-center space-x-2 text-indigo-400">
-                  <Building2 className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Организации</span>
+                  <Eye className="w-4 h-4" />
+                  <span className="text-[11px] font-medium text-gray-400">Просмотры</span>
                 </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalOrgs}</div>
+                <div className="text-xl font-bold text-white tracking-tight">{totalViews}</div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-indigo-400">
-                  <Calendar className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Всего событий</span>
-                </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalEvents}</div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-indigo-400">
-                  <Users className="w-4 h-4" />
-                  <span className="text-[11px] font-medium text-gray-400">Подписчики</span>
-                </div>
-                <div className="text-xl font-bold text-white tracking-tight">{totalFollowers}</div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
-                <div className="flex items-center space-x-2 text-indigo-400">
+                <div className="flex items-center space-x-2 text-emerald-400">
                   <Users className="w-4 h-4" />
                   <span className="text-[11px] font-medium text-gray-400">Гости (RSVP)</span>
                 </div>
                 <div className="text-xl font-bold text-white tracking-tight">{totalAttendees}</div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                <div className="flex items-center space-x-2 text-pink-400">
+                  <Heart className="w-4 h-4" />
+                  <span className="text-[11px] font-medium text-gray-400">Интерес</span>
+                </div>
+                <div className="text-xl font-bold text-white tracking-tight">{totalInterests}</div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-1">
+                <div className="flex items-center space-x-2 text-indigo-400">
+                  <Building2 className="w-4 h-4" />
+                  <span className="text-[11px] font-medium text-gray-400">Подписчики</span>
+                </div>
+                <div className="text-xl font-bold text-white tracking-tight">{totalFollowers}</div>
+              </div>
+            </div>
+
+            {/* Conversion Indicators */}
+            <div className="p-3 rounded-2xl bg-[#141724] border border-white/5 flex items-center justify-between text-xs text-gray-400">
+              <div className="flex items-center space-x-1.5 text-indigo-400">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium text-gray-300">Конверсия</span>
+              </div>
+              <div className="flex items-center space-x-3 text-[11px]">
+                <span>В интерес: <strong className="text-pink-400 font-semibold">{interestConversion}</strong></span>
+                <span>•</span>
+                <span>В гостей: <strong className="text-emerald-400 font-semibold">{rsvpConversion}</strong></span>
               </div>
             </div>
 
@@ -355,7 +375,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                             <span>{dateStr}</span>
                           </div>
-                          <div className="flex items-center space-x-3 text-[11px]">
+                          <div className="flex items-center space-x-2.5 text-[11px]">
+                            <span className="flex items-center space-x-1 text-gray-400">
+                              <Eye className="w-3 h-3 text-indigo-400" />
+                              <span>{ev.views_count || 0}</span>
+                            </span>
                             <span className="text-emerald-400 font-medium">
                               ● {ev.attendee_count} идут
                             </span>
@@ -499,7 +523,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           <Calendar className="w-3.5 h-3.5 text-indigo-400" />
                           <span>{dateStr}</span>
                         </div>
-                        <div className="flex items-center space-x-3 text-[11px]">
+                        <div className="flex items-center space-x-2.5 text-[11px]">
+                          <span className="flex items-center space-x-1 text-gray-400">
+                            <Eye className="w-3 h-3 text-indigo-400" />
+                            <span>{ev.views_count || 0}</span>
+                          </span>
                           <span className="text-emerald-400 font-medium">
                             ● {ev.attendee_count} идут
                           </span>

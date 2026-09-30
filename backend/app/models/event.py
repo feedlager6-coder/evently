@@ -50,6 +50,7 @@ class Event(Base):
     company_profiles = relationship("EventCompanyProfile", back_populates="event", cascade="all, delete-orphan")
     company_requests = relationship("EventCompanyRequest", back_populates="event", cascade="all, delete-orphan")
     company_matches = relationship("EventCompanyMatch", back_populates="event", cascade="all, delete-orphan")
+    views = relationship("EventView", back_populates="event", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_events_discovery", "city_id", "status", "start_at"),

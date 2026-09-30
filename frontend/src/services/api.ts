@@ -20,7 +20,9 @@ import type {
   CompanyMemberItem,
   CompanyRequestsResponse,
   CompanyMatchItem,
-  CompanyActionResponse
+  CompanyActionResponse,
+  TrackingSource,
+  EventViewResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -544,6 +546,19 @@ export const api = {
     return res.json();
   },
 
+  async trackEventView(eventId: string, source: TrackingSource = 'unknown'): Promise<EventViewResponse | null> {
+    try {
+      const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/view`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ source }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
 
   // Event Company Discovery ("Найти компанию")
   async getCompanyStatus(eventId: string): Promise<CompanyStatusResponse> {

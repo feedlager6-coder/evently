@@ -7,6 +7,7 @@ from app.models.interest import EventInterest
 from app.models.company import EventCompanyProfile, EventCompanyRequest, EventCompanyMatch
 from app.models.organization import Organization, OrganizationStatus, ORGANIZATION_CATEGORIES
 from app.models.subscription import Subscription
+from app.models.view import EventView
 
 __all__ = [
     "City",
@@ -23,4 +24,5 @@ __all__ = [
     "OrganizationStatus",
     "ORGANIZATION_CATEGORIES",
     "Subscription",
+    "EventView",
 ]

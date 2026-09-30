@@ -48,6 +48,7 @@ class EventSummary(BaseModel):
     is_attending: bool = False
     interest_count: int = 0
     current_user_interested: bool = False
+    views_count: int = 0
     organization_id: Optional[str] = None
     organization_name: Optional[str] = None
     organization_category: Optional[str] = None
@@ -76,3 +77,12 @@ class EventListResponse(BaseModel):
     city_id: Optional[str] = None
     category_id: Optional[str] = None
     date_filter: Optional[str] = "all"
+
+
+class EventViewRequest(BaseModel):
+    source: Optional[str] = "unknown"
+
+
+class EventViewResponse(BaseModel):
+    recorded: bool
+    views_count: int
