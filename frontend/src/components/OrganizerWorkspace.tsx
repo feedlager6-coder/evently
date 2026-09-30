@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import type { EventSummary, OrganizationSummary } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { EventSummary, OrganizationSummary, OrganizerAudienceResponse } from '../types';
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
+import { api } from '../services/api';
 import {
   ArrowLeft,
   Plus,
@@ -18,9 +19,12 @@ import {
   AlertTriangle,
   Edit3,
   ExternalLink,
+  UserPlus,
+  UserCheck,
+  Info,
 } from 'lucide-react';
 
-export type WorkspaceTab = 'overview' | 'events' | 'organizations';
+export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience';
 export type EventFilter = 'upcoming' | 'pending' | 'past';
 
 interface OrganizerWorkspaceProps {
@@ -48,6 +52,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
   const [eventFilter, setEventFilter] = useState<EventFilter>('upcoming');
+  const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
+  const [isLoadingAudience, setIsLoadingAudience] = useState<boolean>(false);
+  const [selectedAudienceOrgId, setSelectedAudienceOrgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'audience') {
+      setIsLoadingAudience(true);
+      api.getOrganizerAudience(selectedAudienceOrgId || undefined)
+        .then((data) => setAudienceData(data))
+        .catch((err) => console.error('Failed to load organizer audience:', err))
+        .finally(() => setIsLoadingAudience(false));
+    }
+  }, [activeTab, selectedAudienceOrgId]);
 
   const now = new Date();
 
@@ -115,7 +132,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               <h1 className="text-base font-bold text-white tracking-tight leading-tight">
                 Кабинет организатора
               </h1>
-              <p className="text-[11px] text-gray-400">Управление контентом и площадками</p>
+              <p className="text-[11px] text-gray-400">Управление контентом и аудиторией</p>
             </div>
           </div>
 
@@ -134,10 +151,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
       <div className="px-4 space-y-4 max-w-lg mx-auto">
         {/* Navigation Tabs */}
-        <div className="flex rounded-2xl bg-[#141724] p-1 border border-white/5">
+        <div className="grid grid-cols-4 rounded-2xl bg-[#141724] p-1 border border-white/5 gap-1">
           <button
             onClick={() => handleTabChange('overview')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+            className={`py-2 text-[11px] font-semibold rounded-xl transition-all text-center ${
               activeTab === 'overview'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
@@ -147,7 +164,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </button>
           <button
             onClick={() => handleTabChange('events')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+            className={`py-2 text-[11px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-1 ${
               activeTab === 'events'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
@@ -155,7 +172,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           >
             <span>События</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              className={`text-[9px] px-1 py-0.2 rounded-full ${
                 activeTab === 'events' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
               }`}
             >
@@ -164,20 +181,30 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </button>
           <button
             onClick={() => handleTabChange('organizations')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
+            className={`py-2 text-[11px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-1 ${
               activeTab === 'organizations'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span>Организации</span>
+            <span className="truncate">Площадки</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              className={`text-[9px] px-1 py-0.2 rounded-full ${
                 activeTab === 'organizations' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
               }`}
             >
               {organizations.length}
             </span>
+          </button>
+          <button
+            onClick={() => handleTabChange('audience')}
+            className={`py-2 text-[11px] font-semibold rounded-xl transition-all text-center ${
+              activeTab === 'audience'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Аудитория
           </button>
         </div>
 
@@ -643,6 +670,261 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: AUDIENCE */}
+        {activeTab === 'audience' && (
+          <div className="space-y-4">
+            {/* Optional Organization Filter if organizer owns >1 organization */}
+            {organizations.length > 1 && (
+              <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setSelectedAudienceOrgId(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    selectedAudienceOrgId === null
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-[#141724] text-gray-400 border border-white/5 hover:text-white'
+                  }`}
+                >
+                  Все площадки
+                </button>
+                {organizations.map((org) => (
+                  <button
+                    key={org.id}
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      setSelectedAudienceOrgId(org.id);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+                      selectedAudienceOrgId === org.id
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-[#141724] text-gray-400 border border-white/5 hover:text-white'
+                    }`}
+                  >
+                    <span>{org.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {isLoadingAudience && !audienceData ? (
+              <div className="py-12 text-center text-xs text-gray-400">
+                Загрузка данных аудитории...
+              </div>
+            ) : audienceData ? (
+              <div className="space-y-4">
+                {/* Section 1: Main Audience Counters */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      База подписчиков в Telegram
+                    </h3>
+                    <span className="text-[11px] text-gray-500 font-medium">Канал прямого контакта</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2 text-purple-400">
+                          <Users className="w-4 h-4" />
+                          <span className="text-xs font-semibold">Подписчики заведений</span>
+                        </div>
+                        <div className="text-3xl font-extrabold text-white tracking-tight">
+                          {audienceData.total_subscribers.toLocaleString('ru-RU')}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end space-y-1.5 pt-0.5">
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          <UserPlus className="w-3 h-3" />
+                          <span>+{audienceData.new_subscribers_7d} за 7 дней</span>
+                        </span>
+                        <span className="text-[11px] text-gray-400 font-medium">
+                          +{audienceData.new_subscribers_30d} за 30 дней
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-gray-400 pt-2 border-t border-white/5 leading-relaxed">
+                      Подписчики получают уведомления о ваших новых событиях прямо в Telegram.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Section 2: Unique Engaged People */}
+                <div className="p-4 rounded-2xl bg-[#141724] border border-white/5 space-y-2">
+                  <div className="flex items-center space-x-2 text-emerald-400">
+                    <UserCheck className="w-4 h-4" />
+                    <span className="text-xs font-semibold">Вовлечённая аудитория</span>
+                  </div>
+
+                  <div className="flex items-baseline space-x-2">
+                    <span className="text-2xl font-bold text-white tracking-tight">
+                      {audienceData.total_unique_engaged.toLocaleString('ru-RU')}
+                    </span>
+                    <span className="text-xs text-gray-400">уникальных участников</span>
+                  </div>
+
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Люди, которые подписались на ваши площадки, сохранили события в «Хочу пойти» или зарегистрировались «Я иду».
+                  </p>
+                </div>
+
+                {/* Section 3: Event Response Activity (Views, Interest, Attendees) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      Суммарная активность
+                    </h3>
+                    <span className="text-[11px] text-gray-500 font-medium">По всем событиям</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-3 rounded-2xl bg-[#141724] border border-white/5 text-center space-y-1">
+                      <div className="flex items-center justify-center space-x-1 text-indigo-400">
+                        <Eye className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-medium text-gray-400">Просмотры</span>
+                      </div>
+                      <div className="text-lg font-bold text-white tracking-tight">
+                        {audienceData.total_views.toLocaleString('ru-RU')}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-[#141724] border border-white/5 text-center space-y-1">
+                      <div className="flex items-center justify-center space-x-1 text-pink-400">
+                        <Heart className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-medium text-gray-400">Интерес</span>
+                      </div>
+                      <div className="text-lg font-bold text-white tracking-tight">
+                        {audienceData.total_interest.toLocaleString('ru-RU')}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-[#141724] border border-white/5 text-center space-y-1">
+                      <div className="flex items-center justify-center space-x-1 text-emerald-400">
+                        <Users className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-medium text-gray-400">Гости</span>
+                      </div>
+                      <div className="text-lg font-bold text-white tracking-tight">
+                        {audienceData.total_attendees.toLocaleString('ru-RU')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: Breakdown by Organization (if multiple) */}
+                {audienceData.organizations.length > 1 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Площадки и подписчики
+                      </h3>
+                    </div>
+
+                    <div className="space-y-2">
+                      {audienceData.organizations.map((org) => (
+                        <div
+                          key={org.id}
+                          className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-white truncate">{org.name}</div>
+                            <div className="text-[11px] text-gray-400">
+                              {org.category} • {org.events_count} событий
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-bold text-white">
+                              {org.subscribers_count} <span className="text-[10px] text-gray-400 font-normal">подписчиков</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-400 font-medium">
+                              +{org.new_subscribers_7d} за 7 дней
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 5: Events and Audience Response */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      Отклик на события ({audienceData.recent_events.length})
+                    </h3>
+                  </div>
+
+                  {audienceData.recent_events.length === 0 ? (
+                    <div className="p-6 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-2">
+                      <Calendar className="w-6 h-6 text-gray-500 mx-auto" />
+                      <p className="text-xs text-gray-400">Нет событий для анализа отклика</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {audienceData.recent_events.map((ev) => {
+                        const dateStr = new Date(ev.start_at).toLocaleDateString('ru-RU', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+
+                        return (
+                          <div
+                            key={ev.id}
+                            className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="font-semibold text-xs text-white line-clamp-1">
+                                {ev.title}
+                              </div>
+                              <span className="text-[10px] text-gray-400 shrink-0">{dateStr}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
+                              <span className="text-[11px] text-gray-400 truncate max-w-[140px]">
+                                {ev.venue_name}
+                              </span>
+
+                              <div className="flex items-center space-x-2.5 text-[11px]">
+                                <span className="flex items-center space-x-1 text-gray-400">
+                                  <Eye className="w-3 h-3 text-indigo-400" />
+                                  <span>{ev.views_count}</span>
+                                </span>
+                                <span className="text-pink-400 font-medium">
+                                  ● {ev.interest_count} интерес
+                                </span>
+                                <span className="text-emerald-400 font-medium">
+                                  ● {ev.attendee_count} идут
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 6: Honest Attribution Notice (Zero Vanity/Faking) */}
+                <div className="p-3.5 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 flex items-start space-x-2.5 text-[11px] text-indigo-300">
+                  <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    Отображаются подтверждённые показатели активности. Прямая атрибуция подписки к конкретному анонсу появится в следующем обновлении рассылок.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-xs text-gray-400">
+                Не удалось загрузить данные аудитории
               </div>
             )}
           </div>

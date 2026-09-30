@@ -283,3 +283,44 @@ export interface CompanyActionResponse {
   match?: CompanyMatchItem;
 }
 
+export interface OrganizationAudienceItem {
+  id: string;
+  name: string;
+  slug: string;
+  avatar_url?: string;
+  category: string;
+  city_name?: string;
+  subscribers_count: number;
+  new_subscribers_7d: number;
+  new_subscribers_30d: number;
+  events_count: number;
+  total_views: number;
+  total_interest: number;
+  total_attendees: number;
+}
+
+export interface EventAudienceItem {
+  id: string;
+  title: string;
+  start_at: string;
+  venue_name: string;
+  status: string;
+  organization_id?: string;
+  organization_name?: string;
+  views_count: number;
+  interest_count: number;
+  attendee_count: number;
+}
+
+export interface OrganizerAudienceResponse {
+  total_subscribers: number;
+  new_subscribers_7d: number;
+  new_subscribers_30d: number;
+  total_views: number;
+  total_interest: number;
+  total_attendees: number;
+  total_unique_engaged: number;
+  organizations: OrganizationAudienceItem[];
+  recent_events: EventAudienceItem[];
+}
+

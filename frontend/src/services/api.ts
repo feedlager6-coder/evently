@@ -22,7 +22,8 @@ import type {
   CompanyMatchItem,
   CompanyActionResponse,
   TrackingSource,
-  EventViewResponse
+  EventViewResponse,
+  OrganizerAudienceResponse
 } from '../types';
 import { telegram } from './telegram';
 
@@ -391,6 +392,32 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) return [];
       throw new Error('Failed to fetch organizer events');
+    }
+    return res.json();
+  },
+
+  async getOrganizerAudience(orgId?: string): Promise<OrganizerAudienceResponse> {
+    const url = orgId
+      ? `${API_BASE}/organizer/audience?org_id=${encodeURIComponent(orgId)}`
+      : `${API_BASE}/organizer/audience`;
+    const res = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        return {
+          total_subscribers: 0,
+          new_subscribers_7d: 0,
+          new_subscribers_30d: 0,
+          total_views: 0,
+          total_interest: 0,
+          total_attendees: 0,
+          total_unique_engaged: 0,
+          organizations: [],
+          recent_events: [],
+        };
+      }
+      throw new Error('Failed to fetch organizer audience');
     }
     return res.json();
   },
