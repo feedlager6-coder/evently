@@ -22,6 +22,7 @@ import type {
 import { api, extractErrorMessage } from '../services/api';
 import { telegram } from '../services/telegram';
 import { SafeAvatar } from './SafeAvatar';
+import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 
 interface EventCompanyModalProps {
   event: EventResponse | null;
@@ -75,17 +76,12 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
       setMembers(membersRes);
       setRequests(reqsRes);
       setMatches(matchesRes);
-
-      // Default to matches tab if there are new matches and user clicked
-      if (matchesRes.length > 0 && activeTab === 'members' && !statusRes.is_active) {
-        // keep current
-      }
     } catch (err: any) {
       setErrorMessage(extractErrorMessage(err, 'Не удалось загрузить данные поиска компании'));
     } finally {
       if (showSpinner) setIsLoading(false);
     }
-  }, [event, activeTab]);
+  }, [event]);
 
   useEffect(() => {
     if (isOpen && event) {
@@ -228,12 +224,12 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col justify-end sm:justify-center items-center bg-black/85 backdrop-fade-in p-0 sm:p-4">
-      {/* Bottom Sheet Modal Container */}
+      {/* Bottom Sheet Modal Container with Stable Frame */}
       <div 
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
+        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col h-[84vh] max-h-[92vh] sm:h-[620px] sm:max-h-[85vh] sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Pinned Header */}
         <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-[#131724]">
           <div className="flex items-center space-x-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/30">
@@ -272,12 +268,11 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
           </div>
         )}
 
-        {/* Scrollable Container */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 no-scrollbar">
-
+        {/* Pinned Top Area: Status / Opt-in Card & Animated Segmented Control */}
+        <div className="px-4 sm:px-5 pt-3 pb-2.5 shrink-0 space-y-3 bg-[#0F121C] border-b border-white/5">
           {/* Section 1: Opt-in / Status Card */}
           {status?.is_active ? (
-            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2.5">
+            <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center space-x-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
@@ -329,7 +324,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               )}
             </div>
           ) : (
-            <div className="p-4 rounded-2xl bg-[#171B29] border border-white/8 space-y-3">
+            <div className="p-3.5 rounded-2xl bg-[#171B29] border border-white/8 space-y-2.5">
               <div className="flex items-start space-x-3">
                 <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
                   <UserPlus className="w-4 h-4" />
@@ -377,67 +372,33 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
             </div>
           )}
 
-          {/* Section 2: Tab Navigation */}
-          <div className="flex rounded-xl bg-[#141824] p-1 border border-white/5 text-[11px] sm:text-xs font-semibold gap-1">
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`flex-1 min-w-0 py-2 px-1 rounded-lg flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors ${
-                activeTab === 'members'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <span className="truncate">Участники</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center font-bold shrink-0 ${
-                activeTab === 'members' ? 'bg-indigo-500/50 text-white' : 'bg-white/10 text-gray-400'
-              }`}>
-                {members.length}
-              </span>
-            </button>
+          {/* Section 2: Animated Segmented Control */}
+          <AnimatedSegmentedControl
+            items={[
+              { value: 'members', label: 'Участники', count: members.length },
+              {
+                value: 'requests',
+                label: 'Запросы',
+                count: requests.incoming.length,
+                badgePing: requests.incoming.length > 0,
+              },
+              { value: 'matches', label: 'Компании', count: matches.length },
+            ]}
+            value={activeTab}
+            onChange={(val) => setActiveTab(val)}
+          />
+        </div>
 
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={`flex-1 min-w-0 py-2 px-1 rounded-lg flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors relative ${
-                activeTab === 'requests'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <span className="truncate">Запросы</span>
-              {requests.incoming.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-ping" />
-              )}
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center font-bold shrink-0 ${
-                activeTab === 'requests' ? 'bg-indigo-500/50 text-white' : 'bg-white/10 text-gray-400'
-              }`}>
-                {requests.incoming.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('matches')}
-              className={`flex-1 min-w-0 py-2 px-1 rounded-lg flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors ${
-                activeTab === 'matches'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <span className="truncate">Компания</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center font-bold shrink-0 ${
-                activeTab === 'matches' ? 'bg-indigo-500/50 text-white' : 'bg-white/10 text-gray-400'
-              }`}>
-                {matches.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Section 3: Tab Content */}
+        {/* Section 3: Content Viewport */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 sm:px-5 space-y-3.5 no-scrollbar">
           {isLoading ? (
-            <div className="py-12 flex flex-col items-center justify-center space-y-2 text-gray-400">
+            <div className="h-full min-h-[260px] flex flex-col items-center justify-center space-y-2 text-gray-400">
               <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">Загрузка...</span>
             </div>
-          ) : activeTab === 'members' ? (
+          ) : (
+            <div key={activeTab} className="animate-tab-enter space-y-3">
+              {activeTab === 'members' ? (
             /* TAB 1: MEMBERS LIST */
             <div className="space-y-2.5">
               {members.length === 0 ? (
@@ -691,6 +652,8 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               )}
             </div>
           )}
+        </div>
+      )}
 
           {/* Privacy Guarantee Footer */}
           <div className="pt-2 border-t border-white/5 flex items-center space-x-2 text-[10px] text-gray-500">

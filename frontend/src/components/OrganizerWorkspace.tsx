@@ -14,6 +14,7 @@ import type {
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
 import { api } from '../services/api';
+import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 import {
   ArrowLeft,
   Plus,
@@ -321,72 +322,17 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
       <div className="px-4 space-y-4 max-w-lg mx-auto">
         {/* Navigation Tabs */}
-        <div className="grid grid-cols-5 rounded-2xl bg-[#141724] p-1 border border-white/5 gap-1">
-          <button
-            onClick={() => handleTabChange('overview')}
-            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
-              activeTab === 'overview'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Обзор
-          </button>
-          <button
-            onClick={() => handleTabChange('events')}
-            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-0.5 ${
-              activeTab === 'events'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <span>События</span>
-            <span
-              className={`text-[9px] px-1 py-0.2 rounded-full ${
-                activeTab === 'events' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
-              }`}
-            >
-              {events.length}
-            </span>
-          </button>
-          <button
-            onClick={() => handleTabChange('organizations')}
-            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-0.5 ${
-              activeTab === 'organizations'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <span className="truncate">Места</span>
-            <span
-              className={`text-[9px] px-1 py-0.2 rounded-full ${
-                activeTab === 'organizations' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
-              }`}
-            >
-              {organizations.length}
-            </span>
-          </button>
-          <button
-            onClick={() => handleTabChange('audience')}
-            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
-              activeTab === 'audience'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Аудитория
-          </button>
-          <button
-            onClick={() => handleTabChange('broadcasts')}
-            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
-              activeTab === 'broadcasts'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Рассылки
-          </button>
-        </div>
+        <AnimatedSegmentedControl
+          items={[
+            { value: 'overview', label: 'Обзор' },
+            { value: 'events', label: 'События', count: events.length },
+            { value: 'organizations', label: 'Места', count: organizations.length },
+            { value: 'audience', label: 'Аудитория' },
+            { value: 'broadcasts', label: 'Рассылки' },
+          ]}
+          value={activeTab}
+          onChange={(val) => handleTabChange(val as WorkspaceTab)}
+        />
 
         {broadcastNotice && (
           <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2 animate-fade-in">
@@ -395,6 +341,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </div>
         )}
 
+        <div key={activeTab} className="animate-tab-enter">
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
@@ -1450,6 +1397,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* COMPOSER MODAL */}

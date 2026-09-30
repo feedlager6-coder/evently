@@ -4,6 +4,7 @@ import { EventCard } from './EventCard';
 import { SafeAvatar } from './SafeAvatar';
 import { formatFollowers } from './OrganizationModal';
 import { telegram } from '../services/telegram';
+import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 import {
   Building2,
   ChevronRight,
@@ -177,69 +178,18 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       ) : (
         <>
           {/* Segmented Tabs Switcher */}
-      <div className="flex rounded-2xl bg-[#141724] p-1 border border-white/5">
-        <button
-          onClick={() => handleTabChange('attending')}
-          className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
-            activeTab === 'attending'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <span>Я иду</span>
-          {attendingEvents.length > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                activeTab === 'attending' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
-              }`}
-            >
-              {attendingEvents.length}
-            </span>
-          )}
-        </button>
+          <AnimatedSegmentedControl
+            items={[
+              { value: 'attending', label: 'Я иду', count: attendingEvents.length },
+              { value: 'interested', label: 'Хочу пойти', count: interestedEvents.length },
+              { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
+            ]}
+            value={activeTab}
+            onChange={(val) => handleTabChange(val as PersonalHubTab)}
+          />
 
-        <button
-          onClick={() => handleTabChange('interested')}
-          className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
-            activeTab === 'interested'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <span>Хочу пойти</span>
-          {interestedEvents.length > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                activeTab === 'interested' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
-              }`}
-            >
-              {interestedEvents.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => handleTabChange('subscriptions')}
-          className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
-            activeTab === 'subscriptions'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <span>Подписки</span>
-          {subscriptions.length > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                activeTab === 'subscriptions' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
-              }`}
-            >
-              {subscriptions.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* 4. Tab Contents */}
+          {/* 4. Tab Contents */}
+          <div key={activeTab} className="animate-tab-enter">
       {/* TAB: ATTENDING */}
       {activeTab === 'attending' && (
         <div className="space-y-3">
@@ -380,6 +330,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
           )}
         </div>
       )}
+      </div>
 
       {/* 5. Non-Organizer Subtle CTA Banner at Bottom */}
       {!isOrganizer && (
