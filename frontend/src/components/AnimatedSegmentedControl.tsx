@@ -15,6 +15,7 @@ export interface AnimatedSegmentedControlProps<T extends string> {
   className?: string;
   size?: 'sm' | 'md';
   hapticFeedback?: boolean;
+  scrollable?: boolean;
 }
 
 export function AnimatedSegmentedControl<T extends string>({
@@ -24,6 +25,7 @@ export function AnimatedSegmentedControl<T extends string>({
   className = '',
   size = 'md',
   hapticFeedback = true,
+  scrollable = false,
 }: AnimatedSegmentedControlProps<T>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
@@ -47,16 +49,28 @@ export function AnimatedSegmentedControl<T extends string>({
     const activeButton = buttonRefs.current.get(value);
 
     if (container && activeButton) {
-      const containerRect = container.getBoundingClientRect();
-      const buttonRect = activeButton.getBoundingClientRect();
+      // Use DOM layout offsets relative to offsetParent (immune to parent animations and transforms)
+      const left = activeButton.offsetLeft;
+      const top = activeButton.offsetTop;
+      const width = activeButton.offsetWidth;
+      const height = activeButton.offsetHeight;
 
       setIndicator({
-        left: buttonRect.left - containerRect.left,
-        top: buttonRect.top - containerRect.top,
-        width: buttonRect.width,
-        height: buttonRect.height,
+        left,
+        top,
+        width,
+        height,
         ready: true,
       });
+
+      // If scrollable, ensure the active tab is scrolled into view smoothly
+      if (scrollable) {
+        activeButton.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest',
+        });
+      }
     }
   };
 
@@ -93,24 +107,29 @@ export function AnimatedSegmentedControl<T extends string>({
 
   const isSmall = size === 'sm';
 
-  return (
+  const controlContent = (
     <div
       ref={containerRef}
       role="tablist"
-      className={`relative flex rounded-2xl bg-[#141724] p-1 border border-white/5 select-none ${className}`}
+      className={`relative ${
+        scrollable ? 'inline-flex min-w-full' : 'flex'
+      } items-center rounded-2xl bg-[#141724] p-1 border border-white/5 select-none ${
+        scrollable ? '' : className
+      }`}
     >
       {/* Sliding Active Pill Indicator */}
       <div
-        className={`absolute rounded-xl bg-indigo-600 shadow-md shadow-indigo-600/25 pointer-events-none ${
+        className={`absolute top-0 left-0 rounded-xl bg-indigo-600 shadow-md shadow-indigo-600/25 pointer-events-none ${
           indicator.ready
-            ? 'transition-[transform,width,height] duration-200 ease-out'
+            ? 'transition-[transform,width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100'
             : 'opacity-0'
         }`}
         style={{
-          transform: `translate3d(${indicator.left}px, ${indicator.top}px, 0)`,
-          width: `${indicator.width}px`,
+          top: `${indicator.top}px`,
           height: `${indicator.height}px`,
-          willChange: 'transform, width, height',
+          width: `${indicator.width}px`,
+          transform: `translate3d(${indicator.left}px, 0, 0)`,
+          willChange: 'transform, width',
         }}
         aria-hidden="true"
       />
@@ -133,13 +152,15 @@ export function AnimatedSegmentedControl<T extends string>({
             role="tab"
             aria-selected={isActive}
             onClick={() => handleSelect(item.value)}
-            className={`relative z-10 flex-1 min-w-0 ${
-              isSmall ? 'py-1.5 px-2 text-[10.5px]' : 'py-2 px-1 text-xs'
+            className={`relative z-10 ${
+              scrollable ? 'shrink-0 px-3.5 sm:px-4' : 'flex-1 min-w-0 px-1'
+            } ${
+              isSmall ? 'py-1.5 text-[11px]' : 'py-2 text-xs'
             } font-semibold rounded-xl flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${
               isActive ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="truncate">{item.label}</span>
+            <span className={scrollable ? 'whitespace-nowrap' : 'truncate'}>{item.label}</span>
 
             {/* Optional Ping Dot */}
             {item.badgePing && (
@@ -163,4 +184,14 @@ export function AnimatedSegmentedControl<T extends string>({
       })}
     </div>
   );
+
+  if (scrollable) {
+    return (
+      <div className={`w-full overflow-x-auto no-scrollbar py-0.5 ${className}`}>
+        {controlContent}
+      </div>
+    );
+  }
+
+  return controlContent;
 }

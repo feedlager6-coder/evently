@@ -325,13 +325,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         <AnimatedSegmentedControl
           items={[
             { value: 'overview', label: 'Обзор' },
-            { value: 'events', label: 'События', count: events.length },
+            { value: 'events', label: 'Мероприятия', count: events.length },
             { value: 'organizations', label: 'Места', count: organizations.length },
             { value: 'audience', label: 'Аудитория' },
             { value: 'broadcasts', label: 'Рассылки' },
           ]}
           value={activeTab}
           onChange={(val) => handleTabChange(val as WorkspaceTab)}
+          scrollable
         />
 
         {broadcastNotice && (

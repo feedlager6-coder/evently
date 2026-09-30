@@ -3,6 +3,7 @@ import type { Category, DateFilterType } from '../types';
 import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass } from 'lucide-react';
 
 import { telegram } from '../services/telegram';
+import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 
 interface FilterBarProps {
   dateFilter: DateFilterType;
@@ -39,26 +40,16 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   return (
     <div className="space-y-3 py-2">
       {/* Date Quick Segmented Control */}
-      <div className="flex bg-[#131722] p-1 rounded-[14px] border border-white/8 mx-4 shadow-sm">
-        {DATE_OPTIONS.map((opt) => {
-          const isSelected = dateFilter === opt.id;
-          return (
-            <button
-              key={opt.id}
-              onClick={() => {
-                if (!isSelected) telegram.hapticImpact('light');
-                onSelectDate(opt.id);
-              }}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-[10px] pill-press transition-all text-center ${
-                isSelected
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      <div className="mx-4">
+        <AnimatedSegmentedControl
+          items={DATE_OPTIONS.map((opt) => ({
+            value: opt.id,
+            label: opt.label,
+          }))}
+          value={dateFilter}
+          onChange={onSelectDate}
+          size="sm"
+        />
       </div>
 
       {/* Horizontal Category Scroll Pills */}
