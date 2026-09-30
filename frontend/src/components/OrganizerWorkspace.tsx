@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import type { EventSummary, OrganizationSummary, OrganizerAudienceResponse } from '../types';
+import type {
+  EventSummary,
+  OrganizationSummary,
+  OrganizerAudienceResponse,
+  BroadcastItem,
+  BroadcastDetail,
+  BroadcastPreviewResponse,
+  BroadcastTargetType,
+  BroadcastType,
+  BroadcastTemplateKey,
+} from '../types';
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
 import { api } from '../services/api';
@@ -22,9 +32,11 @@ import {
   UserPlus,
   UserCheck,
   Info,
+  Send,
+  X,
 } from 'lucide-react';
 
-export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience';
+export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience' | 'broadcasts';
 export type EventFilter = 'upcoming' | 'pending' | 'past';
 
 interface OrganizerWorkspaceProps {
@@ -65,6 +77,154 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         .finally(() => setIsLoadingAudience(false));
     }
   }, [activeTab, selectedAudienceOrgId]);
+
+  // Broadcasts state
+  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
+  const [isLoadingBroadcasts, setIsLoadingBroadcasts] = useState<boolean>(false);
+  const [isComposerOpen, setIsComposerOpen] = useState<boolean>(false);
+  const [selectedBroadcast, setSelectedBroadcast] = useState<BroadcastDetail | null>(null);
+
+  // Composer fields
+  const [composerOrgId, setComposerOrgId] = useState<string>('');
+  const [composerTargetType, setComposerTargetType] = useState<BroadcastTargetType>('organization_subscribers');
+  const [composerBroadcastType, setComposerBroadcastType] = useState<BroadcastType>('marketing');
+  const [composerTemplateKey, setComposerTemplateKey] = useState<BroadcastTemplateKey>('event_announcement');
+  const [composerEventId, setComposerEventId] = useState<string>('');
+  const [composerCustomText, setComposerCustomText] = useState<string>('');
+  const [previewData, setPreviewData] = useState<BroadcastPreviewResponse | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState<boolean>(false);
+  const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (organizations.length > 0 && !composerOrgId) {
+      setComposerOrgId(organizations[0].id);
+    }
+  }, [organizations, composerOrgId]);
+
+  const loadBroadcasts = () => {
+    setIsLoadingBroadcasts(true);
+    api.getOrganizerBroadcasts()
+      .then((data) => setBroadcasts(data))
+      .catch((err) => console.error('Failed to load broadcasts:', err))
+      .finally(() => setIsLoadingBroadcasts(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'broadcasts') {
+      loadBroadcasts();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!isComposerOpen || !composerOrgId) return;
+
+    const orgEvents = events.filter((e) => e.organization_id === composerOrgId);
+    let effectiveEventId = composerEventId;
+    if (
+      (composerTemplateKey === 'event_announcement' ||
+        composerTemplateKey === 'event_update' ||
+        composerTargetType === 'event_interest') &&
+      !effectiveEventId &&
+      orgEvents.length > 0
+    ) {
+      effectiveEventId = orgEvents[0].id;
+      setComposerEventId(effectiveEventId);
+    }
+
+    if (composerTargetType === 'event_interest' && !effectiveEventId) {
+      setPreviewData(null);
+      setPreviewError('Выберите событие для рассылки заинтересованным');
+      return;
+    }
+
+    setIsLoadingPreview(true);
+    setPreviewError(null);
+
+    const timer = setTimeout(() => {
+      api.previewBroadcast({
+        organization_id: composerOrgId,
+        target_type: composerTargetType,
+        broadcast_type: composerBroadcastType,
+        template_key: composerTemplateKey,
+        event_id: effectiveEventId || undefined,
+        custom_text: composerCustomText || undefined,
+      })
+        .then((res) => {
+          setPreviewData(res);
+          setPreviewError(null);
+        })
+        .catch((err) => {
+          setPreviewData(null);
+          setPreviewError(err.message || 'Ошибка расчета аудитории');
+        })
+        .finally(() => {
+          setIsLoadingPreview(false);
+        });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [
+    isComposerOpen,
+    composerOrgId,
+    composerTargetType,
+    composerBroadcastType,
+    composerTemplateKey,
+    composerEventId,
+    composerCustomText,
+    events,
+  ]);
+
+  const handleOpenComposer = () => {
+    telegram.hapticImpact('light');
+    const defaultOrgId = composerOrgId || (organizations[0]?.id ?? '');
+    if (organizations.length > 0 && !composerOrgId) {
+      setComposerOrgId(defaultOrgId);
+    }
+    const orgEvents = events.filter((e) => e.organization_id === defaultOrgId);
+    if (orgEvents.length > 0 && !composerEventId) {
+      setComposerEventId(orgEvents[0].id);
+    }
+    setPreviewError(null);
+    setIsComposerOpen(true);
+  };
+
+  const handleSendBroadcast = async () => {
+    if (!previewData || previewData.eligible_recipients === 0 || isSubmittingBroadcast) return;
+
+    try {
+      setIsSubmittingBroadcast(true);
+      telegram.hapticImpact('medium');
+      const detail = await api.createBroadcast({
+        organization_id: composerOrgId,
+        target_type: composerTargetType,
+        broadcast_type: composerBroadcastType,
+        template_key: composerTemplateKey,
+        event_id: composerEventId || undefined,
+        custom_text: composerCustomText || undefined,
+      });
+      setIsComposerOpen(false);
+      setBroadcastNotice(`Рассылка отправлена (${detail.sent_count}/${detail.total_recipients} доставлено)`);
+      loadBroadcasts();
+      setTimeout(() => setBroadcastNotice(null), 5000);
+    } catch (err: any) {
+      telegram.hapticImpact('heavy');
+      setPreviewError(err.message || 'Не удалось отправить рассылку');
+    } finally {
+      setIsSubmittingBroadcast(false);
+    }
+  };
+
+  const handleViewBroadcastDetail = async (item: BroadcastItem) => {
+    telegram.hapticImpact('light');
+    try {
+      const detail = await api.getBroadcastDetail(item.id);
+      setSelectedBroadcast(detail);
+    } catch (err) {
+      console.error('Failed to load broadcast detail:', err);
+    }
+  };
 
   const now = new Date();
 
@@ -135,26 +295,15 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               <p className="text-[11px] text-gray-400">Управление контентом и аудиторией</p>
             </div>
           </div>
-
-          <button
-            onClick={() => {
-              telegram.hapticImpact('medium');
-              onOpenCreateEvent();
-            }}
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Создать</span>
-          </button>
         </div>
       </div>
 
       <div className="px-4 space-y-4 max-w-lg mx-auto">
         {/* Navigation Tabs */}
-        <div className="grid grid-cols-4 rounded-2xl bg-[#141724] p-1 border border-white/5 gap-1">
+        <div className="grid grid-cols-5 rounded-2xl bg-[#141724] p-1 border border-white/5 gap-1">
           <button
             onClick={() => handleTabChange('overview')}
-            className={`py-2 text-[11px] font-semibold rounded-xl transition-all text-center ${
+            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
               activeTab === 'overview'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
@@ -164,7 +313,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </button>
           <button
             onClick={() => handleTabChange('events')}
-            className={`py-2 text-[11px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-1 ${
+            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-0.5 ${
               activeTab === 'events'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
@@ -181,13 +330,13 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </button>
           <button
             onClick={() => handleTabChange('organizations')}
-            className={`py-2 text-[11px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-1 ${
+            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all flex items-center justify-center space-x-0.5 ${
               activeTab === 'organizations'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className="truncate">Площадки</span>
+            <span className="truncate">Места</span>
             <span
               className={`text-[9px] px-1 py-0.2 rounded-full ${
                 activeTab === 'organizations' ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
@@ -198,7 +347,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           </button>
           <button
             onClick={() => handleTabChange('audience')}
-            className={`py-2 text-[11px] font-semibold rounded-xl transition-all text-center ${
+            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
               activeTab === 'audience'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-gray-400 hover:text-gray-200'
@@ -206,7 +355,24 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           >
             Аудитория
           </button>
+          <button
+            onClick={() => handleTabChange('broadcasts')}
+            className={`py-2 text-[10.5px] font-semibold rounded-xl transition-all text-center ${
+              activeTab === 'broadcasts'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Рассылки
+          </button>
         </div>
+
+        {broadcastNotice && (
+          <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{broadcastNotice}</span>
+          </div>
+        )}
 
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
@@ -929,7 +1095,522 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             )}
           </div>
         )}
+
+        {/* TAB 5: BROADCASTS */}
+        {activeTab === 'broadcasts' && (
+          <div className="space-y-4">
+            {/* Header Value Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-900/40 via-purple-900/20 to-[#141724] border border-indigo-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 flex items-center justify-center text-indigo-400">
+                    <Send className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white tracking-tight">Рассылки в Telegram</h2>
+                    <p className="text-[11px] text-gray-400">Прямое взаимодействие с вашей аудиторией</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleOpenComposer}
+                  disabled={organizations.length === 0}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center space-x-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Создать</span>
+                </button>
+              </div>
+
+              <div className="text-[11px] text-indigo-200/80 leading-relaxed pt-1 border-t border-indigo-500/10">
+                Отправляйте анонсы подписчикам ваших площадок и персональные обновления гостям, нажавшим «Хочу пойти».
+              </div>
+            </div>
+
+            {/* Broadcasts History */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  История кампаний ({broadcasts.length})
+                </h3>
+              </div>
+
+              {isLoadingBroadcasts ? (
+                <div className="py-12 text-center text-xs text-gray-400">Загрузка рассылок...</div>
+              ) : broadcasts.length === 0 ? (
+                <div className="p-6 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                  <Send className="w-8 h-8 text-indigo-400/50 mx-auto" />
+                  <div>
+                    <div className="text-xs font-semibold text-white">Нет отправленных рассылок</div>
+                    <p className="text-[11px] text-gray-400 max-w-xs mx-auto mt-1">
+                      Создайте свою первую рассылку: анонсируйте новое событие или отправьте новость подписчикам.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleOpenComposer}
+                    disabled={organizations.length === 0}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Создать рассылку</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {broadcasts.map((bcast) => {
+                    const dateStr = new Date(bcast.created_at).toLocaleDateString('ru-RU', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    const targetLabel =
+                      bcast.target_type === 'organization_subscribers'
+                        ? 'Подписчики площадки'
+                        : 'Интерес к событию';
+
+                    return (
+                      <div
+                        key={bcast.id}
+                        onClick={() => handleViewBroadcastDetail(bcast)}
+                        className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer space-y-2.5 card-press"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-white truncate">
+                              {bcast.event_title ? bcast.event_title : bcast.organization_name}
+                            </div>
+                            <div className="text-[11px] text-gray-400 truncate">
+                              {bcast.organization_name} • {targetLabel}
+                            </div>
+                          </div>
+
+                          {/* Status Pill */}
+                          {bcast.status === 'completed' && (
+                            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Доставлено</span>
+                            </span>
+                          )}
+                          {bcast.status === 'partially_failed' && (
+                            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 shrink-0">
+                              <AlertTriangle className="w-3 h-3" />
+                              <span>Частично</span>
+                            </span>
+                          )}
+                          {(bcast.status === 'processing' || bcast.status === 'queued') && (
+                            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 shrink-0">
+                              <Clock className="w-3 h-3" />
+                              <span>Отправка</span>
+                            </span>
+                          )}
+                          {bcast.status === 'failed' && (
+                            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/30 shrink-0">
+                              <XCircle className="w-3 h-3" />
+                              <span>Ошибка</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Delivery Metrics line */}
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
+                          <div className="flex items-center space-x-2 text-[11px]">
+                            <span className="text-white font-medium">
+                              {bcast.sent_count}/{bcast.total_recipients} получ.
+                            </span>
+                            {bcast.blocked_count > 0 && (
+                              <span className="text-amber-400">
+                                • {bcast.blocked_count} блок
+                              </span>
+                            )}
+                            {bcast.broadcast_type === 'transactional' && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300">
+                                Важное
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-gray-500">{dateStr}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* COMPOSER MODAL */}
+      {isComposerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#121522] border border-white/10 rounded-3xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div className="flex items-center space-x-2">
+                <Send className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-sm font-bold text-white">Новая рассылка</h3>
+              </div>
+              <button
+                onClick={() => setIsComposerOpen(false)}
+                className="p-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 1. Organization selector */}
+            {organizations.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-gray-300">Площадка</label>
+                <select
+                  value={composerOrgId}
+                  onChange={(e) => {
+                    setComposerOrgId(e.target.value);
+                    const orgEvs = events.filter((ev) => ev.organization_id === e.target.value);
+                    if (orgEvs.length > 0) setComposerEventId(orgEvs[0].id);
+                  }}
+                  className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                >
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* 2. Target Audience Selector */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-gray-300">Кому отправить</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComposerTargetType('organization_subscribers')}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    composerTargetType === 'organization_subscribers'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">👥 Подписчики</div>
+                  <div className="text-[10px] opacity-70">Все активные читатели</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComposerTargetType('event_interest');
+                    if (composerTemplateKey === 'custom_update') {
+                      setComposerTemplateKey('event_update');
+                    }
+                  }}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    composerTargetType === 'event_interest'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">🎯 «Хочу пойти»</div>
+                  <div className="text-[10px] opacity-70">Интерес к событию</div>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Event selector (if interest or announcement/update) */}
+            {(composerTargetType === 'event_interest' ||
+              composerTemplateKey === 'event_announcement' ||
+              composerTemplateKey === 'event_update') && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-gray-300">Событие</label>
+                {events.filter((e) => e.organization_id === composerOrgId).length === 0 ? (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
+                    У этой организации пока нет опубликованных событий.
+                  </div>
+                ) : (
+                  <select
+                    value={composerEventId}
+                    onChange={(e) => setComposerEventId(e.target.value)}
+                    className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    {events
+                      .filter((e) => e.organization_id === composerOrgId)
+                      .map((ev) => (
+                        <option key={ev.id} value={ev.id}>
+                          {ev.title}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* 4. Broadcast Type */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-gray-300">Тип сообщения</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComposerBroadcastType('marketing')}
+                  className={`p-2 rounded-xl border text-left transition-all ${
+                    composerBroadcastType === 'marketing'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">📢 Маркетинг</div>
+                  <div className="text-[10px] opacity-70">Анонсы и новости (лимит 24ч)</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerBroadcastType('transactional')}
+                  className={`p-2 rounded-xl border text-left transition-all ${
+                    composerBroadcastType === 'transactional'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">⚡ Обновление</div>
+                  <div className="text-[10px] opacity-70">Смена времени/отмена (без лимита)</div>
+                </button>
+              </div>
+            </div>
+
+            {/* 5. Template Key */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-gray-300">Шаблон</label>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => setComposerTemplateKey('event_announcement')}
+                  className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+                    composerTemplateKey === 'event_announcement'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400'
+                  }`}
+                >
+                  Анонс
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerTemplateKey('event_update')}
+                  className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+                    composerTemplateKey === 'event_update'
+                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-gray-400'
+                  }`}
+                >
+                  Обновление
+                </button>
+                {composerTargetType === 'organization_subscribers' && (
+                  <button
+                    type="button"
+                    onClick={() => setComposerTemplateKey('custom_update')}
+                    className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+                      composerTemplateKey === 'custom_update'
+                        ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                        : 'bg-white/5 border-white/5 text-gray-400'
+                    }`}
+                  >
+                    Новости
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Custom text */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-gray-300">
+                  {composerTemplateKey === 'custom_update' ? 'Текст сообщения *' : 'Комментарий (опционально)'}
+                </label>
+                <span className="text-[10px] text-gray-500">{composerCustomText.length}/300</span>
+              </div>
+              <textarea
+                value={composerCustomText}
+                maxLength={300}
+                rows={2}
+                onChange={(e) => setComposerCustomText(e.target.value)}
+                placeholder="Дополнительный текст анонса..."
+                className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
+              />
+            </div>
+
+            {/* 7. Audience Preview Calculations */}
+            <div className="p-3.5 rounded-2xl bg-[#181C2E] border border-white/5 space-y-2">
+              <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+                Оценка аудитории
+              </div>
+              {isLoadingPreview ? (
+                <div className="text-xs text-gray-400 py-1">Выполняется расчёт получателей...</div>
+              ) : previewError ? (
+                <div className="text-xs text-amber-300 py-1">{previewError}</div>
+              ) : previewData ? (
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Всего в сегменте:</span>
+                    <span className="font-semibold text-white">{previewData.total_audience} чел.</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Получат сообщение:</span>
+                    <span className="font-bold text-emerald-400">{previewData.eligible_recipients} чел.</span>
+                  </div>
+                  {previewData.disabled_notifications_count > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-gray-400">
+                      <span>Отключили уведомления:</span>
+                      <span className="text-gray-300">{previewData.disabled_notifications_count} чел.</span>
+                    </div>
+                  )}
+                  {previewData.fatigued_recipients_count > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-amber-300/80">
+                      <span>Лимит (уже получали за 24 ч):</span>
+                      <span>{previewData.fatigued_recipients_count} чел.</span>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* 8. Message Preview Bubble */}
+            {previewData && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+                  Предпросмотр в Telegram
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-indigo-500/20 space-y-2.5">
+                  <div
+                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: previewData.preview_text }}
+                  />
+                  <div className="pt-2 border-t border-white/5">
+                    <div className="w-full py-2 px-3 rounded-xl bg-indigo-600/30 border border-indigo-500/30 text-center text-xs font-semibold text-indigo-200">
+                      {previewData.preview_button_text}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-2 flex items-center space-x-2.5">
+              <button
+                type="button"
+                onClick={() => setIsComposerOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleSendBroadcast}
+                disabled={!previewData || previewData.eligible_recipients === 0 || isSubmittingBroadcast}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-xs font-semibold text-white shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-1.5"
+              >
+                {isSubmittingBroadcast ? (
+                  <span>Отправка...</span>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Отправить ({previewData?.eligible_recipients || 0})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DETAIL MODAL */}
+      {selectedBroadcast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#121522] border border-white/10 rounded-3xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <h3 className="text-sm font-bold text-white">Детали рассылки</h3>
+              <button
+                onClick={() => setSelectedBroadcast(null)}
+                className="p-1 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-[#181C2E] border border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Площадка:</span>
+                  <span className="font-semibold text-white">{selectedBroadcast.organization_name}</span>
+                </div>
+                {selectedBroadcast.event_title && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Событие:</span>
+                    <span className="font-semibold text-white">{selectedBroadcast.event_title}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Сегмент:</span>
+                  <span className="font-medium text-indigo-300">
+                    {selectedBroadcast.target_type === 'organization_subscribers'
+                      ? 'Подписчики площадки'
+                      : 'Интерес к событию'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Статус:</span>
+                  <span className="font-semibold text-emerald-400">{selectedBroadcast.status}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                  <span className="text-gray-400">Доставлено:</span>
+                  <span className="font-bold text-white">
+                    {selectedBroadcast.sent_count} из {selectedBroadcast.total_recipients}
+                  </span>
+                </div>
+                {selectedBroadcast.blocked_count > 0 && (
+                  <div className="flex items-center justify-between text-amber-300">
+                    <span>Заблокировали бота:</span>
+                    <span>{selectedBroadcast.blocked_count} чел.</span>
+                  </div>
+                )}
+                {selectedBroadcast.failed_count > 0 && (
+                  <div className="flex items-center justify-between text-red-400">
+                    <span>Ошибок отправки:</span>
+                    <span>{selectedBroadcast.failed_count} чел.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Message preview */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+                  Отправленный текст
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-white/5 space-y-2">
+                  <div
+                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: selectedBroadcast.message_text }}
+                  />
+                  <div className="pt-2 border-t border-white/5">
+                    <div className="w-full py-1.5 px-3 rounded-xl bg-indigo-600/20 text-center text-xs font-semibold text-indigo-300">
+                      {selectedBroadcast.button_text}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedBroadcast(null)}
+                className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

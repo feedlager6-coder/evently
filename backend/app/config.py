@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     PUBLIC_HOST: Optional[str] = None
     CORS_ORIGINS: str = "*"
 
+    # Broadcast Engine
+    BROADCAST_RATE_LIMIT_PER_SEC: int = 25
+    BROADCAST_FATIGUE_HOURS: int = 24
+
     # Storage Configuration (S3-compatible Object Storage or Persistent Local Volume)
     # Examples: Cloudflare R2, AWS S3, MinIO, Supabase S3, Yandex Object Storage
     STORAGE_BACKEND: str = "auto"

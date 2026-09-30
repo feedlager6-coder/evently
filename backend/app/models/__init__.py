@@ -8,6 +8,15 @@ from app.models.company import EventCompanyProfile, EventCompanyRequest, EventCo
 from app.models.organization import Organization, OrganizationStatus, ORGANIZATION_CATEGORIES
 from app.models.subscription import Subscription
 from app.models.view import EventView
+from app.models.broadcast import (
+    Broadcast,
+    BroadcastRecipient,
+    BroadcastTargetType,
+    BroadcastType,
+    BroadcastTemplateKey,
+    BroadcastStatus,
+    RecipientStatus,
+)
 
 __all__ = [
     "City",
@@ -25,4 +34,11 @@ __all__ = [
     "ORGANIZATION_CATEGORIES",
     "Subscription",
     "EventView",
+    "Broadcast",
+    "BroadcastRecipient",
+    "BroadcastTargetType",
+    "BroadcastType",
+    "BroadcastTemplateKey",
+    "BroadcastStatus",
+    "RecipientStatus",
 ]

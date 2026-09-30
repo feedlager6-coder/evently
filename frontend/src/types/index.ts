@@ -324,3 +324,61 @@ export interface OrganizerAudienceResponse {
   recent_events: EventAudienceItem[];
 }
 
+export type BroadcastTargetType = 'organization_subscribers' | 'event_interest';
+export type BroadcastType = 'marketing' | 'transactional';
+export type BroadcastTemplateKey = 'event_announcement' | 'event_update' | 'custom_update';
+export type BroadcastStatus = 'draft' | 'queued' | 'processing' | 'completed' | 'partially_failed' | 'failed' | 'cancelled';
+
+export interface BroadcastItem {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  event_id?: string | null;
+  event_title?: string | null;
+  target_type: BroadcastTargetType;
+  broadcast_type: BroadcastType;
+  template_key: BroadcastTemplateKey;
+  custom_text?: string | null;
+  status: BroadcastStatus;
+  total_recipients: number;
+  sent_count: number;
+  delivered_count: number;
+  failed_count: number;
+  blocked_count: number;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface BroadcastDetail extends BroadcastItem {
+  message_text: string;
+  button_text: string;
+  button_url: string;
+}
+
+export interface BroadcastPreviewResponse {
+  organization_id: string;
+  organization_name: string;
+  target_type: string;
+  broadcast_type: string;
+  template_key: string;
+  event_id?: string | null;
+  event_title?: string | null;
+  total_audience: number;
+  eligible_recipients: number;
+  disabled_notifications_count: number;
+  fatigued_recipients_count: number;
+  preview_text: string;
+  preview_button_text: string;
+  preview_button_url: string;
+}
+
+export interface BroadcastCreateRequest {
+  organization_id: string;
+  target_type: BroadcastTargetType;
+  broadcast_type: BroadcastType;
+  template_key: BroadcastTemplateKey;
+  event_id?: string | null;
+  custom_text?: string | null;
+}
+

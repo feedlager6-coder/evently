@@ -23,7 +23,11 @@ import type {
   CompanyActionResponse,
   TrackingSource,
   EventViewResponse,
-  OrganizerAudienceResponse
+  OrganizerAudienceResponse,
+  BroadcastItem,
+  BroadcastDetail,
+  BroadcastPreviewResponse,
+  BroadcastCreateRequest
 } from '../types';
 import { telegram } from './telegram';
 
@@ -703,5 +707,54 @@ export const api = {
       throw new Error(extractErrorMessage(err, 'Не удалось загрузить совпадения'));
     }
     return res.json();
+  },
+
+  async previewBroadcast(payload: BroadcastCreateRequest): Promise<BroadcastPreviewResponse> {
+    const res = await fetch(`${API_BASE}/organizer/broadcasts/preview`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось рассчитать аудиторию рассылки'));
+    }
+    return res.json();
+  },
+
+  async createBroadcast(payload: BroadcastCreateRequest): Promise<BroadcastDetail> {
+    const res = await fetch(`${API_BASE}/organizer/broadcasts`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось создать рассылку'));
+    }
+    return res.json();
+  },
+
+  async getOrganizerBroadcasts(): Promise<BroadcastItem[]> {
+    const res = await fetch(`${API_BASE}/organizer/broadcasts`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить список рассылок'));
+    }
+    return res.json();
+  },
+
+  async getBroadcastDetail(broadcastId: string): Promise<BroadcastDetail> {
+    const res = await fetch(`${API_BASE}/organizer/broadcasts/${encodeURIComponent(broadcastId)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить детали рассылки'));
+    }
+    return res.json();
   }
 };
+
