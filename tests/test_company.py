@@ -106,17 +106,19 @@ async def test_members_list_privacy(client, test_session):
     members = res_members.json()
 
     # User A must NOT see themselves
-    member_ids = [m["user_id"] for m in members]
-    assert user_a_id not in member_ids
+    assert not any(m["note"] == "Заметка от А" for m in members)
 
     # User B must be visible
-    target = next((m for m in members if m["user_id"] == user_b_id), None)
+    target = next((m for m in members if m["note"] == "Заметка от Б"), None)
     assert target is not None
     assert target["note"] == "Заметка от Б"
     assert target["attendance_status"] == "interested"
     assert target["relationship_status"] == "none"
 
-    # STRICT PRIVACY: verify username, telegram_id, joined_at are NOT present!
+    # STRICT PRIVACY: verify internal user_id, username, telegram_id, joined_at are NOT present!
+    assert "user_id" not in target
+    assert "profile_id" in target
+    assert isinstance(target["profile_id"], str)
     assert "username" not in target
     assert "telegram_username" not in target
     assert "telegram_id" not in target
@@ -377,3 +379,372 @@ async def test_user_without_telegram_username(client, test_session):
     assert m["partner_telegram_username"] is None
     assert m["partner_telegram_url"] is None
     assert m["has_telegram_username"] is False
+
+
+@pytest.mark.asyncio
+async def test_company_unauthorized_access(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    # 1. Unauthenticated /members -> 401
+    res1 = await client.get(f"/api/v1/events/{event_id}/company/members")
+    assert res1.status_code == 401
+
+    # 2. Unauthenticated /requests -> 401
+    res2 = await client.get(f"/api/v1/events/{event_id}/company/requests")
+    assert res2.status_code == 401
+
+    # 3. Unauthenticated POST /requests -> 401
+    res3 = await client.post(f"/api/v1/events/{event_id}/company/requests", json={"target_profile_id": "none"})
+    assert res3.status_code == 401
+
+    # 4. Unauthenticated /matches -> 401
+    res4 = await client.get(f"/api/v1/events/{event_id}/company/matches")
+    assert res4.status_code == 401
+
+    # 5. Unauthenticated POST /profile -> 401
+    res5 = await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True})
+    assert res5.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_cross_event_request_rejected(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    assert len(events) >= 2
+    event_1_id = events[0].id
+    event_2_id = events[1].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=3301, username='cross_a')}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=3302, username='cross_b')}"}
+
+    # User A opts in on Event 1
+    await client.post(f"/api/v1/events/{event_1_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_1_id}/company/profile", json={"is_active": True}, headers=headers_a)
+
+    # User B opts in on Event 2 (NOT Event 1)
+    await client.post(f"/api/v1/events/{event_2_id}/interest", headers=headers_b)
+    prof_b_res = await client.post(f"/api/v1/events/{event_2_id}/company/profile", json={"is_active": True}, headers=headers_b)
+    assert prof_b_res.status_code == 200
+
+    # User B's profile on Event 2
+    members_e2 = (await client.get(f"/api/v1/events/{event_2_id}/company/members", headers=headers_a)).json()
+    target_prof_e2 = next(m["profile_id"] for m in members_e2 if m["note"] is None)
+
+    # User A tries to send request on Event 1 using User B's profile from Event 2 -> 400 Rejected
+    res_cross = await client.post(
+        f"/api/v1/events/{event_1_id}/company/requests",
+        json={"target_profile_id": target_prof_e2},
+        headers=headers_a
+    )
+    assert res_cross.status_code == 400
+    assert "не найден среди ищущих компанию" in res_cross.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_request_to_inactive_profile_rejected(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=3201)}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=3202)}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_a)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_b)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_b)
+
+    members = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_prof_id = members[0]["profile_id"]
+
+    # User B deactivates profile
+    await client.delete(f"/api/v1/events/{event_id}/company/profile", headers=headers_b)
+
+    # User B is no longer in members
+    members_after = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    assert not any(m["profile_id"] == b_prof_id for m in members_after)
+
+    # User A tries to send request to B's profile -> 400 Rejected
+    res_req = await client.post(
+        f"/api/v1/events/{event_id}/company/requests",
+        json={"target_profile_id": b_prof_id},
+        headers=headers_a
+    )
+    assert res_req.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_request_using_target_profile_id_and_status(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=3101, username='req_a')}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=3102, username='req_b')}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": "Hello from A"}, headers=headers_a)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_b)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": "Hello from B"}, headers=headers_b)
+
+    # User A views members -> sees B's profile_id
+    members_for_a = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_item = next(m for m in members_for_a if m["note"] == "Hello from B")
+    assert b_item["relationship_status"] == "none"
+    b_profile_id = b_item["profile_id"]
+
+    # User A sends request using target_profile_id
+    res_send = await client.post(
+        f"/api/v1/events/{event_id}/company/requests",
+        json={"target_profile_id": b_profile_id},
+        headers=headers_a
+    )
+    assert res_send.status_code == 200
+
+    # User A checks members -> B's relationship_status is now "pending_outgoing"
+    members_for_a_after = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_item_after = next(m for m in members_for_a_after if m["note"] == "Hello from B")
+    assert b_item_after["relationship_status"] == "pending_outgoing"
+
+    # User B checks members -> A's relationship_status is now "pending_incoming"
+    members_for_b = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_b)).json()
+    a_item = next(m for m in members_for_b if m["note"] == "Hello from A")
+    assert a_item["relationship_status"] == "pending_incoming"
+
+
+@pytest.mark.asyncio
+async def test_rsvp_cancel_keeps_profile_active_if_interest_exists(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+    headers = {"Authorization": f"tma {make_test_init_data(user_id=3001)}"}
+    u_id = await get_user_id(client, headers)
+
+    # User adds RSVP and opts in
+    await client.post(f"/api/v1/events/{event_id}/rsvp", headers=headers)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers)
+
+    # Directly ensure EventInterest is also present
+    test_session.add(EventInterest(event_id=event_id, user_id=u_id))
+    await test_session.commit()
+
+    # Cancel RSVP
+    await client.delete(f"/api/v1/events/{event_id}/rsvp", headers=headers)
+
+    # Company profile MUST remain active because Interest still exists
+    status = (await client.get(f"/api/v1/events/{event_id}/company/status", headers=headers)).json()
+    assert status["is_active"] is True
+
+
+@pytest.mark.asyncio
+async def test_interest_cancel_keeps_profile_active_if_rsvp_exists(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+    headers = {"Authorization": f"tma {make_test_init_data(user_id=3002)}"}
+    u_id = await get_user_id(client, headers)
+
+    # User adds Interest and opts in
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers)
+
+    # Directly ensure EventAttendee is also present
+    test_session.add(EventAttendee(event_id=event_id, user_id=u_id))
+    await test_session.commit()
+
+    # Cancel Interest
+    await client.delete(f"/api/v1/events/{event_id}/interest", headers=headers)
+
+    # Company profile MUST remain active because RSVP still exists
+    status = (await client.get(f"/api/v1/events/{event_id}/company/status", headers=headers)).json()
+    assert status["is_active"] is True
+
+
+@pytest.mark.asyncio
+async def test_max_10_outgoing_requests_rate_limit(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_sender = {"Authorization": f"tma {make_test_init_data(user_id=2900)}"}
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_sender)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_sender)
+
+    # Create 11 target users with active company profiles
+    for uid in range(2901, 2912):
+        h = {"Authorization": f"tma {make_test_init_data(user_id=uid)}"}
+        await client.post(f"/api/v1/events/{event_id}/interest", headers=h)
+        await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": f"User {uid}"}, headers=h)
+
+    # Sender fetches members
+    members = (await client.get(f"/api/v1/events/{event_id}/company/members?limit=50", headers=headers_sender)).json()
+    t_prof_map = {m["note"]: m["profile_id"] for m in members if m["note"]}
+
+    # Send 10 requests -> all 10 succeed
+    for uid in range(2901, 2911):
+        pid = t_prof_map[f"User {uid}"]
+        res = await client.post(
+            f"/api/v1/events/{event_id}/company/requests",
+            json={"target_profile_id": pid},
+            headers=headers_sender
+        )
+        assert res.status_code == 200
+
+    # 11th request -> 429 Too Many Requests
+    pid_11 = t_prof_map["User 2911"]
+    res_11 = await client.post(
+        f"/api/v1/events/{event_id}/company/requests",
+        json={"target_profile_id": pid_11},
+        headers=headers_sender
+    )
+    assert res_11.status_code == 429
+    assert "превышен лимит активных запросов" in res_11.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_telegram_notification_failure_resilience(client, test_session, monkeypatch):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=2801)}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=2802)}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_a)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_b)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_b)
+
+    members = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_pid = members[0]["profile_id"]
+
+    # Mock notify_company_request to raise an Exception
+    async def mock_fail_notify(*args, **kwargs):
+        raise RuntimeError("Simulated Telegram Bot API 500 error / timeout")
+
+    monkeypatch.setattr("app.services.company_service.notify_company_request", mock_fail_notify)
+
+    # Request creation MUST still succeed with 200 OK
+    res = await client.post(
+        f"/api/v1/events/{event_id}/company/requests",
+        json={"target_profile_id": b_pid},
+        headers=headers_a
+    )
+    assert res.status_code == 200
+    assert "отправлен" in res.json()["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_match_isolation_between_users(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_1 = {"Authorization": f"tma {make_test_init_data(user_id=2701, username='iso_1')}"}
+    headers_2 = {"Authorization": f"tma {make_test_init_data(user_id=2702, username='iso_2')}"}
+    headers_3 = {"Authorization": f"tma {make_test_init_data(user_id=2703, username='iso_3')}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_1)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": "Iso User 1"}, headers=headers_1)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_2)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": "Iso User 2"}, headers=headers_2)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_3)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True, "note": "Iso User 3"}, headers=headers_3)
+
+    # User 1 sends request to User 2 -> cross-accept
+    m1 = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_1)).json()
+    u2_pid = next(m["profile_id"] for m in m1 if m["note"] == "Iso User 2")
+
+    # User 1 sends to User 2
+    r_send = await client.post(f"/api/v1/events/{event_id}/company/requests", json={"target_profile_id": u2_pid}, headers=headers_1)
+    assert r_send.status_code == 200
+
+    # User 2 accepts
+    reqs_2 = (await client.get(f"/api/v1/events/{event_id}/company/requests", headers=headers_2)).json()["incoming"]
+    await client.post(f"/api/v1/events/{event_id}/company/requests/{reqs_2[0]['request_id']}/accept", headers=headers_2)
+
+    # User 1 and User 2 see match
+    matches_1 = (await client.get(f"/api/v1/events/{event_id}/company/matches", headers=headers_1)).json()
+    assert len(matches_1) == 1
+
+    # User 3 calls GET /matches -> MUST receive empty list (zero leakage of User 1 & 2 match)
+    matches_3 = (await client.get(f"/api/v1/events/{event_id}/company/matches", headers=headers_3)).json()
+    assert matches_3 == []
+
+
+@pytest.mark.asyncio
+async def test_cannot_accept_request_if_sender_deactivated_profile(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=2601)}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=2602)}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_a)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_b)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_b)
+
+    members_a = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_pid = members_a[0]["profile_id"]
+
+    # User A sends request to User B
+    await client.post(f"/api/v1/events/{event_id}/company/requests", json={"target_profile_id": b_pid}, headers=headers_a)
+
+    # User B has incoming request
+    reqs_b = (await client.get(f"/api/v1/events/{event_id}/company/requests", headers=headers_b)).json()["incoming"]
+    assert len(reqs_b) == 1
+    req_id = reqs_b[0]["request_id"]
+
+    # User A deactivates company profile
+    await client.delete(f"/api/v1/events/{event_id}/company/profile", headers=headers_a)
+
+    # User B attempts to accept request from deactivated user A -> 400 Rejected
+    res_accept = await client.post(
+        f"/api/v1/events/{event_id}/company/requests/{req_id}/accept",
+        headers=headers_b
+    )
+    assert res_accept.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_deactivate_cancels_pending_requests(client, test_session):
+    events, _ = await list_published_events(test_session, city_id="spb")
+    event_id = events[0].id
+
+    headers_a = {"Authorization": f"tma {make_test_init_data(user_id=2501)}"}
+    headers_b = {"Authorization": f"tma {make_test_init_data(user_id=2502)}"}
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_a)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_a)
+
+    await client.post(f"/api/v1/events/{event_id}/interest", headers=headers_b)
+    await client.post(f"/api/v1/events/{event_id}/company/profile", json={"is_active": True}, headers=headers_b)
+
+    members_a = (await client.get(f"/api/v1/events/{event_id}/company/members", headers=headers_a)).json()
+    b_pid = members_a[0]["profile_id"]
+
+    # User A sends request to User B
+    await client.post(f"/api/v1/events/{event_id}/company/requests", json={"target_profile_id": b_pid}, headers=headers_a)
+
+    # User B deactivates their profile
+    await client.delete(f"/api/v1/events/{event_id}/company/profile", headers=headers_b)
+
+    # In User A's outgoing requests, the request is now cancelled (no longer pending)
+    out_reqs = (await client.get(f"/api/v1/events/{event_id}/company/requests", headers=headers_a)).json()["outgoing"]
+    assert len(out_reqs) == 1
+    assert out_reqs[0]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_nonexistent_or_unpublished_event_rejected(client, test_session):
+    headers = {"Authorization": f"tma {make_test_init_data(user_id=2401)}"}
+    fake_event_id = "non-existent-event-id"
+
+    # GET /requests on fake event -> 404
+    r1 = await client.get(f"/api/v1/events/{fake_event_id}/company/requests", headers=headers)
+    assert r1.status_code == 404
+
+    # GET /matches on fake event -> 404
+    r2 = await client.get(f"/api/v1/events/{fake_event_id}/company/matches", headers=headers)
+    assert r2.status_code == 404
+

@@ -1,4 +1,5 @@
 import logging
+import html
 import httpx
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -175,9 +176,11 @@ async def notify_company_request(
         return False
 
     deep_link = settings.get_event_deep_link(event_id)
+    safe_sender = html.escape(sender_first_name or "Пользователь Ivently")
+    safe_title = html.escape(event_title or "Событие")
     message_text = (
-        f"👋 <b>{sender_first_name}</b> хочет пойти с вами на событие!\n\n"
-        f"🧭 <b>{event_title}</b>"
+        f"👋 <b>{safe_sender}</b> хочет пойти с вами на событие!\n\n"
+        f"🧭 <b>{safe_title}</b>"
     )
     reply_markup = {
         "inline_keyboard": [

@@ -147,17 +147,17 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
   };
 
   // Send request
-  const handleSendRequest = async (targetUserId: number) => {
+  const handleSendRequest = async (targetProfileId: string) => {
     if (!event) return;
     if (!status?.is_active) {
       showToast('Сначала активируйте свою анкету выше');
       return;
     }
 
-    setActionLoadingId(targetUserId);
+    setActionLoadingId(targetProfileId);
     try {
       telegram.hapticImpact('medium');
-      const res = await api.sendCompanyRequest(event.id, targetUserId);
+      const res = await api.sendCompanyRequest(event.id, targetProfileId);
       if (res.match_created) {
         telegram.hapticSuccess();
         showToast('🎉 Взаимное совпадение! Компания найдена!');
@@ -453,7 +453,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               ) : (
                 members.map((member) => (
                   <div
-                    key={member.user_id}
+                    key={member.profile_id}
                     className="p-3 sm:p-3.5 rounded-2xl bg-[#171B29] border border-white/5 space-y-2.5 hover:border-white/10 transition-colors"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
@@ -509,8 +509,8 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleSendRequest(member.user_id)}
-                          disabled={actionLoadingId === member.user_id}
+                          onClick={() => handleSendRequest(member.profile_id)}
+                          disabled={actionLoadingId === member.profile_id}
                           className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-indigo-600/20 disabled:opacity-60 active:scale-[0.99]"
                         >
                           <Send className="w-3.5 h-3.5 shrink-0" />

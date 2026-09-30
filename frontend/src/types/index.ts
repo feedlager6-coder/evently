@@ -232,13 +232,13 @@ export interface CompanyStatusResponse {
 }
 
 export interface CompanyMemberItem {
-  user_id: number;
+  profile_id: string;
   display_name: string;
   avatar_url?: string;
   attendance_status: string;
   note?: string;
   relationship_status: 'none' | 'pending_outgoing' | 'pending_incoming' | 'matched';
-  is_me: boolean;
+  is_me?: boolean;
 }
 
 export interface CompanyRequestItem {

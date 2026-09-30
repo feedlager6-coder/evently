@@ -168,6 +168,7 @@ async def deactivate_company_profile(
 ) -> CompanyStatusResponse:
     """
     Opt-out: disables company profile visibility for this event without deleting match history.
+    Also auto-cancels lingering pending requests involving this user for this event.
     """
     prof_stmt = select(EventCompanyProfile).where(
         EventCompanyProfile.event_id == event_id,
@@ -177,8 +178,22 @@ async def deactivate_company_profile(
     if profile:
         profile.is_active = False
         profile.updated_at = utc_now()
-        await session.commit()
 
+    # Cancel pending requests involving this user for this event
+    pending_stmt = select(EventCompanyRequest).where(
+        EventCompanyRequest.event_id == event_id,
+        EventCompanyRequest.status == "pending",
+        or_(
+            EventCompanyRequest.sender_id == user_id,
+            EventCompanyRequest.receiver_id == user_id
+        )
+    )
+    pending_reqs = (await session.execute(pending_stmt)).scalars().all()
+    for pr in pending_reqs:
+        pr.status = "cancelled"
+        pr.updated_at = utc_now()
+
+    await session.commit()
     return await get_company_status(session, event_id, user_id)
 
 
@@ -274,15 +289,18 @@ async def list_company_members(
         if u.id in matched_user_ids:
             rel_status = "matched"
         elif u.id in outgoing_pending:
-            rel_status = "sent_pending"
+            rel_status = "pending_outgoing"
         elif u.id in incoming_pending:
-            rel_status = "received_pending"
+            rel_status = "pending_incoming"
         else:
             rel_status = "none"
 
+        dname = f"{u.first_name} {u.last_name}".strip() if (u.first_name and u.last_name) else (u.first_name or "Участник")
+
         items.append(
             CompanyMemberItem(
-                user_id=u.id,
+                profile_id=prof.id,
+                display_name=dname,
                 first_name=u.first_name or "Участник",
                 avatar_url=u.avatar_url,
                 attendance_status=att_status,
@@ -298,19 +316,54 @@ async def create_company_request(
     session: AsyncSession,
     event_id: str,
     sender: User,
-    target_user_id: int,
+    target_profile_id: Optional[str] = None,
+    target_user_id: Optional[int] = None,
     http_client: Optional[httpx.AsyncClient] = None
 ) -> Tuple[EventCompanyRequest, bool, Optional[EventCompanyMatch]]:
     """
-    Creates a companion request from sender to target_user.
+    Creates a companion request from sender to target_user or target_profile_id.
     Cross-request auto-accept: if target previously sent a pending request to sender,
     automatically creates Match.
     """
-    # 1. Resolve target user (supports both DB id and Telegram id)
-    target_user = (await session.execute(
-        select(User).where(or_(User.id == target_user_id, User.telegram_id == target_user_id))
-    )).scalar_one_or_none()
-    if not target_user:
+    # 1. Resolve target user and target profile
+    target_prof = None
+    target_user = None
+
+    if target_profile_id:
+        target_prof = (await session.execute(
+            select(EventCompanyProfile).where(
+                EventCompanyProfile.id == target_profile_id,
+                EventCompanyProfile.event_id == event_id,
+                EventCompanyProfile.is_active == True
+            )
+        )).scalar_one_or_none()
+        if not target_prof:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь не найден среди ищущих компанию или приостановил поиск"
+            )
+        target_user = (await session.execute(
+            select(User).where(User.id == target_prof.user_id)
+        )).scalar_one_or_none()
+    elif target_user_id is not None:
+        target_user = (await session.execute(
+            select(User).where(or_(User.id == target_user_id, User.telegram_id == target_user_id))
+        )).scalar_one_or_none()
+        if target_user:
+            target_prof = (await session.execute(
+                select(EventCompanyProfile).where(
+                    EventCompanyProfile.event_id == event_id,
+                    EventCompanyProfile.user_id == target_user.id,
+                    EventCompanyProfile.is_active == True
+                )
+            )).scalar_one_or_none()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Необходимо указать цель запроса (target_profile_id)"
+        )
+
+    if not target_user or not target_prof:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Пользователь не найден среди ищущих компанию или приостановил поиск"
@@ -349,18 +402,17 @@ async def create_company_request(
             detail="Для отправки запроса вам необходимо включить поиск компании на это событие"
         )
 
-    # 5. Check target user has active profile
-    target_prof = (await session.execute(
-        select(EventCompanyProfile).where(
-            EventCompanyProfile.event_id == event_id,
-            EventCompanyProfile.user_id == resolved_target_id,
-            EventCompanyProfile.is_active == True
-        )
+    # 5. Check target user participation rule
+    has_target_interest = (await session.execute(
+        select(EventInterest.id).where(EventInterest.event_id == event_id, EventInterest.user_id == resolved_target_id)
     )).scalar_one_or_none()
-    if not target_prof:
+    has_target_rsvp = (await session.execute(
+        select(EventAttendee.event_id).where(EventAttendee.event_id == event_id, EventAttendee.user_id == resolved_target_id)
+    )).scalar_one_or_none()
+    if not has_target_interest and not has_target_rsvp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь не найден среди ищущих компанию или приостановил поиск"
+            detail="Пользователь не участвует в этом событии"
         )
 
     # 6. Check if already matched
@@ -515,6 +567,33 @@ async def respond_to_company_request(
         )
 
     if action == "accept":
+        # Verify both users still have active company profiles
+        sender_prof = (await session.execute(
+            select(EventCompanyProfile).where(
+                EventCompanyProfile.event_id == event_id,
+                EventCompanyProfile.user_id == req.sender_id,
+                EventCompanyProfile.is_active == True
+            )
+        )).scalar_one_or_none()
+        if not sender_prof:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь, отправивший запрос, приостановил поиск компании"
+            )
+
+        receiver_prof = (await session.execute(
+            select(EventCompanyProfile).where(
+                EventCompanyProfile.event_id == event_id,
+                EventCompanyProfile.user_id == req.receiver_id,
+                EventCompanyProfile.is_active == True
+            )
+        )).scalar_one_or_none()
+        if not receiver_prof:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для ответа на запрос необходимо включить поиск компании"
+            )
+
         req.status = "accepted"
         req.updated_at = utc_now()
 
@@ -600,6 +679,16 @@ async def list_requests(
     Returns incoming and outgoing requests for the current user and event.
     Strict privacy: username is NEVER included before match!
     """
+    # Verify event exists and is published
+    event_exists = (await session.execute(
+        select(Event.id).where(Event.id == event_id, Event.status == EventStatus.PUBLISHED.value)
+    )).scalar_one_or_none()
+    if not event_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Событие '{event_id}' не найдено или не опубликовано"
+        )
+
     # 1. Incoming requests
     incoming_stmt = (
         select(EventCompanyRequest, User, EventCompanyProfile.note)
@@ -649,6 +738,7 @@ async def list_requests(
             event_id=event_id,
             other_user_id=u.id,
             other_first_name=u.first_name or "Участник",
+            other_user_display_name=f"{u.first_name} {u.last_name}".strip() if (u.first_name and u.last_name) else (u.first_name or "Участник"),
             other_avatar_url=u.avatar_url,
             other_attendance_status="attending" if u.id in attending_ids else "interested",
             note=note,
@@ -665,6 +755,7 @@ async def list_requests(
             event_id=event_id,
             other_user_id=u.id,
             other_first_name=u.first_name or "Участник",
+            other_user_display_name=f"{u.first_name} {u.last_name}".strip() if (u.first_name and u.last_name) else (u.first_name or "Участник"),
             other_avatar_url=u.avatar_url,
             other_attendance_status="attending" if u.id in attending_ids else "interested",
             note=note,
@@ -687,6 +778,16 @@ async def list_matches(
     Returns mutual matches for current user and event.
     Telegram @username is revealed ONLY here.
     """
+    # Verify event exists and is published
+    event_exists = (await session.execute(
+        select(Event.id).where(Event.id == event_id, Event.status == EventStatus.PUBLISHED.value)
+    )).scalar_one_or_none()
+    if not event_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Событие '{event_id}' не найдено или не опубликовано"
+        )
+
     matches_stmt = select(EventCompanyMatch).where(
         EventCompanyMatch.event_id == event_id,
         or_(
@@ -724,6 +825,8 @@ async def list_matches(
 
         raw_uname = (partner.username or "").strip().lstrip("@")
         telegram_url = f"https://t.me/{raw_uname}" if raw_uname else None
+        partner_dname = f"{partner.first_name} {partner.last_name}".strip() if (partner.first_name and partner.last_name) else (partner.first_name or "Участник")
+        att_status = "attending" if partner.id in attending_ids else "interested"
 
         items.append(
             CompanyMatchItem(
@@ -731,8 +834,10 @@ async def list_matches(
                 event_id=event_id,
                 partner_id=partner.id,
                 partner_first_name=partner.first_name or "Участник",
+                partner_display_name=partner_dname,
                 partner_avatar_url=partner.avatar_url,
-                partner_attendance_status="attending" if partner.id in attending_ids else "interested",
+                partner_attendance_status=att_status,
+                attendance_status=att_status,
                 partner_telegram_username=raw_uname if raw_uname else None,
                 partner_telegram_url=telegram_url,
                 has_telegram_username=bool(raw_uname),
@@ -751,6 +856,7 @@ async def auto_deactivate_profile_if_not_participating(
     """
     Hook called when user cancels RSVP or Interest.
     If the user has NEITHER interest NOR attendance, their company profile is auto-disabled.
+    Also auto-cancels lingering pending requests involving this user for this event.
     """
     has_interest = (await session.execute(
         select(EventInterest.id).where(
@@ -777,5 +883,20 @@ async def auto_deactivate_profile_if_not_participating(
         if prof:
             prof.is_active = False
             prof.updated_at = utc_now()
+
+            # Cancel pending requests involving this user for this event
+            pending_stmt = select(EventCompanyRequest).where(
+                EventCompanyRequest.event_id == event_id,
+                EventCompanyRequest.status == "pending",
+                or_(
+                    EventCompanyRequest.sender_id == user_id,
+                    EventCompanyRequest.receiver_id == user_id
+                )
+            )
+            pending_reqs = (await session.execute(pending_stmt)).scalars().all()
+            for pr in pending_reqs:
+                pr.status = "cancelled"
+                pr.updated_at = utc_now()
+
             await session.commit()
-            logger.info(f"Auto-deactivated company profile for user {user_id} on event {event_id} due to lack of participation.")
+            logger.info(f"Auto-deactivated company profile and cancelled pending requests for user {user_id} on event {event_id} due to lack of participation.")

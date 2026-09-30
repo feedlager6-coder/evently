@@ -33,20 +33,22 @@ class CompanyProfilePayload(BaseModel):
 class CompanyMemberItem(BaseModel):
     """
     Public company seeker item.
-    Strict privacy: zero telegram_id, zero username, zero joined_at.
+    Strict privacy: profile_id UUID only, zero user_id, zero telegram_id, zero username, zero joined_at.
     """
-    user_id: int
-    first_name: str
+    profile_id: str
+    display_name: str
+    first_name: Optional[str] = None
     avatar_url: Optional[str] = None
     attendance_status: str = "interested"  # "attending" | "interested"
     note: Optional[str] = None
-    relationship_status: str = "none"  # "none" | "sent_pending" | "received_pending" | "matched"
+    relationship_status: str = "none"  # "none" | "pending_outgoing" | "pending_incoming" | "matched"
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class CompanyRequestCreate(BaseModel):
-    target_user_id: int
+    target_profile_id: Optional[str] = None
+    target_user_id: Optional[int] = None
 
 
 class CompanyRequestItem(BaseModel):
@@ -54,6 +56,7 @@ class CompanyRequestItem(BaseModel):
     event_id: str
     other_user_id: int
     other_first_name: str
+    other_user_display_name: Optional[str] = None
     other_avatar_url: Optional[str] = None
     other_attendance_status: str = "interested"
     note: Optional[str] = None
@@ -74,8 +77,10 @@ class CompanyMatchItem(BaseModel):
     event_id: str
     partner_id: int
     partner_first_name: str
+    partner_display_name: Optional[str] = None
     partner_avatar_url: Optional[str] = None
     partner_attendance_status: str = "interested"
+    attendance_status: Optional[str] = "interested"
     partner_telegram_username: Optional[str] = None
     partner_telegram_url: Optional[str] = None
     has_telegram_username: bool = False

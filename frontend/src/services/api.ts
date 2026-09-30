@@ -580,11 +580,11 @@ export const api = {
     return res.json();
   },
 
-  async sendCompanyRequest(eventId: string, targetUserId: number): Promise<CompanyActionResponse> {
+  async sendCompanyRequest(eventId: string, targetProfileId: string): Promise<CompanyActionResponse> {
     const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ target_user_id: targetUserId }),
+      body: JSON.stringify({ target_profile_id: targetProfileId }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

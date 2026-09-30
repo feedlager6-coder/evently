@@ -111,6 +111,7 @@ async def send_request_endpoint(
         session,
         event_id=event_id,
         sender=user,
+        target_profile_id=payload.target_profile_id,
         target_user_id=payload.target_user_id
     )
 
