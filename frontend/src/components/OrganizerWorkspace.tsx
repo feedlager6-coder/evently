@@ -37,6 +37,8 @@ import {
   X,
   Sparkles,
   Compass,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 
 export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience' | 'broadcasts';
@@ -52,6 +54,7 @@ interface OrganizerWorkspaceProps {
   onEditOrg: (org: OrganizationSummary) => void;
   onOrgClick: (org: OrganizationSummary) => void;
   onEventClick: (event: EventSummary) => void;
+  onOrgDeleted?: (orgId: string) => void;
 }
 
 export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
@@ -64,6 +67,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onEditOrg,
   onOrgClick,
   onEventClick,
+  onOrgDeleted,
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
   const [eventFilter, setEventFilter] = useState<EventFilter>('upcoming');
@@ -113,6 +117,33 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState<boolean>(false);
   const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+
+  // Organization Deletion state
+  const [orgToDelete, setOrgToDelete] = useState<OrganizationSummary | null>(null);
+  const [isDeletingOrg, setIsDeletingOrg] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDeleteOrg = async () => {
+    if (!orgToDelete) return;
+    try {
+      setIsDeletingOrg(true);
+      setDeleteError(null);
+      await api.deleteOrganization(orgToDelete.id);
+      telegram.hapticNotification('success');
+      const deletedId = orgToDelete.id;
+      setOrgToDelete(null);
+      if (onOrgDeleted) {
+        onOrgDeleted(deletedId);
+      }
+      loadInsights();
+    } catch (err: any) {
+      console.error('Failed to delete organization:', err);
+      telegram.hapticNotification('error');
+      setDeleteError(err?.message || 'Не удалось удалить организацию');
+    } finally {
+      setIsDeletingOrg(false);
+    }
+  };
 
   useEffect(() => {
     if (organizations.length > 0 && !composerOrgId) {
@@ -1020,6 +1051,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       >
                         <ExternalLink className="w-3 h-3 text-gray-400" />
                         <span>Страница</span>
+                      </button>
+                    </div>
+
+                    <div className="pt-0.5">
+                      <button
+                        onClick={() => {
+                          telegram.hapticImpact('light');
+                          setOrgToDelete(org);
+                          setDeleteError(null);
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/15 border border-red-500/20 text-[11px] font-medium text-red-400 flex items-center justify-center space-x-1.5 transition-colors btn-press"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-400" />
+                        <span>Удалить организацию</span>
                       </button>
                     </div>
                   </div>
@@ -1937,6 +1982,60 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors"
               >
                 Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Organization Confirmation Modal */}
+      {orgToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-[#141724] border border-white/10 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-white">Удалить организацию?</h3>
+                <p className="text-xs text-gray-400 font-medium truncate">{orgToDelete.name}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Организация будет удалена. Перед удалением проверьте связанные мероприятия.
+            </p>
+
+            {deleteError && (
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  setOrgToDelete(null);
+                  setDeleteError(null);
+                }}
+                disabled={isDeletingOrg}
+                className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors btn-press"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOrg}
+                disabled={isDeletingOrg}
+                className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-semibold text-white shadow-lg shadow-red-600/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
+              >
+                {isDeletingOrg ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <span>Удалить организацию</span>
+                )}
               </button>
             </div>
           </div>

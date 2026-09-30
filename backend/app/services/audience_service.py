@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, case, union
 
-from app.models.organization import Organization
+from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
 from app.models.event import Event
 from app.models.attendee import EventAttendee
@@ -43,7 +43,10 @@ async def get_organizer_audience(
         org_res = await session.execute(
             select(Organization, City.name.label("city_name"))
             .outerjoin(City, Organization.city_id == City.id)
-            .where(Organization.id == target_org_id)
+            .where(
+                Organization.id == target_org_id,
+                Organization.status != OrganizationStatus.DELETED.value
+            )
         )
         row = org_res.first()
         if not row:
@@ -62,7 +65,10 @@ async def get_organizer_audience(
         org_res = await session.execute(
             select(Organization, City.name.label("city_name"))
             .outerjoin(City, Organization.city_id == City.id)
-            .where(Organization.owner_user_id == organizer_user_id)
+            .where(
+                Organization.owner_user_id == organizer_user_id,
+                Organization.status != OrganizationStatus.DELETED.value
+            )
             .order_by(Organization.created_at.desc())
         )
         owned_orgs = org_res.all()

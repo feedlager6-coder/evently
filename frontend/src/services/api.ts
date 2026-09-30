@@ -528,6 +528,21 @@ export const api = {
     return res.json();
   },
 
+  async deleteOrganization(orgId: string): Promise<{ ok: boolean; message: string; organization_id?: string; detached_events_count?: number }> {
+    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      if (res.status === 403) throw new Error('Вы не можете удалить чужую организацию');
+      if (res.status === 404) throw new Error('Организация не найдена');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось удалить организацию'));
+    }
+    return res.json();
+  },
+
   async getMyOrganizations(): Promise<OrganizationSummary[]> {
     const res = await fetch(`${API_BASE}/organizations/me`, {
       headers: getAuthHeaders(),

@@ -13,6 +13,7 @@ def utc_now() -> datetime:
 class OrganizationStatus(str, Enum):
     ACTIVE = "active"
     DISABLED = "disabled"
+    DELETED = "deleted"
 
 
 ORGANIZATION_CATEGORIES = [

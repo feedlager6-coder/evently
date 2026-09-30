@@ -641,6 +641,12 @@ export const App: React.FC = () => {
               }}
               onOrgClick={(org) => openOrgById(org.id)}
               onEventClick={(ev) => openEventById(ev.id, 'organizer')}
+              onOrgDeleted={() => {
+                loadMyOrganizations();
+                loadOrganizerEvents();
+                loadPersonalEvents();
+                loadFeedEvents();
+              }}
             />
           ) : (
             <OrganizerTab
@@ -789,6 +795,12 @@ export const App: React.FC = () => {
           loadMyOrganizations();
           loadPersonalEvents();
           openOrgById(savedOrg.id);
+        }}
+        onDeleted={() => {
+          loadMyOrganizations();
+          loadOrganizerEvents();
+          loadPersonalEvents();
+          loadFeedEvents();
         }}
       />
 

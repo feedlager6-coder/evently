@@ -4,13 +4,14 @@ import logging
 from typing import Optional, List, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, delete
+from sqlalchemy import select, func, and_, or_, delete, update
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 
 from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
 from app.models.event import Event, EventStatus
+from app.models.broadcast import Broadcast, BroadcastStatus
 from app.models.city import City
 from app.models.user import User
 from app.models.attendee import EventAttendee
@@ -153,7 +154,8 @@ async def get_organization_by_id_or_slug(
         select(Organization, City.name.label("city_name"))
         .outerjoin(City, Organization.city_id == City.id)
         .where(
-            or_(Organization.id == org_id_or_slug, Organization.slug == org_id_or_slug)
+            or_(Organization.id == org_id_or_slug, Organization.slug == org_id_or_slug),
+            Organization.status != OrganizationStatus.DELETED.value
         )
     )
     res = await session.execute(stmt)
@@ -201,7 +203,12 @@ async def update_organization(
     current_user_id: int
 ) -> OrganizationResponse:
     """Updates organization profile. Strictly verifies that current user is the owner."""
-    res = await session.execute(select(Organization).where(Organization.id == org_id))
+    res = await session.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
     org = res.scalar_one_or_none()
     if not org:
         raise HTTPException(
@@ -253,7 +260,10 @@ async def list_user_organizations(
     stmt = (
         select(Organization, City.name.label("city_name"))
         .outerjoin(City, Organization.city_id == City.id)
-        .where(Organization.owner_user_id == user_id)
+        .where(
+            Organization.owner_user_id == user_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
         .order_by(Organization.created_at.desc())
     )
     rows = (await session.execute(stmt)).all()
@@ -295,7 +305,12 @@ async def list_organization_events(
     The owner can see both published and pending events.
     """
     # Check if viewer is owner
-    org_res = await session.execute(select(Organization).where(Organization.id == org_id))
+    org_res = await session.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
     org = org_res.scalar_one_or_none()
     if not org:
         raise HTTPException(
@@ -374,7 +389,12 @@ async def subscribe_organization(
     Idempotent subscription creation.
     Repeated calls safely return existing subscription status without duplicates.
     """
-    org_res = await session.execute(select(Organization).where(Organization.id == org_id))
+    org_res = await session.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
     org = org_res.scalar_one_or_none()
     if not org:
         raise HTTPException(
@@ -409,7 +429,12 @@ async def unsubscribe_organization(
     """
     Idempotent unsubscribe. Safe even if subscription was already deleted.
     """
-    org_res = await session.execute(select(Organization).where(Organization.id == org_id))
+    org_res = await session.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
     org = org_res.scalar_one_or_none()
     if not org:
         raise HTTPException(
@@ -440,7 +465,10 @@ async def list_user_subscriptions(
         select(Subscription, Organization, City.name.label("city_name"))
         .join(Organization, Subscription.organization_id == Organization.id)
         .outerjoin(City, Organization.city_id == City.id)
-        .where(Subscription.user_id == user_id)
+        .where(
+            Subscription.user_id == user_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
         .order_by(Subscription.created_at.desc())
     )
     rows = (await session.execute(stmt)).all()
@@ -474,3 +502,86 @@ async def list_user_subscriptions(
             )
         )
     return items
+
+
+async def delete_organization(
+    session: AsyncSession,
+    org_id: str,
+    current_user_id: int
+) -> dict:
+    """
+    Safely deletes an organization owned by current_user_id:
+    1. Authenticates ownership: 403 Forbidden if not the owner.
+    2. Detaches all linked events (sets Event.organization_id = None),
+       preserving them as personal events owned by current_user_id with all attendees,
+       interests, views, and company profiles intact.
+    3. Purges active subscriptions so subscribers will no longer receive notifications.
+    4. Cancels queued or draft broadcasts for this organization, while preserving
+       all completed/sent broadcasts and their recipient attribution history.
+    5. Soft-deletes the organization record (status = "deleted"), salts the slug
+       to free the original slug for future reuse, and updates updated_at.
+    """
+    res = await session.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
+    org = res.scalar_one_or_none()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Организация '{org_id}' не найдена"
+        )
+
+    if org.owner_user_id != current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не можете удалить чужую организацию"
+        )
+
+    # 1. Count and safely detach all linked events: convert them to personal events owned by the user
+    events_stmt = select(func.count(Event.id)).where(Event.organization_id == org.id)
+    detached_count = (await session.execute(events_stmt)).scalar() or 0
+
+    detach_stmt = (
+        update(Event)
+        .where(Event.organization_id == org.id)
+        .values(organization_id=None, updated_at=datetime.now(timezone.utc))
+    )
+    await session.execute(detach_stmt)
+
+    # 2. Cancel any queued or draft broadcasts
+    cancel_bcast_stmt = (
+        update(Broadcast)
+        .where(
+            Broadcast.organization_id == org.id,
+            Broadcast.status.in_([BroadcastStatus.DRAFT.value, BroadcastStatus.QUEUED.value])
+        )
+        .values(status=BroadcastStatus.CANCELLED.value)
+    )
+    await session.execute(cancel_bcast_stmt)
+
+    # 3. Purge subscriptions for this organization
+    del_subs_stmt = delete(Subscription).where(Subscription.organization_id == org.id)
+    await session.execute(del_subs_stmt)
+
+    # 4. Soft-delete organization and salt slug so original slug is released
+    salt = uuid.uuid4().hex[:6]
+    org.slug = f"{org.slug}-deleted-{salt}"[:255]
+    org.status = OrganizationStatus.DELETED.value
+    org.updated_at = datetime.now(timezone.utc)
+
+    await session.commit()
+    logger.info(
+        "Organization %s ('%s') safely deleted by user %s. Detached %d events.",
+        org.id, org.name, current_user_id, detached_count
+    )
+
+    return {
+        "ok": True,
+        "message": "Организация успешно удалена",
+        "organization_id": org.id,
+        "detached_events_count": detached_count
+    }
+

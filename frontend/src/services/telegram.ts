@@ -213,6 +213,14 @@ export const telegram = {
     }
   },
 
+  hapticNotification(type: 'error' | 'success' | 'warning' = 'success') {
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred(type);
+    } catch {
+      // Ignored outside Telegram
+    }
+  },
+
   showBackButton(onClick: () => void) {
     try {
       if (window.Telegram?.WebApp?.BackButton) {

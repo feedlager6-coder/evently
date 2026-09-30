@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, case, union
 
-from app.models.organization import Organization
+from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
 from app.models.event import Event
 from app.models.attendee import EventAttendee
@@ -84,7 +84,10 @@ async def get_organizer_insights(
 
     # 1. Fetch owned organizations
     org_res = await session.execute(
-        select(Organization.id).where(Organization.owner_user_id == organizer_user_id)
+        select(Organization.id).where(
+            Organization.owner_user_id == organizer_user_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
     )
     owned_org_ids = [row[0] for row in org_res.all()]
 

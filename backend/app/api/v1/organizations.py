@@ -21,7 +21,8 @@ from app.services.organization_service import (
     list_user_organizations,
     list_organization_events,
     subscribe_organization,
-    unsubscribe_organization
+    unsubscribe_organization,
+    delete_organization as delete_org_service
 )
 
 router = APIRouter(prefix="/organizations", tags=["Organizations"])
@@ -134,3 +135,18 @@ async def unsubscribe(
     Idempotent: safe to call even if not subscribed.
     """
     return await unsubscribe_organization(session, org_id, user.id)
+
+
+@router.delete("/{org_id}")
+async def delete_organization(
+    org_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Safely deletes an organization owned by the authenticated user.
+    Detaches linked events to personal events, purges subscriptions,
+    cancels queued broadcasts, and preserves historical analytics.
+    Strictly verifies ownership: 403 Forbidden if not the owner.
+    """
+    return await delete_org_service(session, org_id, current_user_id=user.id)

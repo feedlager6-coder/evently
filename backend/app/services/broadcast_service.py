@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, case
 
 from app.config import settings
-from app.models.organization import Organization
+from app.models.organization import Organization, OrganizationStatus
 from app.models.event import Event
 from app.models.user import User
 from app.models.subscription import Subscription
@@ -123,7 +123,10 @@ async def calculate_audience(
     """
     # 1. Verify organization ownership
     org_res = await session.execute(
-        select(Organization).where(Organization.id == organization_id)
+        select(Organization).where(
+            Organization.id == organization_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
     )
     org = org_res.scalar_one_or_none()
     if not org:
