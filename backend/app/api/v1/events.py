@@ -113,11 +113,13 @@ async def track_event_view(
     try:
         user_id = current_user.id if current_user else None
         source = payload.source if payload else "unknown"
+        broadcast_token = payload.broadcast_token if payload else None
         recorded, views_count = await record_event_view(
             session=session,
             event_id=event_id,
             user_id=user_id,
-            source=source
+            source=source,
+            broadcast_token=broadcast_token
         )
         return EventViewResponse(recorded=recorded, views_count=views_count)
     except EventNotFoundError as e:

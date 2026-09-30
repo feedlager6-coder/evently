@@ -577,12 +577,20 @@ export const api = {
     return res.json();
   },
 
-  async trackEventView(eventId: string, source: TrackingSource = 'unknown'): Promise<EventViewResponse | null> {
+  async trackEventView(
+    eventId: string,
+    source: TrackingSource = 'unknown',
+    broadcastToken?: string | null
+  ): Promise<EventViewResponse | null> {
     try {
+      const payload: { source: TrackingSource; broadcast_token?: string } = { source };
+      if (broadcastToken) {
+        payload.broadcast_token = broadcastToken;
+      }
       const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/view`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ source }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) return null;
       return await res.json();

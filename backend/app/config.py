@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # Broadcast Engine
     BROADCAST_RATE_LIMIT_PER_SEC: int = 25
     BROADCAST_FATIGUE_HOURS: int = 24
+    BROADCAST_ATTRIBUTION_HOURS: int = 24
 
     # Storage Configuration (S3-compatible Object Storage or Persistent Local Volume)
     # Examples: Cloudflare R2, AWS S3, MinIO, Supabase S3, Yandex Object Storage
@@ -157,13 +158,16 @@ class Settings(BaseSettings):
             return f"https://t.me/{self.clean_bot_username}/{short_name}"
         return f"https://t.me/{self.clean_bot_username}"
 
-    def get_event_deep_link(self, event_id: str) -> str:
+    def get_event_deep_link(self, event_id: str, attribution_token: Optional[str] = None) -> str:
         """
         Returns official Telegram Mini App direct link with startapp parameter.
         Supports both named Mini App (https://t.me/<username>/<short_name>?startapp=...)
         and Main Mini App (https://t.me/<username>?startapp=...).
+        When attribution_token is provided, appends '_b_{attribution_token}'.
         """
         base = self.effective_mini_app_url.split("?")[0].rstrip("/")
+        if attribution_token:
+            return f"{base}?startapp=event_{event_id}_b_{attribution_token}"
         return f"{base}?startapp=event_{event_id}"
 
     def get_organization_deep_link(self, org_id: str) -> str:

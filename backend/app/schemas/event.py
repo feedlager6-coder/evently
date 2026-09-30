@@ -81,6 +81,7 @@ class EventListResponse(BaseModel):
 
 class EventViewRequest(BaseModel):
     source: Optional[str] = "unknown"
+    broadcast_token: Optional[str] = None
 
 
 class EventViewResponse(BaseModel):

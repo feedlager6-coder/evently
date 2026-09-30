@@ -120,29 +120,45 @@ export const App: React.FC = () => {
   }, [openOrgById]);
 
   // Helper to open Event details
-  const openEventById = useCallback(async (eventId: string, source: TrackingSource = 'unknown') => {
+  const openEventById = useCallback(async (eventId: string, source: TrackingSource = 'unknown', broadcastToken?: string | null) => {
     try {
       const details = await api.getEventDetails(eventId);
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
-      // Fire-and-forget background view tracking
-      api.trackEventView(eventId, source);
+      // Fire-and-forget background view tracking with attribution support
+      api.trackEventView(eventId, source, broadcastToken);
     } catch (err: any) {
       console.error('Failed to open event details:', err);
       alert(err.message || 'Мероприятие не найдено или было удалено');
     }
   }, []);
 
-  // Helper to process deep link parameters (event_<id>, org_<id>, create)
+  // Helper to process deep link parameters (event_<id>, event_<id>_b_<token>, org_<id>, create)
   const processStartParam = useCallback((rawParam: string | null) => {
     if (!rawParam) return;
     const clean = rawParam.trim();
     if (!clean) return;
 
     if (clean.startsWith('event_')) {
-      const eventId = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      const paramRest = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      let eventId = paramRest;
+      let broadcastToken: string | null = null;
+      if (paramRest.includes('_b_')) {
+        const parts = paramRest.split('_b_');
+        eventId = parts[0];
+        broadcastToken = parts[1] || null;
+      }
       if (eventId) {
-        openEventById(eventId, 'deep_link');
+        if (broadcastToken) {
+          try {
+            sessionStorage.setItem(`bcast_token_${eventId}`, broadcastToken);
+          } catch {
+            // ignore storage errors
+          }
+          openEventById(eventId, 'broadcast', broadcastToken);
+        } else {
+          openEventById(eventId, 'deep_link');
+        }
       }
     } else if (clean.startsWith('org_')) {
       const orgId = clean.slice(4).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();

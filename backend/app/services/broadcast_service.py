@@ -1,12 +1,13 @@
 import asyncio
 import html
 import logging
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 import httpx
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, case
 
 from app.config import settings
 from app.models.organization import Organization
@@ -14,6 +15,7 @@ from app.models.event import Event
 from app.models.user import User
 from app.models.subscription import Subscription
 from app.models.interest import EventInterest
+from app.models.attendee import EventAttendee
 from app.models.broadcast import (
     Broadcast,
     BroadcastRecipient,
@@ -42,7 +44,8 @@ def format_broadcast_content(
     template_key: str,
     event: Optional[Event] = None,
     custom_text: Optional[str] = None,
-    broadcast_id: Optional[str] = None
+    broadcast_id: Optional[str] = None,
+    attribution_token: Optional[str] = None
 ) -> Tuple[str, str, str]:
     """
     Renders message HTML, button text, and deep-link URL.
@@ -69,7 +72,7 @@ def format_broadcast_content(
             text += f"\n💬 {safe_custom}\n"
 
         button_text = "Открыть событие 🧭"
-        button_url = settings.get_event_deep_link(event.id)
+        button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.EVENT_UPDATE.value:
         if not event:
@@ -88,7 +91,7 @@ def format_broadcast_content(
             text += f"\n💬 {safe_custom}\n"
 
         button_text = "Подробнее о событии 🧭"
-        button_url = settings.get_event_deep_link(event.id)
+        button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
         text = (
@@ -334,6 +337,7 @@ async def create_broadcast(
     event: Optional[Event] = calc["event"]
 
     # Create Broadcast entity
+    attribution_token = secrets.token_hex(8)
     broadcast = Broadcast(
         organization_id=org.id,
         created_by_user_id=organizer_user_id,
@@ -343,6 +347,7 @@ async def create_broadcast(
         template_key=template_key_val,
         custom_text=req.custom_text.strip() if req.custom_text else None,
         status=BroadcastStatus.QUEUED.value,
+        attribution_token=attribution_token,
         total_recipients=len(eligible_user_ids),
         sent_count=0,
         delivered_count=0,
@@ -374,7 +379,8 @@ async def create_broadcast(
         template_key=broadcast.template_key,
         event=event,
         custom_text=broadcast.custom_text,
-        broadcast_id=broadcast.id
+        broadcast_id=broadcast.id,
+        attribution_token=broadcast.attribution_token,
     )
 
     return BroadcastDetail(
@@ -393,12 +399,19 @@ async def create_broadcast(
         delivered_count=broadcast.delivered_count,
         failed_count=broadcast.failed_count,
         blocked_count=broadcast.blocked_count,
+        opened_count=0,
+        interest_count=0,
+        rsvp_count=0,
+        open_rate=0.0,
+        interest_conversion=0.0,
+        rsvp_conversion=0.0,
         created_at=broadcast.created_at,
         started_at=broadcast.started_at,
         completed_at=broadcast.completed_at,
         message_text=message_text,
         button_text=button_text,
         button_url=button_url,
+        attribution_token=broadcast.attribution_token,
     )
 
 
@@ -427,6 +440,8 @@ async def dispatch_broadcast(
     broadcast.status = BroadcastStatus.PROCESSING.value
     if not broadcast.started_at:
         broadcast.started_at = utc_now()
+    if not broadcast.attribution_token:
+        broadcast.attribution_token = secrets.token_hex(8)
     await session.commit()
 
     # Load organization and event
@@ -443,7 +458,8 @@ async def dispatch_broadcast(
         template_key=broadcast.template_key,
         event=event,
         custom_text=broadcast.custom_text,
-        broadcast_id=broadcast.id
+        broadcast_id=broadcast.id,
+        attribution_token=broadcast.attribution_token,
     )
 
     reply_markup = {
@@ -598,24 +614,207 @@ async def dispatch_broadcast(
     return broadcast
 
 
+async def record_broadcast_view(
+    session: AsyncSession,
+    event_id: str,
+    user_id: Optional[int],
+    broadcast_token: Optional[str],
+) -> bool:
+    """
+    Attributes an event view to a Telegram broadcast if:
+    1. Valid broadcast exists matching attribution_token.
+    2. Broadcast is linked to this event_id.
+    3. View occurs within BROADCAST_ATTRIBUTION_HOURS (24h) of broadcast.created_at.
+    4. User was a recipient of the broadcast.
+    Updates recipient.opened_at and recipient.clicked_at.
+    Safe and non-blocking: never raises exceptions.
+    """
+    if not user_id or not broadcast_token or not event_id:
+        return False
+
+    try:
+        stmt = select(Broadcast).where(Broadcast.attribution_token == broadcast_token)
+        res = await session.execute(stmt)
+        broadcast = res.scalar_one_or_none()
+        if not broadcast:
+            logger.info("Broadcast token not found: %s", broadcast_token)
+            return False
+
+        # Event match check
+        if broadcast.event_id != event_id:
+            logger.info(
+                "Attribution ignored: broadcast %s event (%s) does not match viewed event (%s)",
+                broadcast.id, broadcast.event_id, event_id
+            )
+            return False
+
+        # Attribution window check (24 hours)
+        now = utc_now()
+        bcast_created = broadcast.created_at
+        if bcast_created.tzinfo is None:
+            bcast_created = bcast_created.replace(tzinfo=timezone.utc)
+
+        if now - bcast_created > timedelta(hours=settings.BROADCAST_ATTRIBUTION_HOURS):
+            logger.info(
+                "Attribution ignored: broadcast %s is outside %d-hour window",
+                broadcast.id, settings.BROADCAST_ATTRIBUTION_HOURS
+            )
+            return False
+
+        # Recipient lookup
+        r_stmt = select(BroadcastRecipient).where(
+            BroadcastRecipient.broadcast_id == broadcast.id,
+            BroadcastRecipient.user_id == user_id,
+        )
+        r_res = await session.execute(r_stmt)
+        recipient = r_res.scalar_one_or_none()
+        if not recipient:
+            logger.info(
+                "Attribution ignored: user %s was not a recipient of broadcast %s",
+                user_id, broadcast.id
+            )
+            return False
+
+        if not recipient.opened_at:
+            recipient.opened_at = now
+        if not recipient.clicked_at:
+            recipient.clicked_at = now
+
+        await session.commit()
+        return True
+    except Exception as e:
+        logger.warning("Error in record_broadcast_view: %s", e)
+        return False
+
+
+async def record_broadcast_conversion(
+    session: AsyncSession,
+    event_id: str,
+    user_id: int,
+    conversion_type: str,  # "interest" or "rsvp"
+) -> bool:
+    """
+    Attributes an interest ('Хочу пойти') or RSVP ('Я иду') action to a broadcast if:
+    1. User is a recipient of a broadcast for this event within BROADCAST_ATTRIBUTION_HOURS (24h).
+    2. User opened the event via that broadcast (opened_at is set).
+    3. User did NOT have pre-existing interest/RSVP prior to broadcast.created_at.
+    Updates recipient.attributed_interest_at or recipient.attributed_rsvp_at.
+    Safe and non-blocking: never raises exceptions.
+    """
+    if not user_id or not event_id:
+        return False
+
+    try:
+        now = utc_now()
+        cutoff = now - timedelta(hours=settings.BROADCAST_ATTRIBUTION_HOURS)
+
+        # Find recipient where broadcast is for this event, opened_at is set, and broadcast created within 24h
+        stmt = (
+            select(BroadcastRecipient, Broadcast)
+            .join(Broadcast, BroadcastRecipient.broadcast_id == Broadcast.id)
+            .where(
+                Broadcast.event_id == event_id,
+                BroadcastRecipient.user_id == user_id,
+                BroadcastRecipient.opened_at.isnot(None),
+                Broadcast.created_at >= cutoff,
+            )
+            .order_by(Broadcast.created_at.desc())
+        )
+        res = await session.execute(stmt)
+        candidates = res.all()
+        if not candidates:
+            return False
+
+        recipient, broadcast = candidates[0]
+        bcast_created = broadcast.created_at
+        if bcast_created.tzinfo is None:
+            bcast_created = bcast_created.replace(tzinfo=timezone.utc)
+
+        if conversion_type == "interest":
+            # Check pre-existing interest before broadcast creation
+            prior_stmt = select(EventInterest).where(
+                EventInterest.event_id == event_id,
+                EventInterest.user_id == user_id,
+                EventInterest.created_at < bcast_created,
+            )
+            prior_res = await session.execute(prior_stmt)
+            if prior_res.first():
+                logger.info(
+                    "Attribution ignored: user %s had pre-existing interest before broadcast %s",
+                    user_id, broadcast.id
+                )
+                return False
+
+            if not recipient.attributed_interest_at:
+                recipient.attributed_interest_at = now
+                await session.commit()
+                return True
+
+        elif conversion_type == "rsvp":
+            # Check pre-existing RSVP before broadcast creation
+            prior_stmt = select(EventAttendee).where(
+                EventAttendee.event_id == event_id,
+                EventAttendee.user_id == user_id,
+                EventAttendee.created_at < bcast_created,
+            )
+            prior_res = await session.execute(prior_stmt)
+            if prior_res.first():
+                logger.info(
+                    "Attribution ignored: user %s had pre-existing RSVP before broadcast %s",
+                    user_id, broadcast.id
+                )
+                return False
+
+            if not recipient.attributed_rsvp_at:
+                recipient.attributed_rsvp_at = now
+                await session.commit()
+                return True
+
+        return False
+    except Exception as e:
+        logger.warning("Error in record_broadcast_conversion: %s", e)
+        return False
+
+
 async def list_organizer_broadcasts(
     session: AsyncSession,
     organizer_user_id: int
 ) -> List[BroadcastItem]:
     """
-    Returns list of broadcasts created by or belonging to organizations owned by the organizer.
+    Returns list of broadcasts created by or belonging to organizations owned by the organizer,
+    including aggregated attribution analytics.
     """
+    subq = (
+        select(
+            BroadcastRecipient.broadcast_id,
+            func.count(case((BroadcastRecipient.opened_at.isnot(None), 1))).label("opened_count"),
+            func.count(case((BroadcastRecipient.attributed_interest_at.isnot(None), 1))).label("interest_count"),
+            func.count(case((BroadcastRecipient.attributed_rsvp_at.isnot(None), 1))).label("rsvp_count"),
+        )
+        .group_by(BroadcastRecipient.broadcast_id)
+        .subquery()
+    )
+
     stmt = (
-        select(Broadcast, Organization.name.label("org_name"), Event.title.label("ev_title"))
+        select(
+            Broadcast,
+            Organization.name.label("org_name"),
+            Event.title.label("ev_title"),
+            func.coalesce(subq.c.opened_count, 0).label("opened_count"),
+            func.coalesce(subq.c.interest_count, 0).label("interest_count"),
+            func.coalesce(subq.c.rsvp_count, 0).label("rsvp_count"),
+        )
         .join(Organization, Broadcast.organization_id == Organization.id)
         .outerjoin(Event, Broadcast.event_id == Event.id)
+        .outerjoin(subq, Broadcast.id == subq.c.broadcast_id)
         .where(Organization.owner_user_id == organizer_user_id)
         .order_by(Broadcast.created_at.desc())
     )
     rows = (await session.execute(stmt)).all()
 
     items = []
-    for bcast, org_name, ev_title in rows:
+    for bcast, org_name, ev_title, opened_cnt, interest_cnt, rsvp_cnt in rows:
+        delivered = bcast.delivered_count or 0
         items.append(
             BroadcastItem(
                 id=bcast.id,
@@ -633,6 +832,12 @@ async def list_organizer_broadcasts(
                 delivered_count=bcast.delivered_count,
                 failed_count=bcast.failed_count,
                 blocked_count=bcast.blocked_count,
+                opened_count=opened_cnt or 0,
+                interest_count=interest_cnt or 0,
+                rsvp_count=rsvp_cnt or 0,
+                open_rate=min(round(((opened_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
+                interest_conversion=min(round(((interest_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
+                rsvp_conversion=min(round(((rsvp_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
                 created_at=bcast.created_at,
                 started_at=bcast.started_at,
                 completed_at=bcast.completed_at,
@@ -665,12 +870,32 @@ async def get_broadcast_detail(
     if org.owner_user_id != organizer_user_id:
         raise HTTPException(status_code=403, detail="У вас нет прав для просмотра этой рассылки")
 
+    stats_stmt = (
+        select(
+            func.count(case((BroadcastRecipient.opened_at.isnot(None), 1))).label("opened_count"),
+            func.count(case((BroadcastRecipient.attributed_interest_at.isnot(None), 1))).label("interest_count"),
+            func.count(case((BroadcastRecipient.attributed_rsvp_at.isnot(None), 1))).label("rsvp_count"),
+        )
+        .where(BroadcastRecipient.broadcast_id == bcast.id)
+    )
+    stats_res = await session.execute(stats_stmt)
+    stats_row = stats_res.one()
+    opened_count = stats_row.opened_count or 0
+    interest_count = stats_row.interest_count or 0
+    rsvp_count = stats_row.rsvp_count or 0
+
+    delivered = bcast.delivered_count or 0
+    open_rate = min(round((opened_count / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0
+    interest_conversion = min(round((interest_count / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0
+    rsvp_conversion = min(round((rsvp_count / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0
+
     message_text, button_text, button_url = format_broadcast_content(
         organization=org,
         template_key=bcast.template_key,
         event=event,
         custom_text=bcast.custom_text,
-        broadcast_id=bcast.id
+        broadcast_id=bcast.id,
+        attribution_token=bcast.attribution_token,
     )
 
     return BroadcastDetail(
@@ -689,10 +914,17 @@ async def get_broadcast_detail(
         delivered_count=bcast.delivered_count,
         failed_count=bcast.failed_count,
         blocked_count=bcast.blocked_count,
+        opened_count=opened_count,
+        interest_count=interest_count,
+        rsvp_count=rsvp_count,
+        open_rate=open_rate,
+        interest_conversion=interest_conversion,
+        rsvp_conversion=rsvp_conversion,
         created_at=bcast.created_at,
         started_at=bcast.started_at,
         completed_at=bcast.completed_at,
         message_text=message_text,
         button_text=button_text,
         button_url=button_url,
+        attribution_token=bcast.attribution_token,
     )

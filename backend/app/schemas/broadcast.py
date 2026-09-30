@@ -101,6 +101,12 @@ class BroadcastItem(BaseModel):
     delivered_count: int
     failed_count: int
     blocked_count: int
+    opened_count: int = 0
+    interest_count: int = 0
+    rsvp_count: int = 0
+    open_rate: float = 0.0
+    interest_conversion: float = 0.0
+    rsvp_conversion: float = 0.0
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -110,4 +116,5 @@ class BroadcastDetail(BroadcastItem):
     message_text: str
     button_text: str
     button_url: str
+    attribution_token: Optional[str] = None
 

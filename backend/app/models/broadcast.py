@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
@@ -66,6 +67,7 @@ class Broadcast(Base):
     template_key = Column(String(50), nullable=False, default=BroadcastTemplateKey.EVENT_ANNOUNCEMENT.value)
     custom_text = Column(String(300), nullable=True)
     status = Column(String(30), nullable=False, default=BroadcastStatus.QUEUED.value, index=True)
+    attribution_token = Column(String(32), unique=True, index=True, nullable=True, default=lambda: secrets.token_hex(8))
 
     total_recipients = Column(Integer, nullable=False, default=0)
     sent_count = Column(Integer, nullable=False, default=0)
@@ -104,6 +106,9 @@ class BroadcastRecipient(Base):
     error_message = Column(Text, nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     clicked_at = Column(DateTime(timezone=True), nullable=True)
+    opened_at = Column(DateTime(timezone=True), nullable=True)
+    attributed_interest_at = Column(DateTime(timezone=True), nullable=True)
+    attributed_rsvp_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     broadcast = relationship("Broadcast", back_populates="recipients")
@@ -113,6 +118,7 @@ class BroadcastRecipient(Base):
         UniqueConstraint("broadcast_id", "user_id", name="uq_broadcast_recipient"),
         Index("idx_broadcast_recipients_user_sent", "user_id", "sent_at"),
         Index("idx_broadcast_recipients_broadcast_status", "broadcast_id", "status"),
+        Index("idx_broadcast_recipients_attr", "user_id", "broadcast_id", "opened_at"),
     )
 
     def __repr__(self) -> str:

@@ -100,10 +100,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       )}
 
       {/* 2. Page Title Header */}
-      <div className="px-1 flex items-center justify-between">
-        <div>
+      <div className="px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
           <h2 className="text-lg font-bold text-white tracking-tight">Мои события</h2>
-          <p className="text-xs text-gray-400">Ваши планы, сохранённые мероприятия и подписки</p>
+          <p className="text-xs text-gray-400 leading-relaxed">Ваши планы, сохранённые мероприятия и подписки</p>
         </div>
         {onOpenCreateEvent && (
           <button
@@ -111,10 +111,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               telegram.hapticImpact('light');
               onOpenCreateEvent();
             }}
-            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 text-xs font-semibold flex items-center space-x-1 btn-press shrink-0"
+            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 text-xs font-semibold flex items-center space-x-1.5 btn-press shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Создать</span>
+            <span>Создать событие</span>
           </button>
         )}
       </div>

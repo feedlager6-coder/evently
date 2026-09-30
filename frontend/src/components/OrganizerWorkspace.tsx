@@ -1232,6 +1232,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           </div>
                           <span className="text-[10px] text-gray-500">{dateStr}</span>
                         </div>
+
+                        {/* Attribution Analytics Badge Row */}
+                        {((bcast.opened_count || 0) > 0 || (bcast.interest_count || 0) > 0 || (bcast.rsvp_count || 0) > 0) && (
+                          <div className="flex items-center space-x-2 text-[10px] text-gray-300 pt-1 border-t border-white/5">
+                            <span className="text-indigo-300 font-medium">
+                              🧭 {bcast.opened_count || 0} переходов ({bcast.open_rate || 0}%)
+                            </span>
+                            {(bcast.interest_count || 0) > 0 && (
+                              <span className="text-amber-300 font-medium">
+                                • ❤️ {bcast.interest_count}
+                              </span>
+                            )}
+                            {(bcast.rsvp_count || 0) > 0 && (
+                              <span className="text-emerald-400 font-medium">
+                                • 🎟 {bcast.rsvp_count}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1660,6 +1679,48 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     <span>{selectedBroadcast.failed_count} чел.</span>
                   </div>
                 )}
+              </div>
+
+              {/* Attribution Analytics Card */}
+              <div className="p-3.5 rounded-2xl bg-[#181C2E] border border-white/5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+                    Результат рассылки
+                  </div>
+                  <span className="text-[10px] text-gray-400">По этой рассылке</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="text-[10px] text-gray-400 mb-0.5">Переходы</div>
+                    <div className="text-sm font-bold text-white">
+                      {selectedBroadcast.opened_count || 0}
+                    </div>
+                    <div className="text-[10px] text-indigo-300 font-medium mt-0.5">
+                      {selectedBroadcast.open_rate || 0}%
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="text-[10px] text-gray-400 mb-0.5">Хочу пойти</div>
+                    <div className="text-sm font-bold text-amber-300">
+                      {selectedBroadcast.interest_count || 0}
+                    </div>
+                    <div className="text-[10px] text-amber-300/80 font-medium mt-0.5">
+                      {selectedBroadcast.interest_conversion || 0}%
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="text-[10px] text-gray-400 mb-0.5">Я иду</div>
+                    <div className="text-sm font-bold text-emerald-400">
+                      {selectedBroadcast.rsvp_count || 0}
+                    </div>
+                    <div className="text-[10px] text-emerald-400/80 font-medium mt-0.5">
+                      {selectedBroadcast.rsvp_conversion || 0}%
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Message preview */}

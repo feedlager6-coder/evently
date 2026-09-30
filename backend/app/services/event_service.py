@@ -404,6 +404,13 @@ async def add_event_rsvp(
     session.add(attendee)
     await session.commit()
 
+    # Attribution hook for Telegram broadcast conversion
+    try:
+        from app.services.broadcast_service import record_broadcast_conversion
+        await record_broadcast_conversion(session, event_id, user_id, "rsvp")
+    except Exception as attr_err:
+        logger.warning(f"Broadcast RSVP conversion attribution error: {attr_err}")
+
     count_res = await session.execute(
         select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
     )
@@ -479,6 +486,13 @@ async def add_event_interest(
 
     await session.commit()
 
+    if not existing:
+        try:
+            from app.services.broadcast_service import record_broadcast_conversion
+            await record_broadcast_conversion(session, event_id, user_id, "interest")
+        except Exception as attr_err:
+            logger.warning(f"Broadcast interest conversion attribution error: {attr_err}")
+
     int_count_res = await session.execute(
         select(func.count(EventInterest.id)).where(EventInterest.event_id == event_id)
     )
@@ -542,17 +556,19 @@ async def remove_event_interest(
     return False, interest_count, is_attending, attendee_count, "Interest removed"
 
 
-VALID_VIEW_SOURCES = {"discovery", "deep_link", "personal", "organizer", "inline", "unknown"}
+VALID_VIEW_SOURCES = {"discovery", "deep_link", "personal", "organizer", "inline", "broadcast", "unknown"}
 
 
 async def record_event_view(
     session: AsyncSession,
     event_id: str,
     user_id: Optional[int] = None,
-    source: Optional[str] = "unknown"
+    source: Optional[str] = "unknown",
+    broadcast_token: Optional[str] = None
 ) -> Tuple[bool, int]:
     """
     Records a canonical event view with 2h deduplication for authenticated users and author exclusion.
+    Hooks into Telegram broadcast attribution if broadcast_token is provided.
     Returns: (recorded: bool, views_count: int)
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
@@ -562,6 +578,14 @@ async def record_event_view(
 
     if event.status != EventStatus.PUBLISHED.value:
         raise EventValidationError("Нельзя просматривать неопубликованное мероприятие")
+
+    # Attribution hook for Telegram broadcast
+    if broadcast_token and user_id:
+        try:
+            from app.services.broadcast_service import record_broadcast_view
+            await record_broadcast_view(session, event_id, user_id, broadcast_token)
+        except Exception as attr_err:
+            logger.warning(f"Broadcast attribution hook error: {attr_err}")
 
     # Author cannot bump their own event view counter
     if user_id and event.organizer_user_id == user_id:

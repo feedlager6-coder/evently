@@ -48,7 +48,7 @@ export interface EventSummary {
   created_at: string;
 }
 
-export type TrackingSource = 'discovery' | 'deep_link' | 'personal' | 'organizer' | 'inline' | 'unknown';
+export type TrackingSource = 'discovery' | 'deep_link' | 'personal' | 'organizer' | 'inline' | 'broadcast' | 'unknown';
 
 export interface EventViewResponse {
   recorded: boolean;
@@ -345,6 +345,12 @@ export interface BroadcastItem {
   delivered_count: number;
   failed_count: number;
   blocked_count: number;
+  opened_count?: number;
+  interest_count?: number;
+  rsvp_count?: number;
+  open_rate?: number;
+  interest_conversion?: number;
+  rsvp_conversion?: number;
   created_at: string;
   started_at?: string | null;
   completed_at?: string | null;
@@ -354,6 +360,7 @@ export interface BroadcastDetail extends BroadcastItem {
   message_text: string;
   button_text: string;
   button_url: string;
+  attribution_token?: string | null;
 }
 
 export interface BroadcastPreviewResponse {
