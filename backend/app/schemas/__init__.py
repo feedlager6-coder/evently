@@ -6,6 +6,13 @@ from app.schemas.moderation import RejectRequest
 
 from app.schemas.organization import OrganizationSummary, OrganizationResponse, OrganizationCreate, OrganizationUpdate
 from app.schemas.discovery import VenueSummary, UnifiedDiscoveryResponse, DiscoveryOrganizationSummary
+from app.schemas.entitlement import (
+    OrganizerEntitlementsResponse,
+    CapabilityInfo,
+    EntitlementLimits,
+    CapabilityStatus,
+    SetPlanRequest,
+)
 
 __all__ = [
     "CityResponse",
@@ -23,5 +30,10 @@ __all__ = [
     "VenueSummary",
     "UnifiedDiscoveryResponse",
     "DiscoveryOrganizationSummary",
+    "OrganizerEntitlementsResponse",
+    "CapabilityInfo",
+    "EntitlementLimits",
+    "CapabilityStatus",
+    "SetPlanRequest",
 ]
 

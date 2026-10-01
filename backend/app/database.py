@@ -99,6 +99,7 @@ async def init_db() -> None:
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_broadcasts_attribution_token ON broadcasts (attribution_token);",
             "CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_attr ON broadcast_recipients (user_id, broadcast_id, opened_at);",
+            "CREATE INDEX IF NOT EXISTS idx_organization_plans_org_status ON organization_plans (organization_id, status);",
         ]
         for idx_sql in indexes:
             try:

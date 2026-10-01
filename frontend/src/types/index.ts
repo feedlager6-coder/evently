@@ -436,3 +436,32 @@ export interface OrganizerInsightsResponse {
   has_data: boolean;
 }
 
+export type CapabilityStatus = 'available' | 'locked' | 'coming_soon';
+
+export interface CapabilityInfo {
+  key: string;
+  title: string;
+  description: string;
+  status: CapabilityStatus;
+  is_pro_feature: boolean;
+  limit?: number | null;
+}
+
+export interface EntitlementLimits {
+  broadcasts_per_month: number;
+  broadcasts_used_this_month: number;
+  broadcasts_remaining: number;
+}
+
+export interface OrganizerEntitlementsResponse {
+  organization_id?: string | null;
+  organization_name?: string | null;
+  plan: 'free' | 'pro' | string;
+  status: 'active' | 'expired' | 'cancelled' | string;
+  starts_at?: string | null;
+  expires_at?: string | null;
+  capabilities: Record<string, CapabilityInfo>;
+  limits: EntitlementLimits;
+}
+
+

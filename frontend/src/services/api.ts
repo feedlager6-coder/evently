@@ -28,7 +28,8 @@ import type {
   BroadcastDetail,
   BroadcastPreviewResponse,
   BroadcastCreateRequest,
-  OrganizerInsightsResponse
+  OrganizerInsightsResponse,
+  OrganizerEntitlementsResponse,
 } from '../types';
 import { telegram } from './telegram';
 
@@ -812,6 +813,20 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(extractErrorMessage(err, 'Не удалось загрузить детали рассылки'));
+    }
+    return res.json();
+  },
+
+  async getOrganizerEntitlements(orgId?: string): Promise<OrganizerEntitlementsResponse> {
+    const url = orgId
+      ? `${API_BASE}/organizer/entitlements?org_id=${encodeURIComponent(orgId)}`
+      : `${API_BASE}/organizer/entitlements`;
+    const res = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить данные о тарифе'));
     }
     return res.json();
   }

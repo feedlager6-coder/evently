@@ -287,7 +287,8 @@ async def test_legacy_broadcast_listing_and_detail_with_null_tokens(client, test
 
 
 @pytest.mark.asyncio
-async def test_all_target_and_template_combinations_create_successfully(client, test_session):
+async def test_all_target_and_template_combinations_create_successfully(client, test_session, monkeypatch):
+    monkeypatch.setattr(settings, "FREE_BROADCASTS_PER_MONTH", 10)
     """
     Verifies that all 4 supported combinations can be created successfully:
     1. organization_subscribers + event_announcement

@@ -1,9 +1,12 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.models.organization import Organization, OrganizationStatus
 from app.schemas.event import EventSummary
 from app.schemas.audience import OrganizerAudienceResponse
 from app.schemas.insights import OrganizerInsightsResponse
@@ -14,10 +17,16 @@ from app.schemas.broadcast import (
     BroadcastItem,
     BroadcastDetail,
 )
+from app.schemas.entitlement import (
+    OrganizerEntitlementsResponse,
+    CapabilityInfo,
+    EntitlementLimits,
+)
 from app.api.deps import get_current_user
 from app.services.event_service import get_organizer_events
 from app.services.audience_service import get_organizer_audience
 from app.services.insights_service import get_organizer_insights
+from app.services.entitlement_service import EntitlementService, CAPABILITY_REGISTRY
 from app.services.broadcast_service import (
     preview_broadcast,
     create_broadcast,
@@ -123,4 +132,73 @@ async def get_broadcast_by_id(
     Returns detailed delivery metrics and message preview for a specific broadcast.
     """
     return await get_broadcast_detail(session, organizer_user_id=user.id, broadcast_id=broadcast_id)
+
+
+@router.get("/entitlements", response_model=OrganizerEntitlementsResponse)
+async def get_my_entitlements(
+    org_id: Optional[str] = Query(None, description="Optional organization ID to inspect entitlements for"),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Returns verified capability entitlements and quota limits for the organizer.
+    Strictly verifies organization ownership (403 for non-owner, 404 for deleted or non-existent).
+    Returns only safe public metadata; never exposes internal secrets or private user data.
+    """
+    target_org_id = org_id
+    org_name = None
+
+    if target_org_id:
+        # Check ownership and status
+        org_stmt = select(Organization).where(Organization.id == target_org_id)
+        org = (await session.execute(org_stmt)).scalar_one_or_none()
+        if not org or org.status == OrganizationStatus.DELETED.value:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
+        if org.owner_user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не являетесь владельцем этой организации")
+        org_name = org.name
+    else:
+        # Lookup first active organization owned by this user
+        user_orgs_stmt = (
+            select(Organization)
+            .where(
+                Organization.owner_user_id == user.id,
+                Organization.status != OrganizationStatus.DELETED.value
+            )
+            .order_by(Organization.created_at.asc())
+        )
+        first_org = (await session.execute(user_orgs_stmt)).scalars().first()
+        if first_org:
+            target_org_id = first_org.id
+            org_name = first_org.name
+
+    if not target_org_id:
+        # User has no organizations yet: return default Free baseline
+        return OrganizerEntitlementsResponse(
+            organization_id=None,
+            organization_name=None,
+            plan="free",
+            status="active",
+            starts_at=None,
+            expires_at=None,
+            capabilities={
+                key: CapabilityInfo(
+                    key=key,
+                    title=defn["title"],
+                    description=defn["description"],
+                    status=defn["plans"]["free"],
+                    is_pro_feature=defn["is_pro_feature"],
+                    limit=settings.FREE_BROADCASTS_PER_MONTH if key == "broadcasts_extended" else None,
+                )
+                for key, defn in CAPABILITY_REGISTRY.items()
+            },
+            limits=EntitlementLimits(
+                broadcasts_per_month=settings.FREE_BROADCASTS_PER_MONTH,
+                broadcasts_used_this_month=0,
+                broadcasts_remaining=settings.FREE_BROADCASTS_PER_MONTH,
+            ),
+        )
+
+    return await EntitlementService.get_entitlements(session, target_org_id, org_name=org_name)
+
 

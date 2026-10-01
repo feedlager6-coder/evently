@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     BROADCAST_RATE_LIMIT_PER_SEC: int = 25
     BROADCAST_FATIGUE_HOURS: int = 24
     BROADCAST_ATTRIBUTION_HOURS: int = 24
+    FREE_BROADCASTS_PER_MONTH: int = 3
+    PRO_BROADCASTS_PER_MONTH: int = 30
 
     # Storage Configuration (S3-compatible Object Storage or Persistent Local Volume)
     # Examples: Cloudflare R2, AWS S3, MinIO, Supabase S3, Yandex Object Storage

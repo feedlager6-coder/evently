@@ -339,6 +339,10 @@ async def create_broadcast(
     org: Organization = calc["organization"]
     event: Optional[Event] = calc["event"]
 
+    # Enforce broadcast monthly quota and Pro entitlement
+    from app.services.entitlement_service import EntitlementService
+    await EntitlementService.enforce_broadcast_capacity(session, org.id)
+
     # Create Broadcast entity
     attribution_token = secrets.token_hex(8)
     broadcast = Broadcast(

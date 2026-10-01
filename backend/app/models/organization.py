@@ -56,6 +56,7 @@ class Organization(Base):
     city = relationship("City")
     events = relationship("Event", back_populates="organization")
     subscriptions = relationship("Subscription", back_populates="organization", cascade="all, delete-orphan")
+    plan_record = relationship("OrganizationPlan", back_populates="organization", uselist=False, cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_organizations_owner_status", "owner_user_id", "status"),

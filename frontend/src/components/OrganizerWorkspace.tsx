@@ -10,6 +10,7 @@ import type {
   BroadcastType,
   BroadcastTemplateKey,
   OrganizerInsightsResponse,
+  OrganizerEntitlementsResponse,
 } from '../types';
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
@@ -75,6 +76,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [selectedAudienceOrgId, setSelectedAudienceOrgId] = useState<string | null>(null);
 
   const [insightsData, setInsightsData] = useState<OrganizerInsightsResponse | null>(null);
+  const [entitlements, setEntitlements] = useState<OrganizerEntitlementsResponse | null>(null);
+  const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
 
   const loadInsights = () => {
     api.getOrganizerInsights()
@@ -82,11 +85,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       .catch((err) => console.error('Failed to load organizer insights:', err));
   };
 
+  const loadEntitlements = () => {
+    const orgId = organizations.length > 0 ? organizations[0].id : undefined;
+    api.getOrganizerEntitlements(orgId)
+      .then((data) => setEntitlements(data))
+      .catch((err) => console.error('Failed to load organizer entitlements:', err));
+  };
+
   useEffect(() => {
     if (activeTab === 'overview') {
       loadInsights();
+      loadEntitlements();
     }
-  }, [activeTab]);
+  }, [activeTab, organizations]);
 
   useEffect(() => {
     if (activeTab === 'audience') {
@@ -558,6 +569,53 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <Building2 className="w-4 h-4 text-gray-400" />
                 <span>+ Организация</span>
               </button>
+            </div>
+
+            {/* Pro Foundation Fake Door Card */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-900/20 via-indigo-900/15 to-[#141724] border border-purple-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white flex items-center space-x-1.5">
+                      <span>Pro для организаторов</span>
+                      <span className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                        entitlements?.plan === 'pro'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'bg-white/10 text-gray-300'
+                      }`}>
+                        {entitlements?.plan === 'pro' ? 'Pro' : 'Free'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                      Дополнительные инструменты для аудитории, рассылок и аналитики
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px]">
+                <div className="text-gray-400">
+                  {entitlements?.plan === 'pro' ? (
+                    <span className="text-purple-300 font-medium">Тариф Pro активен для этой площадки</span>
+                  ) : (
+                    <span>
+                      Рассылок в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> / {entitlements?.limits?.broadcasts_per_month ?? 3}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setIsProModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 font-semibold text-xs transition-all btn-press"
+                >
+                  {entitlements?.plan === 'pro' ? 'Возможности Pro' : 'Узнать о Pro'}
+                </button>
+              </div>
             </div>
 
             {/* Requires Attention Section (if any pending/rejected) */}
@@ -1892,6 +1950,90 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 Закрыть
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fake Door Pro Modal */}
+      {isProModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-[#141724] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl animate-sheet-slide-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white tracking-tight">Pro — скоро</h3>
+                  <p className="text-[11px] text-gray-400">Инструменты роста для организаторов событий</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsProModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                aria-label="Закрыть"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
+                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white">Расширенные рассылки</div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                    Увеличенный ежемесячный лимит сообщений и отправка анонсов по всей базе подписчиков
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
+                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white">Более глубокая аналитика</div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                    Воронка конверсии из просмотров в гостей, аналитика каналов переходов и динамика базы
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
+                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white">Дополнительные инструменты аудитории</div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                    Срезы вовлеченности, учет постоянных гостей и отслеживание источников подписок
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
+                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white">Инструменты для повторных мероприятий</div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                    Быстрый повторный анонс на уже собранную аудиторию и контекстные напоминания
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-center space-y-1">
+              <div className="text-xs font-semibold text-purple-300">
+                Оплата пока недоступна. Мы готовим Pro.
+              </div>
+              <p className="text-[10.5px] text-gray-400">
+                Все базовые функции Ivently остаются бесплатными для организаторов.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsProModalOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors btn-press"
+            >
+              Понятно
+            </button>
           </div>
         </div>
       )}

@@ -17,6 +17,7 @@ from app.models.broadcast import (
     BroadcastStatus,
     RecipientStatus,
 )
+from app.models.organization_plan import OrganizationPlan, PlanType, PlanStatus
 
 __all__ = [
     "City",
@@ -41,4 +42,7 @@ __all__ = [
     "BroadcastTemplateKey",
     "BroadcastStatus",
     "RecipientStatus",
+    "OrganizationPlan",
+    "PlanType",
+    "PlanStatus",
 ]

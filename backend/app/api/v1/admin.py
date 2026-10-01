@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,6 +7,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.event import EventSummary, EventResponse
 from app.schemas.moderation import RejectRequest
+from app.schemas.entitlement import OrganizerEntitlementsResponse, SetPlanRequest
 from app.api.deps import require_admin
 from app.services.moderation_service import (
     get_admin_events,
@@ -14,6 +16,7 @@ from app.services.moderation_service import (
     cancel_event
 )
 from app.services.event_service import get_event_details, EventNotFoundError
+from app.services.entitlement_service import EntitlementService
 from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin Moderation"])
@@ -88,3 +91,40 @@ async def admin_cancel_event(
         return await get_event_details(session, event_id)
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/organizations/{org_id}/entitlements", response_model=OrganizerEntitlementsResponse)
+async def admin_get_organization_entitlements(
+    org_id: str,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Admin/Dev visibility endpoint to inspect current plan, capabilities, and limits for an organization.
+    """
+    return await EntitlementService.get_entitlements(session, org_id)
+
+
+@router.post("/organizations/{org_id}/plan", response_model=OrganizerEntitlementsResponse)
+async def admin_set_organization_plan(
+    org_id: str,
+    payload: SetPlanRequest,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Admin/Dev capability to switch an organization's plan (e.g. Free <-> Pro) for testing and dev verification.
+    """
+    expires_at = None
+    if payload.expires_in_days is not None:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
+
+    await EntitlementService.set_organization_plan(
+        session=session,
+        organization_id=org_id,
+        plan=payload.plan,
+        status_val=payload.status or "active",
+        expires_at=expires_at
+    )
+    return await EntitlementService.get_entitlements(session, org_id)
+
