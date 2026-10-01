@@ -8,7 +8,7 @@ from sqlalchemy import select, func, and_
 from app.config import settings
 from app.models.organization_plan import OrganizationPlan, PlanType, PlanStatus
 from app.models.organization import Organization, OrganizationStatus
-from app.models.broadcast import Broadcast, BroadcastStatus
+from app.models.broadcast import Broadcast, BroadcastStatus, BroadcastType
 from app.schemas.entitlement import (
     CapabilityStatus,
     CapabilityInfo,
@@ -45,7 +45,7 @@ CAPABILITY_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "audience_advanced": {
         "title": "Глубокая аналитика аудитории",
-        "description": "Динамика роста базы за 30/90 дней, когортный анализ удержания и атрибуция подписчиков",
+        "description": "Динамика роста базы за 30/90 дней, повторные посещения и источники новых подписчиков",
         "is_pro_feature": True,
         "plans": {
             PlanType.FREE.value: CapabilityStatus.LOCKED,
@@ -154,8 +154,9 @@ class EntitlementService:
         organization_id: str
     ) -> int:
         """
-        Returns number of active/queued/completed broadcasts sent by this organization
+        Returns number of active/queued/completed marketing broadcasts sent by this organization
         in the current calendar month (from 1st of month 00:00:00 UTC).
+        Transactional broadcasts (event updates) do not count toward this marketing quota.
         """
         now = utc_now()
         start_of_month = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -163,7 +164,8 @@ class EntitlementService:
         stmt = select(func.count(Broadcast.id)).where(
             Broadcast.organization_id == organization_id,
             Broadcast.created_at >= start_of_month,
-            Broadcast.status != BroadcastStatus.CANCELLED.value
+            Broadcast.status != BroadcastStatus.CANCELLED.value,
+            Broadcast.broadcast_type != BroadcastType.TRANSACTIONAL.value,
         )
         return (await session.execute(stmt)).scalar() or 0
 
@@ -266,13 +268,19 @@ class EntitlementService:
     async def enforce_broadcast_capacity(
         cls,
         session: AsyncSession,
-        organization_id: str
+        organization_id: str,
+        broadcast_type: Optional[str] = None,
     ) -> None:
         """
         Enforces broadcast monthly quota per organization.
-        Free tier organizations are entitled to FREE_BROADCASTS_PER_MONTH broadcasts.
+        Free tier organizations are entitled to FREE_BROADCASTS_PER_MONTH marketing broadcasts.
+        Operational event updates (transactional) do not consume the monthly quota.
         Exceeding the quota triggers require_entitlement for 'broadcasts_extended'.
         """
+        # Transactional messages (event changes, reschedules, cancellations) are operational and exempt
+        if broadcast_type == BroadcastType.TRANSACTIONAL.value:
+            return
+
         plan, plan_status, _, _ = await cls.get_organization_plan(session, organization_id)
         used = await cls.get_monthly_broadcast_usage(session, organization_id)
 
@@ -288,7 +296,7 @@ class EntitlementService:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={
-                        "message": f"Достигнут лимит бесплатных рассылок ({limit} в месяц). Для расширенных рассылок требуется тариф Pro.",
+                        "message": f"Достигнут лимит бесплатных анонсов ({limit} в месяц). Для расширенных рассылок требуется тариф Pro.",
                         "code": "ENTITLEMENT_REQUIRED",
                         "capability": "broadcasts_extended",
                         "required_plan": PlanType.PRO.value,
@@ -300,7 +308,7 @@ class EntitlementService:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={
-                        "message": f"Достигнут лимит рассылок для тарифа Pro ({limit} в месяц).",
+                        "message": f"Достигнут лимит анонсов для тарифа Pro ({limit} в месяц).",
                         "code": "LIMIT_EXCEEDED",
                         "capability": "broadcasts_extended",
                         "used": used,

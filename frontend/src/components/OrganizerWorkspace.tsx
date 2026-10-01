@@ -146,6 +146,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   useEffect(() => {
     if (activeTab === 'broadcasts') {
       loadBroadcasts();
+      loadEntitlements();
     }
   }, [activeTab]);
 
@@ -239,6 +240,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setIsComposerOpen(false);
       setBroadcastNotice(`Рассылка отправлена (${detail.sent_count}/${detail.total_recipients} доставлено)`);
       loadBroadcasts();
+      loadEntitlements();
       setTimeout(() => setBroadcastNotice(null), 5000);
     } catch (err: any) {
       telegram.hapticImpact('heavy');
@@ -453,7 +455,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <span className="text-xs font-semibold text-white">Рассылки в Telegram</span>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-medium">
-                  Атрибуция
+                  Статистика
                 </span>
               </div>
 
@@ -590,7 +592,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
-                      Дополнительные инструменты для аудитории, рассылок и аналитики
+                      Дополнительные возможности для регулярных анонсов, расширенной базы и аналитики
                     </p>
                   </div>
                 </div>
@@ -602,7 +604,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     <span className="text-purple-300 font-medium">Тариф Pro активен для этой площадки</span>
                   ) : (
                     <span>
-                      Рассылок в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> / {entitlements?.limits?.broadcasts_per_month ?? 3}
+                      Анонсов в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 3}
                     </span>
                   )}
                 </div>
@@ -1278,11 +1280,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   )}
                 </div>
 
-                {/* Section 6: Honest Attribution Notice (Zero Vanity/Faking) */}
+                {/* Section 6: Real-time Audience Information */}
                 <div className="p-3.5 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 flex items-start space-x-2.5 text-[11px] text-indigo-300">
                   <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    Отображаются подтверждённые показатели активности. Прямая атрибуция подписки к конкретному анонсу появится в следующем обновлении рассылок.
+                    Здесь отображаются реальные пользователи, подписанные на организацию или отметившие интерес к вашим событиям. Статистика обновляется в реальном времени.
                   </p>
                 </div>
               </div>
@@ -1323,6 +1325,50 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               <div className="text-[11px] text-indigo-200/80 leading-relaxed pt-2 border-t border-white/5">
                 Отправляйте анонсы подписчикам ваших площадок и персональные обновления гостям, нажавшим «Хочу пойти».
               </div>
+            </div>
+
+            {/* Monthly Free Quota Banner */}
+            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  entitlements?.plan === 'pro'
+                    ? 'bg-purple-400 shadow-sm shadow-purple-500/50'
+                    : (entitlements?.limits?.broadcasts_remaining ?? 3) > 0
+                    ? 'bg-emerald-400 shadow-sm shadow-emerald-500/50'
+                    : 'bg-amber-400 shadow-sm shadow-amber-500/50'
+                }`} />
+                <div className="min-w-0">
+                  <div className="text-xs text-gray-200">
+                    {entitlements?.plan === 'pro' ? (
+                      <span>Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 30} анонсов в этом месяце</span>
+                    ) : (
+                      <span>
+                        Бесплатные анонсы в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0} из {entitlements?.limits?.broadcasts_per_month ?? 3}</strong> использовано
+                        {(entitlements?.limits?.broadcasts_remaining ?? 3) > 0 ? (
+                          <span className="text-emerald-400 font-medium"> (осталось {entitlements?.limits?.broadcasts_remaining})</span>
+                        ) : (
+                          <span className="text-amber-400 font-medium"> (лимит месяца исчерпан)</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10.5px] text-gray-400 mt-0.5">
+                    Сервисные сообщения об изменениях событий не расходуют этот лимит
+                  </div>
+                </div>
+              </div>
+              {entitlements?.plan !== 'pro' && (
+                <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setIsProModalOpen(true);
+                  }}
+                  className="text-xs text-purple-300 hover:text-purple-200 font-semibold flex items-center space-x-1.5 shrink-0 self-start sm:self-auto py-1.5 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 transition-colors btn-press"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Pro → больше анонсов</span>
+                </button>
+              )}
             </div>
 
             {/* Broadcasts History */}
@@ -1500,48 +1546,98 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </div>
             )}
 
-            {/* 2. Target Audience Selector */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-gray-300">Кому отправить</label>
+            {/* Step 1: Что хотите отправить? */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold text-gray-300">Шаг 1. Что хотите отправить?</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setComposerTargetType('organization_subscribers')}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    composerTargetType === 'organization_subscribers'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                  onClick={() => {
+                    setComposerBroadcastType('marketing');
+                    if (composerTemplateKey === 'event_update') {
+                      setComposerTemplateKey('event_announcement');
+                    }
+                  }}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    composerBroadcastType === 'marketing'
+                      ? 'bg-purple-600/20 border-purple-500 text-white'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
-                  <div className="text-xs font-semibold">👥 Подписчики</div>
-                  <div className="text-[10px] opacity-70">Все активные подписчики площадки</div>
+                  <div className="text-xs font-semibold flex items-center space-x-1.5">
+                    <span>📣</span>
+                    <span>Анонс</span>
+                  </div>
+                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
+                    Маркетинговое сообщение о событии или новостях
+                  </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setComposerTargetType('event_interest');
-                    if (composerTemplateKey === 'custom_update') {
-                      setComposerTemplateKey('event_update');
-                    }
+                    setComposerBroadcastType('transactional');
+                    setComposerTemplateKey('event_update');
                   }}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    composerTargetType === 'event_interest'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    composerBroadcastType === 'transactional'
+                      ? 'bg-sky-600/20 border-sky-500 text-white'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
-                  <div className="text-xs font-semibold">🎯 «Хочу пойти»</div>
-                  <div className="text-[10px] opacity-70">Интерес к конкретному событию</div>
+                  <div className="text-xs font-semibold flex items-center space-x-1.5">
+                    <span>🔔</span>
+                    <span>Изменение события</span>
+                  </div>
+                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
+                    О переносе, отмене или важных деталях
+                  </div>
                 </button>
               </div>
+
+              {composerBroadcastType === 'marketing' ? (
+                <div className="space-y-2 pt-1">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setComposerTemplateKey('event_announcement')}
+                      className={`py-2 px-2 rounded-xl border text-[11px] font-medium transition-all ${
+                        composerTemplateKey === 'event_announcement'
+                          ? 'bg-purple-500/20 border-purple-400 text-purple-200'
+                          : 'bg-white/5 border-white/5 text-gray-400'
+                      }`}
+                    >
+                      🎟 Анонс события
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setComposerTemplateKey('custom_update');
+                        setComposerTargetType('organization_subscribers');
+                      }}
+                      className={`py-2 px-2 rounded-xl border text-[11px] font-medium transition-all ${
+                        composerTemplateKey === 'custom_update'
+                          ? 'bg-purple-500/20 border-purple-400 text-purple-200'
+                          : 'bg-white/5 border-white/5 text-gray-400'
+                      }`}
+                    >
+                      📰 Новость организации
+                    </button>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[10.5px] text-purple-200/90 leading-snug">
+                    Лимит: 3 анонса в месяц для Free. Не чаще 1 раза в 24 часа одному получателю (защита от спама). Доставленные сообщения остаются в чате получателя.
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[10.5px] text-sky-200/90 leading-snug">
+                  Сервисные уведомления об изменениях не входят в ежемесячный лимит и отправляются без 24-часовых пауз, чтобы участники вовремя узнали о переносе или важных деталях.
+                </div>
+              )}
             </div>
 
-            {/* 3. Event selector (if interest or announcement/update) */}
-            {(composerTargetType === 'event_interest' ||
-              composerTemplateKey === 'event_announcement' ||
-              composerTemplateKey === 'event_update') && (
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-gray-300">Событие</label>
+            {/* Step 2: Выберите событие (if event-linked) */}
+            {composerTemplateKey !== 'custom_update' && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold text-gray-300">Шаг 2. Выберите событие</label>
                 {events.filter((e) => e.organization_id === composerOrgId).length === 0 ? (
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
                     У этой организации пока нет опубликованных событий.
@@ -1561,170 +1657,98 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       ))}
                   </select>
                 )}
+
+                {/* Event Context Card */}
+                {(() => {
+                  const selectedEvent = events.find((e) => e.id === composerEventId);
+                  if (!selectedEvent) return null;
+                  return (
+                    <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                          🎟 Карточка в сообщении
+                        </span>
+                        <span className="text-[10px] text-indigo-200/70">
+                          Кнопка: «Открыть событие»
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#141724]/90 border border-white/5 space-y-1">
+                        <div className="text-xs font-bold text-white truncate">
+                          {selectedEvent.title}
+                        </div>
+                        <div className="flex items-center space-x-2 text-[11px] text-gray-400">
+                          <span className="text-indigo-400 font-medium">
+                            {new Date(selectedEvent.start_at).toLocaleDateString('ru-RU', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{selectedEvent.venue_name}</span>
+                        </div>
+                      </div>
+                      <div className="text-[10.5px] text-gray-300 leading-snug">
+                        {composerTargetType === 'event_interest' ? (
+                          <span>❤️ Получат только пользователи, отметившие это событие ({selectedEvent.interest_count || 0} чел.)</span>
+                        ) : (
+                          <span>👥 Сообщение будет содержать карточку события и кнопку быстрого перехода</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
-            {/* Event Context Card */}
-            {(() => {
-              const selectedEvent = events.find((e) => e.id === composerEventId);
-              if (!selectedEvent || (composerTargetType !== 'event_interest' && composerTemplateKey === 'custom_update')) {
-                return null;
-              }
-              return (
-                <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
-                      🎟 Рассылка о событии
-                    </span>
-                    <span className="text-[10px] text-indigo-200/70">
-                      Кнопка: «Открыть событие»
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#141724]/90 border border-white/5 space-y-1">
-                    <div className="text-xs font-bold text-white truncate">
-                      {selectedEvent.title}
-                    </div>
-                    <div className="flex items-center space-x-2 text-[11px] text-gray-400">
-                      <span className="text-indigo-400 font-medium">
-                        {new Date(selectedEvent.start_at).toLocaleDateString('ru-RU', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                      <span>•</span>
-                      <span className="truncate">{selectedEvent.venue_name}</span>
-                    </div>
-                  </div>
-                  {composerTargetType === 'event_interest' ? (
-                    <div className="text-[11px] text-indigo-200/90 leading-snug">
-                      ❤️ <b>Интересовались этим событием:</b> {selectedEvent.interest_count || 0} чел.
-                      <div className="text-[10px] text-gray-400 mt-0.5">
-                        Эта аудитория получит сообщение только об этом выбранном событии.
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-gray-300 leading-snug">
-                      Получатели увидят сообщение с карточкой события и кнопкой «Открыть событие».
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* 4. Broadcast Type */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold text-gray-300">Тип сообщения</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setComposerBroadcastType('marketing')}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    composerBroadcastType === 'marketing'
-                      ? 'bg-purple-600/20 border-purple-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
-                  }`}
-                >
-                  <div className="text-xs font-semibold flex items-center space-x-1">
-                    <span>🟣</span>
-                    <span>Анонс / новость</span>
-                  </div>
-                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
-                    О мероприятии или программе (не чаще раза в 24 ч)
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setComposerBroadcastType('transactional')}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    composerBroadcastType === 'transactional'
-                      ? 'bg-sky-600/20 border-sky-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
-                  }`}
-                >
-                  <div className="text-xs font-semibold flex items-center space-x-1">
-                    <span>🔵</span>
-                    <span>Изменение события</span>
-                  </div>
-                  <div className="text-[10px] opacity-75 mt-1 leading-snug">
-                    Перенос/отмена (без лимита 24 ч)
-                  </div>
-                </button>
-              </div>
-
-              {composerBroadcastType === 'marketing' ? (
-                <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-200 leading-snug space-y-1">
-                  <div className="font-semibold text-purple-300">
-                    🟣 Сообщение вашей аудитории о мероприятии, программе или новости организации
-                  </div>
-                  <div className="text-[10.5px] text-purple-200/90">
-                    Ограничение частоты: одному человеку нельзя отправить маркетинговое сообщение чаще одного раза в 24 часа (защита от спама). <b>Уже доставленные в Telegram сообщения навсегда остаются в чате получателя и никогда не удаляются.</b>
-                  </div>
+            {/* Step 3: Кому отправить? */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-gray-300">
+                {composerTemplateKey === 'custom_update' ? 'Получатели' : 'Шаг 3. Кому отправить?'}
+              </label>
+              {composerTemplateKey === 'custom_update' ? (
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-gray-300 flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Новости организации отправляются всем подписчикам вашей страницы в Ivently.</span>
                 </div>
               ) : (
-                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-200 leading-snug space-y-1">
-                  <div className="font-semibold text-sky-300">
-                    🔵 Важное уведомление для людей, связанных с конкретным событием
-                  </div>
-                  <div className="text-[10.5px] text-sky-200/90">
-                    Перенос даты, изменение места, отмена и т.д. Отправляется без суточного ограничения, чтобы участники вовремя получили важную информацию.
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setComposerTargetType('organization_subscribers')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      composerTargetType === 'organization_subscribers'
+                        ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                        : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold">👥 Подписчики</div>
+                    <div className="text-[10px] opacity-70 mt-0.5">Все подписчики страницы организации</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setComposerTargetType('event_interest')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      composerTargetType === 'event_interest'
+                        ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                        : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold">❤️ «Хочу пойти»</div>
+                    <div className="text-[10px] opacity-70 mt-0.5">Кто добавил это событие в избранное</div>
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* 5. Template Key */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-gray-300">Шаблон сообщения</label>
-              <div
-                className={`grid ${
-                  composerTargetType === 'organization_subscribers' ? 'grid-cols-3' : 'grid-cols-2'
-                } gap-1.5 text-center`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setComposerTemplateKey('event_announcement')}
-                  className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-                    composerTemplateKey === 'event_announcement'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400'
-                  }`}
-                >
-                  Анонс события
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setComposerTemplateKey('event_update')}
-                  className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-                    composerTemplateKey === 'event_update'
-                      ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                      : 'bg-white/5 border-white/5 text-gray-400'
-                  }`}
-                >
-                  Изменение события
-                </button>
-                {composerTargetType === 'organization_subscribers' && (
-                  <button
-                    type="button"
-                    onClick={() => setComposerTemplateKey('custom_update')}
-                    className={`py-2 px-1.5 rounded-xl border text-[11px] font-medium transition-all ${
-                      composerTemplateKey === 'custom_update'
-                        ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                        : 'bg-white/5 border-white/5 text-gray-400'
-                    }`}
-                  >
-                    Новости площадки
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 6. Custom text */}
+            {/* Step 4: Текст сообщения */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-semibold text-gray-300">
-                  {composerTemplateKey === 'custom_update' ? 'Текст сообщения *' : 'Комментарий (опционально)'}
+                  {composerTemplateKey === 'custom_update'
+                    ? 'Текст новости *'
+                    : 'Комментарий к событию (опционально)'}
                 </label>
                 <span className="text-[10px] text-gray-500">{composerCustomText.length}/300</span>
               </div>
@@ -1733,12 +1757,16 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 maxLength={300}
                 rows={2}
                 onChange={(e) => setComposerCustomText(e.target.value)}
-                placeholder="Дополнительный текст анонса..."
+                placeholder={
+                  composerTemplateKey === 'custom_update'
+                    ? 'Расскажите о новости площадки...'
+                    : 'Дополнительные подробности или комментарий...'
+                }
                 className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
               />
             </div>
 
-            {/* 7. Audience Preview Calculations */}
+            {/* 5. Audience Preview Calculations */}
             <div className="p-3.5 rounded-2xl bg-[#181C2E] border border-white/5 space-y-2">
               <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
                 Оценка аудитории
@@ -1746,7 +1774,22 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {isLoadingPreview ? (
                 <div className="text-xs text-gray-400 py-1">Выполняется расчёт получателей...</div>
               ) : previewError ? (
-                <div className="text-xs text-amber-300 py-1">{previewError}</div>
+                <div className="space-y-2">
+                  <div className="text-xs text-amber-300 py-1">{previewError}</div>
+                  {(previewError.includes('Pro') || previewError.includes('лимит') || previewError.includes('ENTITLEMENT')) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        telegram.hapticImpact('light');
+                        setIsProModalOpen(true);
+                      }}
+                      className="text-xs font-semibold text-purple-300 hover:text-purple-200 flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-purple-500/20 border border-purple-500/30 btn-press"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Узнать о возможностях Pro</span>
+                    </button>
+                  )}
+                </div>
               ) : previewData ? (
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center justify-between">
@@ -1773,7 +1816,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               ) : null}
             </div>
 
-            {/* 8. Message Preview Bubble */}
+            {/* 6. Message Preview Bubble */}
             {previewData && (
               <div className="space-y-1.5">
                 <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
@@ -1790,6 +1833,26 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Error display with Pro CTA */}
+            {previewError && (
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                <div className="text-xs text-amber-300 leading-snug">{previewError}</div>
+                {(previewError.includes('Pro') || previewError.includes('лимит') || previewError.includes('ENTITLEMENT')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      setIsProModalOpen(true);
+                    }}
+                    className="text-xs font-semibold text-purple-300 hover:text-purple-200 flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-purple-500/20 border border-purple-500/30 btn-press"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Узнать о возможностях Pro</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -1964,8 +2027,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white tracking-tight">Pro — скоро</h3>
-                  <p className="text-[11px] text-gray-400">Инструменты роста для организаторов событий</p>
+                  <h3 className="text-base font-bold text-white tracking-tight">Что даёт Pro?</h3>
+                  <p className="text-[11px] text-gray-400">Возможности для регулярных организаторов</p>
                 </div>
               </div>
               <button
@@ -1977,54 +2040,68 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </button>
             </div>
 
-            <div className="space-y-2.5 pt-1">
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
-                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">Расширенные рассылки</div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-                    Увеличенный ежемесячный лимит сообщений и отправка анонсов по всей базе подписчиков
-                  </p>
+            {/* Free vs Pro Comparison */}
+            <div className="space-y-3 pt-1">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-2">
+                <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Бесплатный тариф (Free)</span>
+                  <span className="text-[10px] text-gray-400 font-medium lowercase px-2 py-0.5 rounded-full bg-white/5">сейчас</span>
+                </div>
+                <div className="space-y-1.5 text-[11px] text-gray-300">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400">•</span>
+                    <span><strong>3 анонса в месяц</strong> на организацию</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400">•</span>
+                    <span><strong>Неограниченные</strong> сервисные изменения событий</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400">•</span>
+                    <span>Базовая статистика просмотров и откликов</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400">•</span>
+                    <span>Прямая доставка сообщений в Telegram</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
-                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">Более глубокая аналитика</div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-                    Воронка конверсии из просмотров в гостей, аналитика каналов переходов и динамика базы
-                  </p>
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 space-y-2">
+                <div className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Тариф Pro</span>
+                  </span>
+                  <span className="text-[10px] text-purple-300 font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/30">в разработке</span>
                 </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
-                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">Дополнительные инструменты аудитории</div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-                    Срезы вовлеченности, учет постоянных гостей и отслеживание источников подписок
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-start space-x-3">
-                <div className="text-emerald-400 mt-0.5 text-sm font-bold">✓</div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">Инструменты для повторных мероприятий</div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
-                    Быстрый повторный анонс на уже собранную аудиторию и контекстные напоминания
-                  </p>
+                <div className="space-y-1.5 text-[11px] text-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span><strong>До 30 анонсов в месяц</strong> для активных площадок</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span>Углублённая воронка откликов и каналы переходов</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span>Сегменты аудитории и повторные приглашения</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span>Приоритетная поддержка организаторов</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-center space-y-1">
               <div className="text-xs font-semibold text-purple-300">
-                Оплата пока недоступна. Мы готовим Pro.
+                Оплата пока не запущена. Мы готовим Pro.
               </div>
               <p className="text-[10.5px] text-gray-400">
-                Все базовые функции Ivently остаются бесплатными для организаторов.
+                Все базовые функции Ivently навсегда остаются бесплатными для организаторов.
               </p>
             </div>
 

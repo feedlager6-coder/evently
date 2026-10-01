@@ -51,6 +51,17 @@ export function extractErrorMessage(errData: any, fallback: string): string {
   if (!errData) return fallback;
   if (typeof errData === 'string') return errData;
   if (typeof errData.detail === 'string') return errData.detail;
+  if (errData.detail && typeof errData.detail === 'object' && !Array.isArray(errData.detail)) {
+    if (typeof errData.detail.message === 'string') {
+      return errData.detail.message;
+    }
+    if (typeof errData.detail.error === 'string') {
+      return errData.detail.error;
+    }
+    if (errData.detail.code === 'ENTITLEMENT_REQUIRED') {
+      return 'Для этого действия требуется тариф Pro.';
+    }
+  }
   if (Array.isArray(errData.detail)) {
     const msgs = errData.detail.map((item: any) => {
       if (typeof item === 'string') return item;
