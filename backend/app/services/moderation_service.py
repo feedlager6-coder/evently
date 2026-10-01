@@ -114,14 +114,24 @@ async def reject_event(session: AsyncSession, event_id: str, reason: Optional[st
 
 async def cancel_event(session: AsyncSession, event_id: str) -> Event:
     """
-    Cancels a published event, removing it from public discovery.
+    Cancels a published event, removing it from public discovery,
+    and automatically dispatches transactional cancellation notifications to attendees.
     """
     res = await session.execute(select(Event).where(Event.id == event_id))
     event = res.scalar_one_or_none()
     if not event:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
 
+    was_published = (event.status == EventStatus.PUBLISHED.value)
     event.status = EventStatus.CANCELLED.value
     await session.commit()
     await session.refresh(event)
+
+    if was_published:
+        try:
+            from app.services.notification_service import notify_event_cancelled
+            await notify_event_cancelled(event, session)
+        except Exception as e:
+            logger.warning(f"Failed to dispatch cancellation notification for event {event_id}: {e}")
+
     return event

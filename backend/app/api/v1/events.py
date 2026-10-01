@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.event import EventListResponse, EventResponse, EventCreate, EventViewRequest, EventViewResponse
+from app.schemas.event import EventListResponse, EventResponse, EventCreate, EventUpdate, EventViewRequest, EventViewResponse
 from app.schemas.rsvp import RSVPResponse
 from app.schemas.interest import EventInterestResponse
 from app.api.deps import get_current_user, get_current_user_optional
@@ -18,6 +18,7 @@ from app.services.event_service import (
     add_event_interest,
     remove_event_interest,
     create_organizer_event,
+    update_organizer_event,
     delete_organizer_event,
     record_event_view,
     EventNotFoundError,
@@ -267,4 +268,30 @@ async def delete_event_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.patch("/{event_id}", response_model=EventResponse, status_code=status.HTTP_200_OK)
+async def update_event_endpoint(
+    event_id: str,
+    payload: EventUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Updates an organizer's event details.
+    Verifies ownership. Automatically triggers transactional notifications
+    if the event is published and operational details (time, venue) changed.
+    """
+    try:
+        event, _ = await update_organizer_event(session, event_id=event_id, data=payload, user_id=user.id)
+        return await get_event_details(session, event.id, current_user_id=user.id)
+    except EventNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except EventForbiddenError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except EventValidationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 

@@ -603,9 +603,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   {entitlements?.plan === 'pro' ? (
                     <span className="text-purple-300 font-medium">Тариф Pro активен для этой площадки</span>
                   ) : (
-                    <span>
-                      Анонсов в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 3}
-                    </span>
+                    <span>Рассылки доступны в тарифе Pro</span>
                   )}
                 </div>
                 <button
@@ -1308,68 +1306,95 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-white tracking-tight">Рассылки в Telegram</h2>
-                    <p className="text-[11px] text-gray-400">Прямое взаимодействие с вашей аудиторией</p>
+                    <p className="text-[11px] text-gray-400">Общайтесь со своей аудиторией прямо в Telegram.</p>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleOpenComposer}
-                  disabled={organizations.length === 0}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-1.5 shrink-0 self-start sm:self-auto"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Создать рассылку</span>
-                </button>
+                {entitlements?.plan === 'pro' && (
+                  <button
+                    onClick={handleOpenComposer}
+                    disabled={organizations.length === 0}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-1.5 shrink-0 self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Создать рассылку</span>
+                  </button>
+                )}
               </div>
 
               <div className="text-[11px] text-indigo-200/80 leading-relaxed pt-2 border-t border-white/5">
-                Отправляйте анонсы подписчикам ваших площадок и персональные обновления гостям, нажавшим «Хочу пойти».
+                Отправляйте анонсы событий подписчикам площадок и персональные обновления гостям, нажавшим «Хочу пойти».
               </div>
             </div>
 
-            {/* Monthly Free Quota Banner */}
-            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                  entitlements?.plan === 'pro'
-                    ? 'bg-purple-400 shadow-sm shadow-purple-500/50'
-                    : (entitlements?.limits?.broadcasts_remaining ?? 3) > 0
-                    ? 'bg-emerald-400 shadow-sm shadow-emerald-500/50'
-                    : 'bg-amber-400 shadow-sm shadow-amber-500/50'
-                }`} />
-                <div className="min-w-0">
-                  <div className="text-xs text-gray-200">
-                    {entitlements?.plan === 'pro' ? (
-                      <span>Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 30} анонсов в этом месяце</span>
-                    ) : (
-                      <span>
-                        Бесплатные анонсы в этом месяце: <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0} из {entitlements?.limits?.broadcasts_per_month ?? 3}</strong> использовано
-                        {(entitlements?.limits?.broadcasts_remaining ?? 3) > 0 ? (
-                          <span className="text-emerald-400 font-medium"> (осталось {entitlements?.limits?.broadcasts_remaining})</span>
-                        ) : (
-                          <span className="text-amber-400 font-medium"> (лимит месяца исчерпан)</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10.5px] text-gray-400 mt-0.5">
-                    Сервисные сообщения об изменениях событий не расходуют этот лимит
+            {/* Pro Gate for Free vs Pro Quota Banner for Pro */}
+            {entitlements?.plan === 'pro' ? (
+              <div className="p-3.5 rounded-2xl bg-[#141724] border border-purple-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-purple-400 shadow-sm shadow-purple-500/50" />
+                  <div className="min-w-0 text-xs text-gray-200">
+                    <span>
+                      Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 30} анонсов в этом месяце
+                      {(entitlements?.limits?.broadcasts_remaining ?? 0) > 0 ? (
+                        <span className="text-emerald-400 font-medium"> (осталось {entitlements?.limits?.broadcasts_remaining})</span>
+                      ) : (
+                        <span className="text-amber-400 font-medium"> (лимит месяца исчерпан)</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
-              {entitlements?.plan !== 'pro' && (
-                <button
-                  onClick={() => {
-                    telegram.hapticImpact('light');
-                    setIsProModalOpen(true);
-                  }}
-                  className="text-xs text-purple-300 hover:text-purple-200 font-semibold flex items-center space-x-1.5 shrink-0 self-start sm:self-auto py-1.5 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 transition-colors btn-press"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Pro → больше анонсов</span>
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-purple-300">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Доступно в тарифе Pro</span>
+                  </div>
+                  <span className="text-[10px] text-purple-300 font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/30">в разработке</span>
+                </div>
+
+                <div className="text-xs font-semibold text-white">
+                  Отправляйте анонсы событий подписчикам, приглашайте аудиторию снова и отслеживайте результат.
+                </div>
+
+                <div className="space-y-2 text-[11px] text-gray-300">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">📣</span>
+                    <span><strong>Больше возможностей для рассылок</strong> — прямая отправка анонсов подписчикам в Telegram</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">👥</span>
+                    <span><strong>Работа с аудиторией</strong> — общение с людьми, которые уже интересуются вашими событиями</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">📊</span>
+                    <span><strong>Подробная статистика</strong> — переходы по ссылкам, отклики («Хочу пойти») и результат</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">🔔</span>
+                    <span><strong>Напоминания</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро в Pro)</span> — своевременные оповещения перед началом</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">🔁</span>
+                    <span><strong>Повторные приглашения</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро в Pro)</span> — быстрый анонс новых событий собранной базе</span>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      setIsProModalOpen(true);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs transition-all shadow-md shadow-purple-600/25 flex items-center justify-center space-x-2 btn-press"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Узнать о возможностях Pro</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Broadcasts History */}
             <div className="space-y-2.5">
@@ -1385,19 +1410,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="p-6 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
                   <Send className="w-8 h-8 text-indigo-400/50 mx-auto" />
                   <div>
-                    <div className="text-xs font-semibold text-white">Нет отправленных рассылок</div>
+                    <div className="text-xs font-semibold text-white">
+                      {entitlements?.plan === 'pro' ? 'Нет отправленных рассылок' : 'История рассылок пуста'}
+                    </div>
                     <p className="text-[11px] text-gray-400 max-w-xs mx-auto mt-1">
-                      Создайте свою первую рассылку: анонсируйте новое событие или отправьте новость подписчикам.
+                      {entitlements?.plan === 'pro'
+                        ? 'Создайте свою первую рассылку: анонсируйте новое событие или отправьте новость подписчикам.'
+                        : 'Здесь будут отображаться ваши отправленные анонсы и аналитика переходов.'}
                     </p>
                   </div>
-                  <button
-                    onClick={handleOpenComposer}
-                    disabled={organizations.length === 0}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Создать рассылку</span>
-                  </button>
+                  {entitlements?.plan === 'pro' && (
+                    <button
+                      onClick={handleOpenComposer}
+                      disabled={organizations.length === 0}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Создать рассылку</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2.5">
@@ -1554,84 +1585,48 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   type="button"
                   onClick={() => {
                     setComposerBroadcastType('marketing');
-                    if (composerTemplateKey === 'event_update') {
-                      setComposerTemplateKey('event_announcement');
-                    }
+                    setComposerTemplateKey('event_announcement');
                   }}
                   className={`p-3 rounded-2xl border text-left transition-all ${
-                    composerBroadcastType === 'marketing'
+                    composerTemplateKey === 'event_announcement'
                       ? 'bg-purple-600/20 border-purple-500 text-white'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
                   <div className="text-xs font-semibold flex items-center space-x-1.5">
                     <span>📣</span>
-                    <span>Анонс</span>
+                    <span>Анонс события</span>
                   </div>
                   <div className="text-[10px] opacity-75 mt-1 leading-snug">
-                    Маркетинговое сообщение о событии или новостях
+                    Рассказать подписчикам о новом или предстоящем событии
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setComposerBroadcastType('transactional');
-                    setComposerTemplateKey('event_update');
+                    setComposerBroadcastType('marketing');
+                    setComposerTemplateKey('custom_update');
+                    setComposerTargetType('organization_subscribers');
                   }}
                   className={`p-3 rounded-2xl border text-left transition-all ${
-                    composerBroadcastType === 'transactional'
-                      ? 'bg-sky-600/20 border-sky-500 text-white'
+                    composerTemplateKey === 'custom_update'
+                      ? 'bg-purple-600/20 border-purple-500 text-white'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
                   <div className="text-xs font-semibold flex items-center space-x-1.5">
-                    <span>🔔</span>
-                    <span>Изменение события</span>
+                    <span>📰</span>
+                    <span>Новость организации</span>
                   </div>
                   <div className="text-[10px] opacity-75 mt-1 leading-snug">
-                    О переносе, отмене или важных деталях
+                    Поделиться новостью площадки, анонсом сезона или дайджестом
                   </div>
                 </button>
               </div>
 
-              {composerBroadcastType === 'marketing' ? (
-                <div className="space-y-2 pt-1">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setComposerTemplateKey('event_announcement')}
-                      className={`py-2 px-2 rounded-xl border text-[11px] font-medium transition-all ${
-                        composerTemplateKey === 'event_announcement'
-                          ? 'bg-purple-500/20 border-purple-400 text-purple-200'
-                          : 'bg-white/5 border-white/5 text-gray-400'
-                      }`}
-                    >
-                      🎟 Анонс события
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setComposerTemplateKey('custom_update');
-                        setComposerTargetType('organization_subscribers');
-                      }}
-                      className={`py-2 px-2 rounded-xl border text-[11px] font-medium transition-all ${
-                        composerTemplateKey === 'custom_update'
-                          ? 'bg-purple-500/20 border-purple-400 text-purple-200'
-                          : 'bg-white/5 border-white/5 text-gray-400'
-                      }`}
-                    >
-                      📰 Новость организации
-                    </button>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[10.5px] text-purple-200/90 leading-snug">
-                    Лимит: 3 анонса в месяц для Free. Не чаще 1 раза в 24 часа одному получателю (защита от спама). Доставленные сообщения остаются в чате получателя.
-                  </div>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[10.5px] text-sky-200/90 leading-snug">
-                  Сервисные уведомления об изменениях не входят в ежемесячный лимит и отправляются без 24-часовых пауз, чтобы участники вовремя узнали о переносе или важных деталях.
-                </div>
-              )}
+              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[10.5px] text-purple-200/90 leading-snug">
+                Рассылка подписчикам в Telegram (тариф Pro). Не чаще 1 раза в 24 часа одному получателю. Сервисные уведомления об изменениях событий отправляются системой автоматически.
+              </div>
             </div>
 
             {/* Step 2: Выберите событие (if event-linked) */}
@@ -2050,19 +2045,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="space-y-1.5 text-[11px] text-gray-300">
                   <div className="flex items-center space-x-2">
                     <span className="text-gray-400">•</span>
-                    <span><strong>3 анонса в месяц</strong> на организацию</span>
+                    <span>Создание и публикация событий без ограничений</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-gray-400">•</span>
-                    <span><strong>Неограниченные</strong> сервисные изменения событий</span>
+                    <span>Профиль организации и сбор подписчиков в Telegram</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-gray-400">•</span>
-                    <span>Базовая статистика просмотров и откликов</span>
+                    <span>Отметки «Хочу пойти» и база участников</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-gray-400">•</span>
-                    <span>Прямая доставка сообщений в Telegram</span>
+                    <span>Базовая аналитика просмотров и интереса</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400">•</span>
+                    <span><strong>Бесплатные</strong> автоуведомления об изменениях событий</span>
                   </div>
                 </div>
               </div>
@@ -2078,19 +2077,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="space-y-1.5 text-[11px] text-gray-200">
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span><strong>До 30 анонсов в месяц</strong> для активных площадок</span>
+                    <span><strong>Ручные рассылки в Telegram</strong> (до 30 в месяц)</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span>Углублённая воронка откликов и каналы переходов</span>
+                    <span>Анонсы событий и новости организации с кнопками перехода</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span>Сегменты аудитории и повторные приглашения</span>
+                    <span>Расширенная аналитика кликов и конверсий</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span>Приоритетная поддержка организаторов</span>
+                    <span>Сегменты аудитории и повторные приглашения (скоро)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span>Автоматические напоминания перед началом (скоро)</span>
                   </div>
                 </div>
               </div>

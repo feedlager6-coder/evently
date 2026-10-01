@@ -17,7 +17,7 @@ from app.models.organization import Organization
 from app.models.subscription import Subscription
 from app.models.view import EventView
 from app.models.broadcast import Broadcast, BroadcastRecipient
-from app.schemas.event import EventCreate, EventSummary, EventResponse
+from app.schemas.event import EventCreate, EventSummary, EventResponse, EventUpdate
 from app.schemas.interest import EventInterestResponse
 
 
@@ -707,6 +707,94 @@ async def create_organizer_event(
     return event
 
 
+async def update_organizer_event(
+    session: AsyncSession,
+    event_id: str,
+    data: EventUpdate,
+    user_id: int
+) -> Tuple[Event, Dict[str, Any]]:
+    """
+    Updates an event submitted by an organizer.
+    Strictly verifies ownership:
+    - 404 if event not found or deleted
+    - 403 (EventForbiddenError) if user is not organizer or org owner
+    Detects operational changes (start_at, venue_name, address).
+    If published and significant change occurs, automatically triggers notify_event_updated.
+    """
+    res = await session.execute(select(Event).where(Event.id == event_id))
+    event = res.scalar_one_or_none()
+    if not event or event.status == EventStatus.DELETED.value:
+        raise EventNotFoundError(f"Мероприятие '{event_id}' не найдено.")
+
+    is_owner = (event.organizer_user_id == user_id)
+    if not is_owner and event.organization_id:
+        org_res = await session.execute(select(Organization).where(Organization.id == event.organization_id))
+        org = org_res.scalar_one_or_none()
+        if org and org.owner_user_id == user_id:
+            is_owner = True
+
+    if not is_owner:
+        raise EventForbiddenError("У вас нет прав для изменения этого мероприятия.")
+
+    old_start_at = event.start_at
+    old_venue_name = event.venue_name
+    old_address = event.address
+
+    changes: Dict[str, Any] = {}
+    time_changed = False
+    venue_changed = False
+
+    if data.start_at is not None and data.start_at != event.start_at:
+        time_changed = True
+        changes["time_changed"] = True
+        changes["old_start_at"] = old_start_at
+        changes["new_start_at"] = data.start_at
+        event.start_at = data.start_at
+
+    if data.venue_name is not None and data.venue_name.strip() != event.venue_name:
+        venue_changed = True
+        changes["venue_changed"] = True
+        changes["old_venue"] = old_venue_name
+        changes["new_venue"] = data.venue_name.strip()
+        event.venue_name = data.venue_name.strip()
+
+    if data.address is not None and data.address.strip() != (event.address or ""):
+        if not venue_changed:
+            changes["venue_changed"] = True
+            changes["old_venue"] = old_address or old_venue_name
+            changes["new_venue"] = data.address.strip()
+        event.address = data.address.strip()
+
+    if data.title is not None and data.title.strip():
+        event.title = data.title.strip()
+    if data.description is not None and data.description.strip():
+        event.description = data.description.strip()
+    if data.cover_image_url is not None:
+        event.cover_image_url = data.cover_image_url
+    if data.latitude is not None:
+        event.latitude = data.latitude
+    if data.longitude is not None:
+        event.longitude = data.longitude
+    if data.price_amount is not None:
+        event.price_amount = data.price_amount
+    if data.price_currency is not None:
+        event.price_currency = data.price_currency
+
+    event.updated_at = utc_now()
+    await session.commit()
+    await session.refresh(event)
+
+    # If published and operational change occurred, dispatch system transactional notification
+    if event.status == EventStatus.PUBLISHED.value and (time_changed or venue_changed):
+        try:
+            from app.services.notification_service import notify_event_updated
+            await notify_event_updated(event, changes, session)
+        except Exception as notif_err:
+            logger.warning(f"Error dispatching event update notifications for event {event.id}: {notif_err}")
+
+    return event, changes
+
+
 async def delete_organizer_event(
     session: AsyncSession,
     event_id: str,
@@ -718,6 +806,7 @@ async def delete_organizer_event(
     - 404 if event not found or already deleted
     - 403 (EventForbiddenError) if user is not the organizer or organization owner
     Preserves historical analytics, views, attendees, interests, and broadcasts.
+    Automatically dispatches cancellation notification if the event was published.
     """
     res = await session.execute(select(Event).where(Event.id == event_id))
     event = res.scalar_one_or_none()
@@ -735,9 +824,18 @@ async def delete_organizer_event(
     if not is_owner:
         raise EventForbiddenError("У вас нет прав для удаления этого мероприятия.")
 
+    was_published = (event.status == EventStatus.PUBLISHED.value)
     event.status = EventStatus.DELETED.value
     event.updated_at = utc_now()
     await session.commit()
+
+    if was_published:
+        try:
+            from app.services.notification_service import notify_event_cancelled
+            await notify_event_cancelled(event, session)
+        except Exception as e:
+            logger.warning(f"Failed to dispatch cancellation notification on event deletion {event_id}: {e}")
+
     return event
 
 

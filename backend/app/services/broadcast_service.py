@@ -258,6 +258,12 @@ async def preview_broadcast(
     """
     Calculates audience preview and renders formatted message preview without persisting anything.
     """
+    if broadcast_type == BroadcastType.TRANSACTIONAL.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Сервисные уведомления об изменениях событий отправляются системой автоматически при обновлении события. Для ручных рассылок используйте анонсы или новости организации."
+        )
+
     if target_type == BroadcastTargetType.EVENT_INTEREST.value and template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
         raise HTTPException(
             status_code=400,
@@ -314,11 +320,22 @@ async def create_broadcast(
     broadcast_type_val = getattr(req.broadcast_type, 'value', req.broadcast_type)
     template_key_val = getattr(req.template_key, 'value', req.template_key)
 
+    if broadcast_type_val == BroadcastType.TRANSACTIONAL.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Сервисные уведомления об изменениях событий отправляются системой автоматически при обновлении события. Для ручных рассылок используйте анонсы или новости организации."
+        )
+
     if target_type_val == BroadcastTargetType.EVENT_INTEREST.value and template_key_val == BroadcastTemplateKey.CUSTOM_UPDATE.value:
         raise HTTPException(
             status_code=400,
             detail="Для аудитории с интересом к событию шаблон 'custom_update' (новости организации) недопустим. Рассылка должна быть связана с событием."
         )
+
+    # Enforce Pro entitlement for manual broadcasts
+    from app.services.entitlement_service import EntitlementService
+    await EntitlementService.require_entitlement(session, req.organization_id, "broadcasts_extended")
+    await EntitlementService.enforce_broadcast_capacity(session, req.organization_id, broadcast_type=broadcast_type_val)
 
     calc = await calculate_audience(
         session=session,
@@ -338,10 +355,6 @@ async def create_broadcast(
 
     org: Organization = calc["organization"]
     event: Optional[Event] = calc["event"]
-
-    # Enforce broadcast monthly quota and Pro entitlement
-    from app.services.entitlement_service import EntitlementService
-    await EntitlementService.enforce_broadcast_capacity(session, org.id, broadcast_type=broadcast_type_val)
 
     # Create Broadcast entity
     attribution_token = secrets.token_hex(8)
@@ -519,6 +532,11 @@ async def dispatch_broadcast(
             broadcast.failed_count += 1
             return
 
+        cover_image_url = None
+        if event and event.cover_image_url:
+            from app.services.notification_service import resolve_event_cover_url
+            cover_image_url = resolve_event_cover_url(event.cover_image_url)
+
         payload = {
             "chat_id": tg_id,
             "text": message_text,
@@ -529,7 +547,39 @@ async def dispatch_broadcast(
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
         try:
-            resp = await client.post(url, json=payload, timeout=5.0)
+            resp = None
+            if cover_image_url:
+                photo_payload = {
+                    "chat_id": tg_id,
+                    "photo": cover_image_url,
+                    "caption": message_text,
+                    "parse_mode": "HTML",
+                    "reply_markup": reply_markup
+                }
+                photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+                try:
+                    resp = await client.post(photo_url, json=photo_payload, timeout=5.0)
+                    if resp.status_code == 429:
+                        retry_after = 1
+                        try:
+                            data = resp.json()
+                            if asyncio.iscoroutine(data):
+                                data = await data
+                            retry_after = data.get("parameters", {}).get("retry_after", 1)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, json=photo_payload, timeout=5.0)
+                    if resp.status_code != 200 and resp.status_code != 403:
+                        # photo delivery error (e.g. invalid URL) -> fallback to sendMessage
+                        logger.warning(f"sendPhoto failed ({resp.status_code}), falling back to sendMessage for recipient {rec.user_id}")
+                        resp = None
+                except Exception as photo_err:
+                    logger.warning(f"sendPhoto exception, falling back to sendMessage: {photo_err}")
+                    resp = None
+
+            if resp is None:
+                resp = await client.post(url, json=payload, timeout=5.0)
 
             # Handle 429 Too Many Requests
             if resp.status_code == 429:

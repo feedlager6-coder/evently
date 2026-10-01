@@ -2,6 +2,7 @@ import pytest
 import re
 from pathlib import Path
 from sqlalchemy import select
+from app.models.organization import Organization
 from app.models.event import Event, EventStatus
 from tests.conftest import make_test_init_data
 
@@ -198,7 +199,7 @@ async def test_subscriptions_are_handled_safely(client):
 
 
 @pytest.mark.asyncio
-async def test_historical_broadcasts_remain_safe_and_readable(client):
+async def test_historical_broadcasts_remain_safe_and_readable(client, test_session):
     """
     When an organization is deleted:
     - Historical broadcast records are preserved.
@@ -216,6 +217,10 @@ async def test_historical_broadcasts_remain_safe_and_readable(client):
         headers=owner_headers
     )
     org_id = org_res.json()["id"]
+
+    # Upgrade to pro to allow broadcast creation
+    from app.services.entitlement_service import EntitlementService
+    await EntitlementService.set_organization_plan(test_session, org_id, plan="pro")
 
     # 2. Add subscriber
     await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_headers)

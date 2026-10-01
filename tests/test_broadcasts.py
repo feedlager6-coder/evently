@@ -27,6 +27,20 @@ from app.services.broadcast_service import (
 from app.services.notification_service import notify_organization_subscribers
 
 
+@pytest.fixture(autouse=True)
+def setup_broadcast_tests(monkeypatch):
+    """Bypasses entitlement quota and capability check for D4 broadcast engine internal tests."""
+    from app.services.entitlement_service import EntitlementService
+    async def mock_check(session, org_id, capability):
+        return True, "Allowed in test", None
+    async def mock_enforce(session, org_id, broadcast_type="marketing"):
+        return True
+    async def mock_require(session, org_id, capability):
+        return True
+    async def mock_enforce(session, org_id, broadcast_type="marketing"):
+        return True
+    monkeypatch.setattr(EntitlementService, "require_entitlement", mock_require)
+    monkeypatch.setattr(EntitlementService, "enforce_broadcast_capacity", mock_enforce)
 @pytest.mark.asyncio
 async def test_organization_subscriber_audience_calculation(client, test_session):
     """Requirement 1: Organization subscriber audience calculation."""
@@ -718,7 +732,7 @@ async def test_transactional_notification_not_blocked_by_marketing_fatigue(clien
     test_session.add(rec_mkt)
     await test_session.commit()
 
-    # Now send a TRANSACTIONAL broadcast (e.g. urgent concert time change)
+    # 1. Manual transactional via API is blocked (anti-abuse rule)
     preview_res = await client.post(
         "/api/v1/organizer/broadcasts/preview",
         json={
@@ -730,11 +744,19 @@ async def test_transactional_notification_not_blocked_by_marketing_fatigue(clien
         },
         headers=auth_owner
     )
-    assert preview_res.status_code == 200
-    data = preview_res.json()
+    assert preview_res.status_code == 400
+
+    # 2. System-level audience calculation correctly exempts transactional notifications from marketing fatigue
+    data = await calculate_audience(
+        session=test_session,
+        organizer_user_id=owner_user.id,
+        organization_id=org_id,
+        target_type="organization_subscribers",
+        broadcast_type="transactional",
+    )
     assert data["total_audience"] == 1
     # Transactional is NOT blocked!
-    assert data["eligible_recipients"] == 1
+    assert len(data["eligible_user_ids"]) == 1
     assert data["fatigued_recipients_count"] == 0
 
 

@@ -28,6 +28,29 @@ class EventCreate(BaseModel):
         return v
 
 
+class EventUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=255, description="Event title")
+    description: Optional[str] = Field(None, min_length=10, max_length=5000, description="Event description")
+    cover_image_url: Optional[str] = Field(None, max_length=1024, description="Image cover URL or upload path")
+    start_at: Optional[datetime] = Field(None, description="Start timestamp with timezone")
+    venue_name: Optional[str] = Field(None, min_length=2, max_length=255, description="Venue name")
+    address: Optional[str] = Field(None, max_length=255, description="Physical address")
+    latitude: Optional[float] = Field(None, description="Venue latitude")
+    longitude: Optional[float] = Field(None, description="Venue longitude")
+    price_amount: Optional[float] = Field(None, ge=0, description="Admission price")
+    price_currency: Optional[str] = Field(None, max_length=10, description="Price currency")
+
+    @field_validator("cover_image_url")
+    @classmethod
+    def validate_cover_image(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip():
+            v = v.strip()
+            if not (v.startswith("http://") or v.startswith("https://") or v.startswith("/uploads/") or v.startswith("/")):
+                raise ValueError("cover_image_url must start with http://, https://, or /uploads/")
+        return v
+
+
+
 class EventSummary(BaseModel):
     id: str
     title: str

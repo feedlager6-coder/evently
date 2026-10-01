@@ -28,6 +28,21 @@ def make_event_payload(org_id: str, title: str = "Test Event", days: int = 5):
     }
 
 
+@pytest.fixture(autouse=True)
+def setup_broadcast_tests(monkeypatch):
+    """Bypasses entitlement quota and capability check for D4 backward compatibility tests."""
+    from app.services.entitlement_service import EntitlementService
+    async def mock_check(session, org_id, capability):
+        return True, "Allowed in test", None
+    async def mock_enforce(session, org_id, broadcast_type="marketing"):
+        return True
+    async def mock_require(session, org_id, capability):
+        return True
+    monkeypatch.setattr(EntitlementService, "check_capability", mock_check)
+    monkeypatch.setattr(EntitlementService, "enforce_broadcast_capacity", mock_enforce)
+    monkeypatch.setattr(EntitlementService, "require_entitlement", mock_require)
+
+
 @pytest.mark.asyncio
 async def test_schema_migration_preserves_d40_legacy_broadcasts(tmp_path):
     """
@@ -350,7 +365,7 @@ async def test_all_target_and_template_combinations_create_successfully(client, 
     assert bcast1["attribution_token"] is not None
     assert bcast1["total_recipients"] >= 1
 
-    # Combo 2: organization_subscribers + custom_update (no event_id, transactional to bypass fatigue)
+    # Combo 2: organization_subscribers + custom_update (no event_id)
     # Add another subscriber who hasn't received anything
     sub2_id = 9313
     auth_sub2 = {"Authorization": f"tma {make_test_init_data(user_id=sub2_id, username='sub_combo2')}"}
@@ -361,7 +376,7 @@ async def test_all_target_and_template_combinations_create_successfully(client, 
         json={
             "organization_id": org_id,
             "target_type": "organization_subscribers",
-            "broadcast_type": "transactional",
+            "broadcast_type": "marketing",
             "template_key": "custom_update",
             "custom_text": "Combo 2 Org News",
         },
@@ -378,7 +393,7 @@ async def test_all_target_and_template_combinations_create_successfully(client, 
         json={
             "organization_id": org_id,
             "target_type": "event_interest",
-            "broadcast_type": "transactional",
+            "broadcast_type": "marketing",
             "template_key": "event_announcement",
             "event_id": event_id,
             "custom_text": "Combo 3 Announcement to Interested",
@@ -389,7 +404,7 @@ async def test_all_target_and_template_combinations_create_successfully(client, 
     bcast3 = res3.json()
     assert bcast3["event_id"] == event_id
 
-    # Combo 4: event_interest + event_update
+    # Anti-abuse: Manual transactional broadcast creation is rejected with 400
     res4 = await client.post(
         "/api/v1/organizer/broadcasts",
         json={
@@ -402,15 +417,13 @@ async def test_all_target_and_template_combinations_create_successfully(client, 
         },
         headers=auth_owner,
     )
-    assert res4.status_code == 200, res4.text
-    bcast4 = res4.json()
-    assert bcast4["event_id"] == event_id
+    assert res4.status_code == 400
 
-    # Verify all 4 are returned in list
+    # Verify marketing broadcasts are returned in list
     res_list = await client.get("/api/v1/organizer/broadcasts", headers=auth_owner)
     assert res_list.status_code == 200
     returned_ids = {b["id"] for b in res_list.json()}
-    assert {bcast1["id"], bcast2["id"], bcast3["id"], bcast4["id"]}.issubset(returned_ids)
+    assert {bcast1["id"], bcast2["id"], bcast3["id"]}.issubset(returned_ids)
 
 
 @pytest.mark.asyncio

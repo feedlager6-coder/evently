@@ -27,6 +27,21 @@ def make_event_payload(org_id: str, title: str = "Acoustic Night", days: int = 5
     }
 
 
+@pytest.fixture(autouse=True)
+def setup_broadcast_tests(monkeypatch):
+    """Bypasses entitlement quota and capability check for D4 broadcast analytics internal tests."""
+    from app.services.entitlement_service import EntitlementService
+    async def mock_check(session, org_id, capability):
+        return True, "Allowed in test", None
+    async def mock_enforce(session, org_id, broadcast_type="marketing"):
+        return True
+    async def mock_require(session, org_id, capability):
+        return True
+    monkeypatch.setattr(EntitlementService, "check_capability", mock_check)
+    monkeypatch.setattr(EntitlementService, "enforce_broadcast_capacity", mock_enforce)
+    monkeypatch.setattr(EntitlementService, "require_entitlement", mock_require)
+
+
 @pytest.mark.asyncio
 async def test_broadcast_token_generation_and_deep_link(client, test_session):
     """Verifies attribution token generation and Telegram 64-char limit compliance."""

@@ -1,7 +1,8 @@
 import logging
 import html
+from datetime import datetime
+from typing import Optional, List, Dict, Any, Set
 import httpx
-from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,11 +10,86 @@ from app.config import settings
 from app.models.event import Event, EventStatus
 from app.models.organization import Organization
 from app.models.subscription import Subscription
+from app.models.attendee import EventAttendee
+from app.models.interest import EventInterest
 from app.models.user import User
 from app.models.city import City
 from app.database import AsyncSessionLocal
 
 logger = logging.getLogger("evently.notifications")
+
+
+def resolve_event_cover_url(url: Optional[str]) -> Optional[str]:
+    """
+    Ensures event cover URL sent to Telegram is a valid absolute HTTP/HTTPS URL, or None.
+    Never returns internal filesystem paths (e.g. /app/uploads/...) or relative URLs.
+    If no valid public host or URL is provided, returns None so callers fall back to text.
+    """
+    if not url or not url.strip():
+        return None
+    clean = url.strip()
+    if clean.startswith("http://") or clean.startswith("https://"):
+        return clean
+    public_host = settings.effective_public_host
+    if public_host:
+        if not clean.startswith("/"):
+            clean = f"/{clean}"
+        return f"{public_host}{clean}"
+    return None
+
+
+async def send_telegram_event_message(
+    client: httpx.AsyncClient,
+    bot_token: str,
+    chat_id: int,
+    text: str,
+    reply_markup: Dict[str, Any],
+    image_url: Optional[str] = None
+) -> bool:
+    """
+    Delivers a unified Telegram photo+caption message if image_url is available,
+    with an immediate and graceful fallback to standard sendMessage if sendPhoto fails
+    or if image_url is not provided.
+    """
+    if image_url:
+        photo_payload = {
+            "chat_id": chat_id,
+            "photo": image_url,
+            "caption": text,
+            "parse_mode": "HTML",
+            "reply_markup": reply_markup
+        }
+        try:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+                json=photo_payload,
+                timeout=5.0
+            )
+            if resp.status_code == 200:
+                return True
+            logger.warning(
+                f"sendPhoto failed with status {resp.status_code} for chat_id {chat_id}, falling back to sendMessage: {resp.text}"
+            )
+        except Exception as e:
+            logger.warning(f"sendPhoto exception for chat_id {chat_id}, falling back to sendMessage: {e}")
+
+    # Fallback to standard sendMessage
+    msg_payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": reply_markup
+    }
+    try:
+        resp = await client.post(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            json=msg_payload,
+            timeout=5.0
+        )
+        return resp.status_code == 200
+    except Exception as e:
+        logger.warning(f"sendMessage exception for chat_id {chat_id}: {e}")
+        return False
 
 
 async def notify_organization_subscribers(
@@ -28,6 +104,7 @@ async def notify_organization_subscribers(
     Strict constraints:
     - Never triggers for pending or rejected events.
     - Only sends if event has a valid organization_id and is PUBLISHED.
+    - Uses event cover photo if available, with safe fallback.
     - Does not expose subscriber identities.
     - Resilient to individual Telegram delivery errors.
     """
@@ -88,7 +165,7 @@ async def _dispatch_notifications(
         )
     )
     sub_res = await session.execute(sub_stmt)
-    telegram_ids = sub_res.scalars().all()
+    telegram_ids = [tid for tid in sub_res.scalars().all() if tid]
 
     if not telegram_ids:
         logger.info(f"No active subscribers found for organization '{org.name}' ({org.id}).")
@@ -97,13 +174,19 @@ async def _dispatch_notifications(
     # Prepare message content
     date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
     deep_link = settings.get_event_deep_link(event.id)
+    safe_org_name = html.escape(org.name)
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name)
+    safe_city = html.escape(city_name or event.city_id or "")
 
     message_text = (
-        f"🔔 <b>Новое мероприятие от {org.name}</b>\n\n"
-        f"🧭 <b>{event.title}</b>\n"
+        f"🔔 <b>Новое событие от {safe_org_name}</b>\n\n"
+        f"🧭 <b>{safe_title}</b>\n"
         f"📅 {date_str}\n"
-        f"📍 {event.venue_name} ({city_name or event.city_id or 'город не указан'})\n"
+        f"📍 {safe_venue}"
     )
+    if safe_city:
+        message_text += f" ({safe_city})"
 
     reply_markup = {
         "inline_keyboard": [
@@ -117,6 +200,8 @@ async def _dispatch_notifications(
         ]
     }
 
+    image_url = resolve_event_cover_url(event.cover_image_url)
+
     logger.info(f"Dispatching notifications for event '{event.id}' to {len(telegram_ids)} subscribers...")
 
     sent_count = 0
@@ -124,39 +209,259 @@ async def _dispatch_notifications(
 
     # Check if live bot or mocked client
     if not settings.is_live_bot and http_client is None:
-        logger.info(f"[Test/Dev Mode] Simulated notification dispatch to {len(telegram_ids)} subscribers. Deep link: {deep_link}")
+        logger.info(f"[Test/Dev Mode] Simulated notification dispatch to {len(telegram_ids)} subscribers. Image: {image_url}")
         return len(telegram_ids)
 
-    async def _dispatch_to_user(client: httpx.AsyncClient, tg_id: int):
+    async def _send(client: httpx.AsyncClient, tg_id: int):
         nonlocal sent_count
-        payload = {
-            "chat_id": tg_id,
-            "text": message_text,
-            "parse_mode": "HTML",
-            "reply_markup": reply_markup
-        }
-        try:
-            resp = await client.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json=payload,
-                timeout=5.0
-            )
-            if resp.status_code == 200:
-                sent_count += 1
-            else:
-                logger.warning(f"Failed to send notification to telegram_id {tg_id}: {resp.status_code} {resp.text}")
-        except Exception as e:
-            logger.warning(f"Error sending notification to telegram_id {tg_id}: {e}")
+        ok = await send_telegram_event_message(
+            client=client,
+            bot_token=bot_token,
+            chat_id=tg_id,
+            text=message_text,
+            reply_markup=reply_markup,
+            image_url=image_url
+        )
+        if ok:
+            sent_count += 1
 
     if http_client:
         for tg_id in telegram_ids:
-            await _dispatch_to_user(http_client, tg_id)
+            await _send(http_client, tg_id)
     else:
         async with httpx.AsyncClient(timeout=10.0) as client:
             for tg_id in telegram_ids:
-                await _dispatch_to_user(client, tg_id)
+                await _send(client, tg_id)
 
     logger.info(f"Completed notification dispatch for event '{event.id}': {sent_count}/{len(telegram_ids)} sent.")
+    return sent_count
+
+
+async def notify_event_updated(
+    event: Event,
+    changes: Dict[str, Any],
+    session: AsyncSession,
+    http_client: Optional[httpx.AsyncClient] = None
+) -> int:
+    """
+    Sends transactional Telegram notifications when an event's time or venue is updated.
+    Recipients: Attendees, interested users ('Хочу пойти'), and organization subscribers.
+    Does NOT count against marketing quota, does NOT attach marketing attribution tokens.
+    """
+    # 1. Gather distinct recipient Telegram IDs
+    recipient_ids: Set[int] = set()
+
+    # Attendees
+    att_stmt = (
+        select(User.telegram_id)
+        .join(EventAttendee, EventAttendee.user_id == User.id)
+        .where(EventAttendee.event_id == event.id, User.telegram_id.isnot(None))
+    )
+    for tid in (await session.execute(att_stmt)).scalars().all():
+        if tid:
+            recipient_ids.add(tid)
+
+    # Interested
+    int_stmt = (
+        select(User.telegram_id)
+        .join(EventInterest, EventInterest.user_id == User.id)
+        .where(EventInterest.event_id == event.id, User.telegram_id.isnot(None))
+    )
+    for tid in (await session.execute(int_stmt)).scalars().all():
+        if tid:
+            recipient_ids.add(tid)
+
+    # Organization subscribers
+    if event.organization_id:
+        sub_stmt = (
+            select(User.telegram_id)
+            .join(Subscription, Subscription.user_id == User.id)
+            .where(
+                Subscription.organization_id == event.organization_id,
+                Subscription.notifications_enabled == True,
+                User.telegram_id.isnot(None)
+            )
+        )
+        for tid in (await session.execute(sub_stmt)).scalars().all():
+            if tid:
+                recipient_ids.add(tid)
+
+    if not recipient_ids:
+        logger.info(f"No recipients for event update notification (event {event.id})")
+        return 0
+
+    # 2. Build structured message
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name)
+
+    change_lines: List[str] = []
+    if changes.get("time_changed"):
+        old_time = changes.get("old_start_at")
+        new_time = changes.get("new_start_at")
+        old_str = old_time.strftime("%d.%m.%Y в %H:%M") if isinstance(old_time, datetime) else str(old_time)
+        new_str = new_time.strftime("%d.%m.%Y в %H:%M") if isinstance(new_time, datetime) else str(new_time)
+        change_lines.append(f"Время начала изменилось:\nБыло: {old_str}\nСтало: {new_str}")
+
+    if changes.get("venue_changed"):
+        old_venue = html.escape(changes.get("old_venue") or "")
+        new_venue = html.escape(changes.get("new_venue") or event.venue_name)
+        change_lines.append(f"Место проведения изменилось:\nБыло: {old_venue}\nСтало: {new_venue}")
+
+    details = "\n\n".join(change_lines)
+    message_text = (
+        f"🔔 <b>Изменение события</b>\n\n"
+        f"🧭 <b>{safe_title}</b>\n\n"
+        f"{details}\n\n"
+        f"📍 {safe_venue}"
+    )
+
+    deep_link = settings.get_event_deep_link(event.id)
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Открыть событие 🧭",
+                    "url": deep_link,
+                    "style": "primary"
+                }
+            ]
+        ]
+    }
+
+    image_url = resolve_event_cover_url(event.cover_image_url)
+    bot_token = settings.clean_bot_token
+
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated event update notification to {len(recipient_ids)} users.")
+        return len(recipient_ids)
+
+    sent_count = 0
+    async def _send(client: httpx.AsyncClient, tg_id: int):
+        nonlocal sent_count
+        ok = await send_telegram_event_message(
+            client=client,
+            bot_token=bot_token,
+            chat_id=tg_id,
+            text=message_text,
+            reply_markup=reply_markup,
+            image_url=image_url
+        )
+        if ok:
+            sent_count += 1
+
+    if http_client:
+        for tg_id in recipient_ids:
+            await _send(http_client, tg_id)
+    else:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for tg_id in recipient_ids:
+                await _send(client, tg_id)
+
+    return sent_count
+
+
+async def notify_event_cancelled(
+    event: Event,
+    session: AsyncSession,
+    http_client: Optional[httpx.AsyncClient] = None
+) -> int:
+    """
+    Sends transactional Telegram notifications when an event is cancelled.
+    Recipients: Attendees, interested users ('Хочу пойти'), and organization subscribers.
+    Does NOT count against marketing quota, does NOT attach marketing attribution tokens.
+    """
+    recipient_ids: Set[int] = set()
+
+    # Attendees
+    att_stmt = (
+        select(User.telegram_id)
+        .join(EventAttendee, EventAttendee.user_id == User.id)
+        .where(EventAttendee.event_id == event.id, User.telegram_id.isnot(None))
+    )
+    for tid in (await session.execute(att_stmt)).scalars().all():
+        if tid:
+            recipient_ids.add(tid)
+
+    # Interested
+    int_stmt = (
+        select(User.telegram_id)
+        .join(EventInterest, EventInterest.user_id == User.id)
+        .where(EventInterest.event_id == event.id, User.telegram_id.isnot(None))
+    )
+    for tid in (await session.execute(int_stmt)).scalars().all():
+        if tid:
+            recipient_ids.add(tid)
+
+    # Organization subscribers
+    if event.organization_id:
+        sub_stmt = (
+            select(User.telegram_id)
+            .join(Subscription, Subscription.user_id == User.id)
+            .where(
+                Subscription.organization_id == event.organization_id,
+                Subscription.notifications_enabled == True,
+                User.telegram_id.isnot(None)
+            )
+        )
+        for tid in (await session.execute(sub_stmt)).scalars().all():
+            if tid:
+                recipient_ids.add(tid)
+
+    if not recipient_ids:
+        logger.info(f"No recipients for event cancellation notification (event {event.id})")
+        return 0
+
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name)
+    message_text = (
+        f"❌ <b>Событие отменено</b>\n\n"
+        f"🧭 <b>{safe_title}</b>\n\n"
+        f"К сожалению, организатор отменил событие.\n\n"
+        f"📍 {safe_venue}"
+    )
+
+    deep_link = settings.get_event_deep_link(event.id)
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Открыть событие 🧭",
+                    "url": deep_link,
+                    "style": "primary"
+                }
+            ]
+        ]
+    }
+
+    image_url = resolve_event_cover_url(event.cover_image_url)
+    bot_token = settings.clean_bot_token
+
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated event cancel notification to {len(recipient_ids)} users.")
+        return len(recipient_ids)
+
+    sent_count = 0
+    async def _send(client: httpx.AsyncClient, tg_id: int):
+        nonlocal sent_count
+        ok = await send_telegram_event_message(
+            client=client,
+            bot_token=bot_token,
+            chat_id=tg_id,
+            text=message_text,
+            reply_markup=reply_markup,
+            image_url=image_url
+        )
+        if ok:
+            sent_count += 1
+
+    if http_client:
+        for tg_id in recipient_ids:
+            await _send(http_client, tg_id)
+    else:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for tg_id in recipient_ids:
+                await _send(client, tg_id)
+
     return sent_count
 
 
@@ -225,4 +530,3 @@ async def notify_company_request(
     except Exception as e:
         logger.warning(f"Failed to deliver company request notification to {receiver_telegram_id}: {e}")
         return False
-

@@ -35,8 +35,8 @@ def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
 # Each capability declares its title, description, whether it requires Pro, and its status per plan.
 CAPABILITY_REGISTRY: Dict[str, Dict[str, Any]] = {
     "broadcasts_extended": {
-        "title": "Расширенные рассылки",
-        "description": "Увеличенный ежемесячный лимит отправок и расширенная аудитория подписчиков",
+        "title": "Рассылки аудитории",
+        "description": "Отправка анонсов и сообщений подписчикам организации прямо в Telegram",
         "is_pro_feature": True,
         "plans": {
             PlanType.FREE.value: CapabilityStatus.LOCKED,
@@ -282,39 +282,31 @@ class EntitlementService:
             return
 
         plan, plan_status, _, _ = await cls.get_organization_plan(session, organization_id)
-        used = await cls.get_monthly_broadcast_usage(session, organization_id)
+        if plan != PlanType.PRO.value:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "Для отправки рассылок требуется тариф Pro.",
+                    "code": "ENTITLEMENT_REQUIRED",
+                    "capability": "broadcasts_extended",
+                    "required_plan": PlanType.PRO.value,
+                }
+            )
 
-        limit = (
-            settings.PRO_BROADCASTS_PER_MONTH
-            if plan == PlanType.PRO.value
-            else settings.FREE_BROADCASTS_PER_MONTH
-        )
+        used = await cls.get_monthly_broadcast_usage(session, organization_id)
+        limit = settings.PRO_BROADCASTS_PER_MONTH
 
         if used >= limit:
-            if plan == PlanType.FREE.value:
-                # Triggers Pro entitlement enforcement
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "message": f"Достигнут лимит бесплатных анонсов ({limit} в месяц). Для расширенных рассылок требуется тариф Pro.",
-                        "code": "ENTITLEMENT_REQUIRED",
-                        "capability": "broadcasts_extended",
-                        "required_plan": PlanType.PRO.value,
-                        "used": used,
-                        "limit": limit,
-                    }
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "message": f"Достигнут лимит анонсов для тарифа Pro ({limit} в месяц).",
-                        "code": "LIMIT_EXCEEDED",
-                        "capability": "broadcasts_extended",
-                        "used": used,
-                        "limit": limit,
-                    }
-                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": f"Достигнут лимит анонсов для тарифа Pro ({limit} в месяц).",
+                    "code": "LIMIT_EXCEEDED",
+                    "capability": "broadcasts_extended",
+                    "used": used,
+                    "limit": limit,
+                }
+            )
 
     @classmethod
     async def set_organization_plan(

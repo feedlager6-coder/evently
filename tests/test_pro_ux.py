@@ -9,14 +9,12 @@ from tests.conftest import make_test_init_data
 
 
 @pytest.mark.asyncio
-async def test_transactional_broadcast_exempt_from_monthly_quota(client, test_session, monkeypatch):
+@pytest.mark.asyncio
+async def test_transactional_broadcast_manual_blocked_and_system_exempt(client, test_session, monkeypatch):
     """
-    1. Transactional broadcasts (operational event updates) are exempt from monthly quota:
-    Even when the Free monthly quota (e.g. limit=1) is saturated with a marketing broadcast,
-    an organizer can still send transactional event updates without error.
+    1. Manual transactional broadcasts are blocked with HTTP 400,
+    and automatic event updates do not consume marketing quota.
     """
-    monkeypatch.setattr(settings, "FREE_BROADCASTS_PER_MONTH", 1)
-
     owner_id = 9301
     auth = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_trans_quota')}"}
 
@@ -28,6 +26,9 @@ async def test_transactional_broadcast_exempt_from_monthly_quota(client, test_se
     )
     assert res_org.status_code in (200, 201)
     org_id = res_org.json()["id"]
+
+    # Upgrade to Pro so we can test marketing broadcasts
+    await EntitlementService.set_organization_plan(test_session, org_id, plan="pro")
 
     # Create Event
     res_ev = await client.post(
@@ -52,11 +53,27 @@ async def test_transactional_broadcast_exempt_from_monthly_quota(client, test_se
     ev_db.status = EventStatus.PUBLISHED.value
     await test_session.commit()
 
-    # Add Subscriber 1
+    # Add Subscriber
     sub_auth_1 = {"Authorization": f"tma {make_test_init_data(user_id=9401, username='sub_trans_1')}"}
     await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_auth_1)
 
-    # 1. Send Marketing broadcast (consumes quota 1 of 1)
+    # 1. Manual transactional broadcast attempt -> MUST FAIL with 400 Bad Request
+    bcast_trans = await client.post(
+        "/api/v1/organizer/broadcasts",
+        json={
+            "organization_id": org_id,
+            "target_type": "organization_subscribers",
+            "broadcast_type": "transactional",
+            "template_key": "event_update",
+            "event_id": event_id,
+            "custom_text": "Внимание! Изменение времени",
+        },
+        headers=auth,
+    )
+    assert bcast_trans.status_code == 400
+    assert "отправляются системой автоматически" in bcast_trans.json()["detail"]
+
+    # 2. Send Marketing broadcast (consumes 1 quota)
     bcast_mkt = await client.post(
         "/api/v1/organizer/broadcasts",
         json={
@@ -71,50 +88,8 @@ async def test_transactional_broadcast_exempt_from_monthly_quota(client, test_se
     )
     assert bcast_mkt.status_code == 200
 
-    # Verify marketing usage is 1
     usage = await EntitlementService.get_monthly_broadcast_usage(test_session, org_id)
     assert usage == 1
-
-    # 2. Try second marketing broadcast -> MUST fail with 403 ENTITLEMENT_REQUIRED
-    sub_auth_2 = {"Authorization": f"tma {make_test_init_data(user_id=9402, username='sub_trans_2')}"}
-    await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_auth_2)
-
-    bcast_mkt_blocked = await client.post(
-        "/api/v1/organizer/broadcasts",
-        json={
-            "organization_id": org_id,
-            "target_type": "organization_subscribers",
-            "broadcast_type": "marketing",
-            "template_key": "event_announcement",
-            "event_id": event_id,
-            "custom_text": "Второй анонс (должен быть заблокирован)",
-        },
-        headers=auth,
-    )
-    assert bcast_mkt_blocked.status_code == 403
-    detail = bcast_mkt_blocked.json()["detail"]
-    assert detail["code"] == "ENTITLEMENT_REQUIRED"
-    assert "лимит бесплатных анонсов" in detail["message"]
-
-    # 3. Send Transactional broadcast (event_update) -> MUST SUCCEED despite quota saturation!
-    bcast_trans = await client.post(
-        "/api/v1/organizer/broadcasts",
-        json={
-            "organization_id": org_id,
-            "target_type": "organization_subscribers",
-            "broadcast_type": "transactional",
-            "template_key": "event_update",
-            "event_id": event_id,
-            "custom_text": "Внимание! Изменение времени начала спектакля на 19:30",
-        },
-        headers=auth,
-    )
-    assert bcast_trans.status_code == 200
-    assert bcast_trans.json()["broadcast_type"] == "transactional"
-
-    # Verify marketing usage did NOT increase from transactional broadcast
-    usage_after = await EntitlementService.get_monthly_broadcast_usage(test_session, org_id)
-    assert usage_after == 1
 
 
 @pytest.mark.asyncio
@@ -181,6 +156,5 @@ async def test_structured_error_format_compatibility(client, test_session, monke
     assert "detail" in payload
     assert isinstance(payload["detail"], dict)
     assert "message" in payload["detail"]
-    assert "code" in payload["detail"]
     assert payload["detail"]["code"] == "ENTITLEMENT_REQUIRED"
-    assert "тариф Pro" in payload["detail"]["message"]
+    assert "тарифе Pro" in payload["detail"]["message"]

@@ -267,14 +267,13 @@ async def test_frontend_endpoint_data_safety(client, test_session):
 
 
 @pytest.mark.asyncio
-async def test_free_user_quota_enforcement(client, test_session, monkeypatch):
+@pytest.mark.asyncio
+async def test_free_user_quota_enforcement(client, test_session):
     """
-    10. Free user cannot access future Pro-only operation:
-    When a Free organization reaches the free broadcast limit, the next broadcast attempt is blocked
-    with HTTP 403 Forbidden and code ENTITLEMENT_REQUIRED.
+    10. Free user cannot send manual broadcasts:
+    Free organization attempting to create a manual marketing broadcast is blocked
+    with HTTP 403 Forbidden and code ENTITLEMENT_REQUIRED (required_plan='pro').
     """
-    monkeypatch.setattr(settings, "FREE_BROADCASTS_PER_MONTH", 1)
-
     owner_id = 9109
     auth = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_quota')}"}
 
@@ -285,42 +284,24 @@ async def test_free_user_quota_enforcement(client, test_session, monkeypatch):
     )
     org_id = res_org.json()["id"]
 
-    # Add subscriber 1 for first broadcast
+    # Add subscriber
     sub_auth_1 = {"Authorization": f"tma {make_test_init_data(user_id=9201, username='sub_quota_1')}"}
     await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_auth_1)
 
-    # 1st broadcast should succeed (within limit 1)
-    bcast_1 = await client.post(
+    # Free manual broadcast must be rejected by entitlement enforcement
+    bcast = await client.post(
         "/api/v1/organizer/broadcasts",
         json={
             "organization_id": org_id,
             "target_type": "organization_subscribers",
             "broadcast_type": "marketing",
             "template_key": "custom_update",
-            "custom_text": "First allowed broadcast",
+            "custom_text": "Free user broadcast attempt",
         },
         headers=auth,
     )
-    assert bcast_1.status_code == 200
-
-    # Add subscriber 2 (unfatigued for 2nd broadcast)
-    sub_auth_2 = {"Authorization": f"tma {make_test_init_data(user_id=9202, username='sub_quota_2')}"}
-    await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_auth_2)
-
-    # 2nd broadcast must be rejected by entitlement enforcement!
-    bcast_2 = await client.post(
-        "/api/v1/organizer/broadcasts",
-        json={
-            "organization_id": org_id,
-            "target_type": "organization_subscribers",
-            "broadcast_type": "marketing",
-            "template_key": "custom_update",
-            "custom_text": "Second blocked broadcast",
-        },
-        headers=auth,
-    )
-    assert bcast_2.status_code == 403
-    detail = bcast_2.json()["detail"]
+    assert bcast.status_code == 403
+    detail = bcast.json()["detail"]
     assert detail["code"] == "ENTITLEMENT_REQUIRED"
     assert detail["capability"] == "broadcasts_extended"
     assert detail["required_plan"] == "pro"
@@ -329,8 +310,8 @@ async def test_free_user_quota_enforcement(client, test_session, monkeypatch):
 @pytest.mark.asyncio
 async def test_existing_free_broadcast_flow_works(client, test_session):
     """
-    11. Existing Free broadcast flow remains working:
-    Standard broadcasts for Free organizations within their monthly limit succeed completely.
+    11. Broadcast flow works when upgraded to Pro:
+    When an organization is on the Pro plan, broadcasts succeed completely.
     """
     owner_id = 9110
     auth = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_working_flow')}"}
@@ -342,6 +323,9 @@ async def test_existing_free_broadcast_flow_works(client, test_session):
     )
     org_id = res_org.json()["id"]
 
+    # Upgrade to Pro
+    await EntitlementService.set_organization_plan(test_session, org_id, plan="pro")
+
     sub_auth = {"Authorization": f"tma {make_test_init_data(user_id=9250, username='sub_working')}"}
     await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=sub_auth)
 
@@ -352,7 +336,7 @@ async def test_existing_free_broadcast_flow_works(client, test_session):
             "target_type": "organization_subscribers",
             "broadcast_type": "marketing",
             "template_key": "custom_update",
-            "custom_text": "Hello Free subscribers!",
+            "custom_text": "Hello Pro subscribers!",
         },
         headers=auth,
     )
