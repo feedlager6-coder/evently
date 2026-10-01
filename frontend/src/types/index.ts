@@ -464,4 +464,18 @@ export interface OrganizerEntitlementsResponse {
   limits: EntitlementLimits;
 }
 
+export interface AdminOrganizationItem {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  city_id: string;
+  owner_user_id: number;
+  status: string;
+  plan: 'free' | 'pro' | string;
+  plan_status: string;
+  created_at: string;
+}
+
+
 

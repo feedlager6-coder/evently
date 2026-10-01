@@ -46,3 +46,19 @@ class SetPlanRequest(BaseModel):
     plan: str
     status: Optional[str] = "active"
     expires_in_days: Optional[int] = None
+
+
+class AdminOrganizationSummary(BaseModel):
+    id: str
+    name: str
+    slug: str
+    category: str
+    city_id: str
+    owner_user_id: int
+    status: str
+    plan: str = "free"
+    plan_status: str = "active"
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

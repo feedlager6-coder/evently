@@ -681,6 +681,7 @@ export const App: React.FC = () => {
         {(currentTab === 'my_events' || currentTab === 'organizer') && (
           isOrganizerWorkspaceOpen ? (
             <OrganizerWorkspace
+              isAdmin={isAdmin}
               onBack={() => setIsOrganizerWorkspaceOpen(false)}
               organizations={myOrganizations}
               events={organizerEvents}

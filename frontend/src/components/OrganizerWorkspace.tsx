@@ -55,6 +55,7 @@ interface OrganizerWorkspaceProps {
   onOrgClick: (org: OrganizationSummary) => void;
   onEventClick: (event: EventSummary) => void;
   onOrgDeleted?: (orgId: string) => void;
+  isAdmin?: boolean;
 }
 
 export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
@@ -68,6 +69,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onOrgClick,
   onEventClick,
   onOrgDeleted: _onOrgDeleted,
+  isAdmin = false,
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
   const [eventFilter, setEventFilter] = useState<EventFilter>('upcoming');
@@ -78,6 +80,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [insightsData, setInsightsData] = useState<OrganizerInsightsResponse | null>(null);
   const [entitlements, setEntitlements] = useState<OrganizerEntitlementsResponse | null>(null);
   const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
+  const [isTogglingPlan, setIsTogglingPlan] = useState<boolean>(false);
 
   const loadInsights = () => {
     api.getOrganizerInsights()
@@ -85,11 +88,32 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       .catch((err) => console.error('Failed to load organizer insights:', err));
   };
 
-  const loadEntitlements = () => {
-    const orgId = organizations.length > 0 ? organizations[0].id : undefined;
+  const loadEntitlements = (targetOrgId?: string) => {
+    const orgId = targetOrgId || composerOrgId || (organizations.length > 0 ? organizations[0].id : undefined);
     api.getOrganizerEntitlements(orgId)
       .then((data) => setEntitlements(data))
       .catch((err) => console.error('Failed to load organizer entitlements:', err));
+  };
+
+  const handleAdminTogglePro = async () => {
+    const orgId = composerOrgId || (organizations.length > 0 ? organizations[0].id : null);
+    if (!orgId) return;
+    const newPlan = entitlements?.plan === 'pro' ? 'free' : 'pro';
+    try {
+      setIsTogglingPlan(true);
+      telegram.hapticImpact('medium');
+      const updated = await api.adminSetOrganizationPlan(orgId, newPlan);
+      setEntitlements(updated);
+      telegram.hapticSuccess();
+      if (activeTab === 'broadcasts') {
+        loadBroadcasts();
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle organization plan:', err);
+      alert(err.message || 'Ошибка смены тарифа');
+    } finally {
+      setIsTogglingPlan(false);
+    }
   };
 
   useEffect(() => {
@@ -134,6 +158,12 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setComposerOrgId(organizations[0].id);
     }
   }, [organizations, composerOrgId]);
+
+  useEffect(() => {
+    if (composerOrgId) {
+      loadEntitlements(composerOrgId);
+    }
+  }, [composerOrgId]);
 
   const loadBroadcasts = () => {
     setIsLoadingBroadcasts(true);
@@ -616,6 +646,21 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   {entitlements?.plan === 'pro' ? 'Возможности Pro' : 'Узнать о Pro'}
                 </button>
               </div>
+
+              {isAdmin && (
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-amber-300 font-medium">
+                    🔧 <strong>Тест админа:</strong> {entitlements?.plan === 'pro' ? 'Тариф Pro' : 'Тариф Free'}
+                  </span>
+                  <button
+                    onClick={handleAdminTogglePro}
+                    disabled={isTogglingPlan}
+                    className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-[11px] transition-all btn-press shrink-0 ml-2"
+                  >
+                    {isTogglingPlan ? '...' : entitlements?.plan === 'pro' ? 'Вернуть Free' : 'Включить Pro'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Requires Attention Section (if any pending/rejected) */}
@@ -1328,7 +1373,26 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </div>
 
             {/* Pro Gate for Free vs Pro Quota Banner for Pro */}
-            {entitlements?.plan === 'pro' ? (
+            {organizations.length === 0 ? (
+              <div className="p-6 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                <Building2 className="w-8 h-8 text-gray-500 mx-auto" />
+                <div>
+                  <div className="text-xs font-semibold text-white">У вас пока нет созданных организаций</div>
+                  <p className="text-[11px] text-gray-400 max-w-xs mx-auto mt-1">
+                    {isAdmin
+                      ? 'Для тестирования Pro-рассылок создайте организацию, чтобы привязать тариф к ней.'
+                      : 'Создайте организацию, чтобы управлять анонсами и собирать базу подписчиков.'}
+                  </p>
+                </div>
+                <button
+                  onClick={onOpenCreateOrg}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Создать организацию</span>
+                </button>
+              </div>
+            ) : entitlements?.plan === 'pro' ? (
               <div className="p-3.5 rounded-2xl bg-[#141724] border border-purple-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-purple-400 shadow-sm shadow-purple-500/50" />
@@ -1341,43 +1405,67 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         <span className="text-amber-400 font-medium"> (лимит месяца исчерпан)</span>
                       )}
                     </span>
+                    {isAdmin && (
+                      <button
+                        onClick={handleAdminTogglePro}
+                        disabled={isTogglingPlan}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 underline font-medium ml-2"
+                      >
+                        {isTogglingPlan ? '...' : '(тест: вернуть Free)'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
             ) : (
               <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 space-y-3.5">
+                {isAdmin && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-amber-300 font-medium">
+                      🔧 <strong>Режим администратора:</strong> включить Pro для этой организации?
+                    </span>
+                    <button
+                      onClick={handleAdminTogglePro}
+                      disabled={isTogglingPlan}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-[11px] transition-all btn-press shrink-0 ml-2"
+                    >
+                      {isTogglingPlan ? '...' : 'Включить Pro'}
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-purple-300">
                     <Sparkles className="w-4 h-4 text-purple-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Доступно в тарифе Pro</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">Pro для организаторов</span>
                   </div>
                   <span className="text-[10px] text-purple-300 font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/30">в разработке</span>
                 </div>
 
                 <div className="text-xs font-semibold text-white">
-                  Отправляйте анонсы событий подписчикам, приглашайте аудиторию снова и отслеживайте результат.
+                  Расширенные инструменты для работы с аудиторией
                 </div>
 
                 <div className="space-y-2 text-[11px] text-gray-300">
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">📣</span>
-                    <span><strong>Больше возможностей для рассылок</strong> — прямая отправка анонсов подписчикам в Telegram</span>
+                    <span><strong>Ручные рассылки в Telegram</strong> — отправка анонсов и новостей подписчикам организации (до 30 в месяц)</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">👥</span>
-                    <span><strong>Работа с аудиторией</strong> — общение с людьми, которые уже интересуются вашими событиями</span>
+                    <span><strong>Аудитория гостей</strong> — отправка сообщений пользователям, нажавшим «Хочу пойти» на событие</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">📊</span>
-                    <span><strong>Подробная статистика</strong> — переходы по ссылкам, отклики («Хочу пойти») и результат</span>
+                    <span><strong>Статистика рассылок</strong> — переходы по ссылкам и отклики гостей</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">🔔</span>
-                    <span><strong>Напоминания</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро в Pro)</span> — своевременные оповещения перед началом</span>
+                    <span><strong>Авто-напоминания</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро)</span> — своевременные оповещения гостей перед началом</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">🔁</span>
-                    <span><strong>Повторные приглашения</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро в Pro)</span> — быстрый анонс новых событий собранной базе</span>
+                    <span><strong>Сегменты аудитории</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро)</span> — таргетинг по частым гостям и категориям</span>
                   </div>
                 </div>
 

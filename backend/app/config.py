@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "evently_mvp_secret_key_change_in_production_32bytes"
     AUTH_DATE_MAX_AGE_SECONDS: int = 86400
     PUBLIC_HOST: Optional[str] = None
+    APP_PUBLIC_HOST: Optional[str] = None
     CORS_ORIGINS: str = "*"
 
     # Broadcast Engine
@@ -76,6 +77,7 @@ class Settings(BaseSettings):
         "ADMIN_USER_IDS",
         "SECRET_KEY",
         "PUBLIC_HOST",
+        "APP_PUBLIC_HOST",
         "STORAGE_ENDPOINT",
         "STORAGE_BUCKET",
         "STORAGE_ACCESS_KEY",
@@ -118,18 +120,23 @@ class Settings(BaseSettings):
     @property
     def effective_public_host(self) -> Optional[str]:
         """
-        Resolves public HTTPS host for Telegram Webhook and Mini App.
+        Resolves public HTTPS host for Telegram Webhook, Mini App, and image assets.
         Priority:
-        1. settings.PUBLIC_HOST
-        2. RAILWAY_PUBLIC_DOMAIN (automatically assigned by Railway)
+        1. settings.APP_PUBLIC_HOST or settings.PUBLIC_HOST
+        2. RAILWAY_PUBLIC_DOMAIN (e.g. ivently.up.railway.app)
         3. RAILWAY_STATIC_URL
+        4. Production fallback: https://ivently.up.railway.app (if APP_ENV == 'production')
         """
         host = (
-            self.PUBLIC_HOST
+            self.APP_PUBLIC_HOST
+            or self.PUBLIC_HOST
+            or os.getenv("APP_PUBLIC_HOST")
             or os.getenv("RAILWAY_PUBLIC_DOMAIN")
             or os.getenv("RAILWAY_STATIC_URL")
         )
         if not host:
+            if self.APP_ENV == "production":
+                return "https://ivently.up.railway.app"
             return None
         host = host.strip().strip("'\"").strip()
         if not host.startswith("http://") and not host.startswith("https://"):

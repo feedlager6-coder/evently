@@ -30,6 +30,7 @@ import type {
   BroadcastCreateRequest,
   OrganizerInsightsResponse,
   OrganizerEntitlementsResponse,
+  AdminOrganizationItem,
 } from '../types';
 import { telegram } from './telegram';
 
@@ -511,6 +512,36 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to cancel event');
+    return res.json();
+  },
+
+  async adminGetOrganizations(): Promise<AdminOrganizationItem[]> {
+    const res = await fetch(`${API_BASE}/admin/organizations`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
+      throw new Error('Failed to fetch admin organizations');
+    }
+    return res.json();
+  },
+
+  async adminSetOrganizationPlan(
+    orgId: string,
+    plan: 'free' | 'pro' | string,
+    status: string = 'active'
+  ): Promise<OrganizerEntitlementsResponse> {
+    const res = await fetch(`${API_BASE}/admin/organizations/${encodeURIComponent(orgId)}/plan`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ plan, status }),
+    });
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
+      if (res.status === 404) throw new Error('Организация не найдена');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Ошибка смены тарифа'));
+    }
     return res.json();
   },
 

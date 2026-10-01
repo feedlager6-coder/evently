@@ -2,6 +2,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.models.user import User
@@ -93,6 +94,49 @@ async def admin_cancel_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+from app.models.organization import Organization, OrganizationStatus
+from app.models.organization_plan import OrganizationPlan
+from app.schemas.entitlement import (
+    OrganizerEntitlementsResponse,
+    SetPlanRequest,
+    AdminOrganizationSummary,
+)
+
+
+@router.get("/organizations", response_model=List[AdminOrganizationSummary])
+async def admin_list_organizations(
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Lists all active organizations with their current plan for admin inspection and testing.
+    """
+    stmt = (
+        select(Organization, OrganizationPlan.plan, OrganizationPlan.status)
+        .outerjoin(OrganizationPlan, Organization.id == OrganizationPlan.organization_id)
+        .where(Organization.status != OrganizationStatus.DELETED.value)
+        .order_by(Organization.created_at.desc())
+    )
+    rows = (await session.execute(stmt)).all()
+    results = []
+    for org, plan, plan_status in rows:
+        results.append(
+            AdminOrganizationSummary(
+                id=org.id,
+                name=org.name,
+                slug=org.slug,
+                category=org.category,
+                city_id=org.city_id,
+                owner_user_id=org.owner_user_id,
+                status=org.status,
+                plan=plan or "free",
+                plan_status=plan_status or "active",
+                created_at=org.created_at,
+            )
+        )
+    return results
+
+
 @router.get("/organizations/{org_id}/entitlements", response_model=OrganizerEntitlementsResponse)
 async def admin_get_organization_entitlements(
     org_id: str,
@@ -102,7 +146,10 @@ async def admin_get_organization_entitlements(
     """
     Admin/Dev visibility endpoint to inspect current plan, capabilities, and limits for an organization.
     """
-    return await EntitlementService.get_entitlements(session, org_id)
+    org = await session.get(Organization, org_id)
+    if not org or org.status == OrganizationStatus.DELETED.value:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
+    return await EntitlementService.get_entitlements(session, org_id, org_name=org.name)
 
 
 @router.post("/organizations/{org_id}/plan", response_model=OrganizerEntitlementsResponse)
@@ -115,6 +162,10 @@ async def admin_set_organization_plan(
     """
     Admin/Dev capability to switch an organization's plan (e.g. Free <-> Pro) for testing and dev verification.
     """
+    org = await session.get(Organization, org_id)
+    if not org or org.status == OrganizationStatus.DELETED.value:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
+
     expires_at = None
     if payload.expires_in_days is not None:
         expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
@@ -126,5 +177,5 @@ async def admin_set_organization_plan(
         status_val=payload.status or "active",
         expires_at=expires_at
     )
-    return await EntitlementService.get_entitlements(session, org_id)
+    return await EntitlementService.get_entitlements(session, org_id, org_name=org.name)
 
