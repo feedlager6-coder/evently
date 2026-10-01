@@ -68,8 +68,10 @@ def test_organizer_tab_animated_segmented_contract():
     
     content = tab_path.read_text(encoding="utf-8")
     
-    # 1. Imports and renders AnimatedSegmentedControl
+    # 1. Imports and renders AnimatedSegmentedControl matching Afisha geometry
     assert "AnimatedSegmentedControl" in content
+    assert 'size="sm"' in content
+    assert "equalWidth={false}" in content
     assert "attending" in content
     assert "interested" in content
     assert "subscriptions" in content
@@ -84,9 +86,10 @@ def test_organizer_workspace_full_labels_and_scrollable_contract():
     
     content = ws_path.read_text(encoding="utf-8")
     
-    # 1. Imports and renders AnimatedSegmentedControl with scrollable
+    # 1. Imports and renders AnimatedSegmentedControl with scrollable and size="sm" matching Afisha
     assert "AnimatedSegmentedControl" in content
     assert "scrollable" in content
+    assert 'size="sm"' in content
     
     # 2. Full required labels without abbreviations or truncations
     assert "Обзор" in content
@@ -107,6 +110,7 @@ def test_afisha_date_filter_animated_segmented_contract():
     
     # 1. Uses AnimatedSegmentedControl for date filters
     assert "AnimatedSegmentedControl" in content
+    assert 'size="sm"' in content
     assert "dateFilter" in content
     assert "Все даты" in content
     assert "Сегодня" in content
@@ -114,28 +118,25 @@ def test_afisha_date_filter_animated_segmented_contract():
     assert "Выходные" in content
 
 
-def test_bottom_navigation_sliding_indicator_contract():
+def test_bottom_navigation_restored_contract():
     nav_path = FRONTEND_DIR / "src" / "components" / "Navigation.tsx"
     assert nav_path.exists(), "Navigation.tsx must exist"
     
     content = nav_path.read_text(encoding="utf-8")
     
-    # 1. Has active sliding indicator with translate3d
-    assert "translate3d" in content
-    assert "indicator" in content
-    assert "offsetLeft" in content
-    assert "offsetWidth" in content
-    assert "offsetTop" in content
-    assert "offsetHeight" in content
+    # 1. Sliding capsule must be removed from bottom navigation
+    assert "translate3d" not in content
+    assert "AnimatedSegmentedControl" not in content
     
-    # 2. Supports all tabs including feed, my_events, and admin
+    # 2. Supports all destinations including feed, my_events, and admin
     assert "feed" in content
     assert "my_events" in content
     assert "admin" in content
     assert "isAdmin" in content
     
-    # 3. Telegram haptics
+    # 3. Clean icon scale transition and Telegram haptics preserved
     assert "telegram.hapticImpact" in content
+    assert "scale-105" in content
 
 
 def test_css_motion_and_reduced_motion_contract():

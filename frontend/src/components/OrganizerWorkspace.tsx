@@ -333,6 +333,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           value={activeTab}
           onChange={(val) => handleTabChange(val as WorkspaceTab)}
           scrollable
+          size="sm"
         />
 
         {broadcastNotice && (

@@ -16,6 +16,7 @@ export interface AnimatedSegmentedControlProps<T extends string> {
   size?: 'sm' | 'md';
   hapticFeedback?: boolean;
   scrollable?: boolean;
+  equalWidth?: boolean;
 }
 
 export function AnimatedSegmentedControl<T extends string>({
@@ -26,6 +27,7 @@ export function AnimatedSegmentedControl<T extends string>({
   size = 'md',
   hapticFeedback = true,
   scrollable = false,
+  equalWidth = true,
 }: AnimatedSegmentedControlProps<T>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
@@ -153,14 +155,18 @@ export function AnimatedSegmentedControl<T extends string>({
             aria-selected={isActive}
             onClick={() => handleSelect(item.value)}
             className={`relative z-10 ${
-              scrollable ? 'shrink-0 px-3.5 sm:px-4' : 'flex-1 min-w-0 px-1'
+              scrollable
+                ? 'shrink-0 px-3.5 sm:px-4'
+                : equalWidth
+                ? 'flex-1 min-w-0 px-1'
+                : 'flex-auto min-w-fit px-3 sm:px-4'
             } ${
               isSmall ? 'py-1.5 text-[11px]' : 'py-2 text-xs'
             } font-semibold rounded-xl flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${
               isActive ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <span className={scrollable ? 'whitespace-nowrap' : 'truncate'}>{item.label}</span>
+            <span className={scrollable || !equalWidth ? 'whitespace-nowrap' : 'truncate'}>{item.label}</span>
 
             {/* Optional Ping Dot */}
             {item.badgePing && (

@@ -186,6 +186,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             ]}
             value={activeTab}
             onChange={(val) => handleTabChange(val as PersonalHubTab)}
+            size="sm"
+            equalWidth={false}
           />
 
           {/* 4. Tab Contents */}
