@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { City, Category, EventCreatePayload, LocationSuggestion, OrganizationSummary, EventResponse } from '../types';
 import { api, DEFAULT_CITIES } from '../services/api';
 import { telegram } from '../services/telegram';
@@ -735,9 +736,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         )}
       </div>
 
-      {/* Delete Event Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+      {/* Delete Event Confirmation Modal (Portaled to document.body for true viewport centering) */}
+      {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-sm rounded-2xl bg-[#141724] border border-white/10 p-5 space-y-4 shadow-2xl">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
@@ -786,7 +787,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

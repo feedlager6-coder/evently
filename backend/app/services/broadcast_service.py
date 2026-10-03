@@ -190,18 +190,24 @@ async def calculate_audience(
             select(EventInterest.user_id, User.telegram_id)
             .join(User, EventInterest.user_id == User.id)
             .where(EventInterest.event_id == event_id)
+            .distinct()
         )
         interest_rows = (await session.execute(interest_stmt)).all()
-        total_audience = len(interest_rows)
+        
+        # Deduplicate user IDs while preserving order
+        all_user_ids = list(dict.fromkeys(r.user_id for r in interest_rows))
+        total_audience = len(all_user_ids)
+
+        # Users who have a non-null telegram_id
+        valid_user_ids = list(dict.fromkeys(r.user_id for r in interest_rows if r.telegram_id is not None))
 
         # Check if any interest users have an explicit subscription with notifications_enabled=False
-        interest_user_ids = [r.user_id for r in interest_rows if r.telegram_id is not None]
-        if interest_user_ids:
+        if valid_user_ids:
             disabled_stmt = (
                 select(Subscription.user_id)
                 .where(
                     Subscription.organization_id == organization_id,
-                    Subscription.user_id.in_(interest_user_ids),
+                    Subscription.user_id.in_(valid_user_ids),
                     Subscription.notifications_enabled == False
                 )
             )
@@ -211,7 +217,7 @@ async def calculate_audience(
 
         disabled_notifications_count = len(disabled_user_ids)
         candidate_user_ids = [
-            uid for uid in interest_user_ids if uid not in disabled_user_ids
+            uid for uid in valid_user_ids if uid not in disabled_user_ids
         ]
 
     # 4. Anti-fatigue check (rolling 24 hours) - applies only to MARKETING broadcasts
@@ -220,18 +226,40 @@ async def calculate_audience(
 
     if broadcast_type == BroadcastType.MARKETING.value and candidate_user_ids:
         fatigue_cutoff = utc_now() - timedelta(hours=settings.BROADCAST_FATIGUE_HOURS)
-        fatigue_stmt = (
-            select(BroadcastRecipient.user_id)
-            .join(Broadcast, BroadcastRecipient.broadcast_id == Broadcast.id)
-            .where(
-                Broadcast.broadcast_type == BroadcastType.MARKETING.value,
-                BroadcastRecipient.user_id.in_(candidate_user_ids),
-                BroadcastRecipient.status == RecipientStatus.SENT.value,
-                BroadcastRecipient.sent_at >= fatigue_cutoff
+        if target_type == BroadcastTargetType.ORGANIZATION_SUBSCRIBERS.value:
+            fatigue_stmt = (
+                select(BroadcastRecipient.user_id)
+                .join(Broadcast, BroadcastRecipient.broadcast_id == Broadcast.id)
+                .where(
+                    Broadcast.organization_id == organization_id,
+                    Broadcast.broadcast_type == BroadcastType.MARKETING.value,
+                    Broadcast.target_type == BroadcastTargetType.ORGANIZATION_SUBSCRIBERS.value,
+                    BroadcastRecipient.user_id.in_(candidate_user_ids),
+                    BroadcastRecipient.status == RecipientStatus.SENT.value,
+                    BroadcastRecipient.sent_at >= fatigue_cutoff
+                )
+                .distinct()
             )
-            .distinct()
-        )
-        fatigued_ids = set((await session.execute(fatigue_stmt)).scalars().all())
+            fatigued_ids = set((await session.execute(fatigue_stmt)).scalars().all())
+        elif target_type == BroadcastTargetType.EVENT_INTEREST.value and event_id:
+            fatigue_stmt = (
+                select(BroadcastRecipient.user_id)
+                .join(Broadcast, BroadcastRecipient.broadcast_id == Broadcast.id)
+                .where(
+                    Broadcast.organization_id == organization_id,
+                    Broadcast.event_id == event_id,
+                    Broadcast.broadcast_type == BroadcastType.MARKETING.value,
+                    Broadcast.target_type == BroadcastTargetType.EVENT_INTEREST.value,
+                    BroadcastRecipient.user_id.in_(candidate_user_ids),
+                    BroadcastRecipient.status == RecipientStatus.SENT.value,
+                    BroadcastRecipient.sent_at >= fatigue_cutoff
+                )
+                .distinct()
+            )
+            fatigued_ids = set((await session.execute(fatigue_stmt)).scalars().all())
+        else:
+            fatigued_ids = set()
+
         fatigued_recipients_count = len(fatigued_ids)
         eligible_user_ids = [uid for uid in candidate_user_ids if uid not in fatigued_ids]
 
@@ -379,13 +407,16 @@ async def create_broadcast(
     await session.flush()  # generates broadcast.id
 
     # Add recipients idempotently
+    added_uids = set()
     for uid in eligible_user_ids:
-        rec = BroadcastRecipient(
-            broadcast_id=broadcast.id,
-            user_id=uid,
-            status=RecipientStatus.PENDING.value,
-        )
-        session.add(rec)
+        if uid not in added_uids:
+            added_uids.add(uid)
+            rec = BroadcastRecipient(
+                broadcast_id=broadcast.id,
+                user_id=uid,
+                status=RecipientStatus.PENDING.value,
+            )
+            session.add(rec)
 
     await session.commit()
     await session.refresh(broadcast)

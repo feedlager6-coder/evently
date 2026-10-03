@@ -309,11 +309,12 @@ async def test_d504_06_event_update_notifications_recipients(test_session):
         http_client=mock_client,
     )
 
-    # Exactly 1 message sent: to u_attendee (504301)
-    assert sent_count == 1
-    assert mock_client.post.call_count == 1
-    payload = mock_client.post.call_args[1]["json"]
-    assert payload["chat_id"] == 504301
+    # Exactly 2 messages sent: to u_attendee (504301) and u_interested (504302); 0 to subscriber (504303)
+    assert sent_count == 2
+    assert mock_client.post.call_count == 2
+    delivered_chats = {call[1]["json"]["chat_id"] for call in mock_client.post.call_args_list}
+    assert delivered_chats == {504301, 504302}
+    assert 504303 not in delivered_chats
 
 
 @pytest.mark.asyncio

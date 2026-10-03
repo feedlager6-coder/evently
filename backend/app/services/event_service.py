@@ -751,14 +751,22 @@ async def update_organizer_event(
     time_changed = False
     venue_changed = False
 
-    if data.start_at is not None and data.start_at != event.start_at:
-        time_changed = True
-        changes["time_changed"] = True
-        changes["old_start_at"] = old_start_at
-        changes["new_start_at"] = data.start_at
-        event.start_at = data.start_at
+    if data.start_at is not None:
+        cur_dt = event.start_at
+        new_dt = data.start_at
+        if cur_dt is not None and cur_dt.tzinfo is None and new_dt.tzinfo is not None:
+            cur_dt = cur_dt.replace(tzinfo=timezone.utc)
+        elif cur_dt is not None and cur_dt.tzinfo is not None and new_dt.tzinfo is None:
+            new_dt = new_dt.replace(tzinfo=timezone.utc)
 
-    if data.venue_name is not None and data.venue_name.strip() != event.venue_name:
+        if cur_dt != new_dt:
+            time_changed = True
+            changes["time_changed"] = True
+            changes["old_start_at"] = old_start_at
+            changes["new_start_at"] = data.start_at
+            event.start_at = data.start_at
+
+    if data.venue_name is not None and data.venue_name.strip() != (event.venue_name or ""):
         venue_changed = True
         changes["venue_changed"] = True
         changes["old_venue"] = old_venue_name
@@ -766,10 +774,10 @@ async def update_organizer_event(
         event.venue_name = data.venue_name.strip()
 
     if data.address is not None and data.address.strip() != (event.address or ""):
-        if not venue_changed:
-            changes["venue_changed"] = True
-            changes["old_venue"] = old_address or old_venue_name
-            changes["new_venue"] = data.address.strip()
+        venue_changed = True
+        changes["venue_changed"] = True
+        changes["old_venue"] = old_address or old_venue_name
+        changes["new_venue"] = data.address.strip()
         event.address = data.address.strip()
 
     if data.title is not None and data.title.strip():

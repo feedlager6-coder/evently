@@ -35,14 +35,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right Actions: Subscriptions & City Selector */}
-        <div className="flex items-center space-x-1.5">
+        <div className="flex items-center space-x-1.5 min-w-0 flex-shrink">
 
           {onOpenSubscriptionsModal && (
             <button
               onClick={() => {
                 onOpenSubscriptionsModal();
               }}
-              className="p-2 rounded-full bg-[#161A28] border border-white/8 hover:border-indigo-500/40 text-gray-300 hover:text-white btn-press transition-all"
+              className="p-2 rounded-full bg-[#161A28] border border-white/8 hover:border-indigo-500/40 text-gray-300 hover:text-white btn-press transition-all shrink-0"
               title="Мои подписки"
               aria-label="Мои подписки"
             >
@@ -55,11 +55,12 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => {
               onOpenCityModal();
             }}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#161A28] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#1E2336] text-xs font-semibold text-white shadow-sm btn-press transition-all"
+            className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#161A28] border border-indigo-500/30 hover:border-indigo-500 hover:bg-[#1E2336] text-xs font-semibold text-white shadow-sm btn-press transition-all min-w-0 max-w-full"
             aria-label="Выбрать город"
+            title={currentCity ? currentCity.name : 'Выбрать город'}
           >
             <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-            <span className="max-w-[120px] truncate">
+            <span className="max-w-[85px] xs:max-w-[110px] sm:max-w-[140px] truncate text-ellipsis">
               {currentCity ? currentCity.name : 'Выбрать город'}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />

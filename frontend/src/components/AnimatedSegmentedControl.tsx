@@ -158,11 +158,13 @@ export function AnimatedSegmentedControl<T extends string>({
               scrollable
                 ? 'shrink-0 px-3.5 sm:px-4'
                 : equalWidth
-                ? 'flex-1 min-w-0 px-1'
-                : 'flex-auto min-w-fit px-3 sm:px-4'
+                ? 'flex-1 min-w-0 px-0.5 xs:px-1'
+                : 'flex-auto min-w-fit px-2.5 sm:px-4'
             } ${
-              isSmall ? 'py-1.5 text-[11px]' : 'py-2 text-xs'
-            } font-semibold rounded-xl flex items-center justify-center space-x-1 sm:space-x-1.5 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${
+              isSmall ? 'py-1.5 text-[10.5px] xs:text-[11px]' : 'py-2 text-xs'
+            } font-semibold rounded-xl flex items-center justify-center ${
+              isSmall ? 'space-x-0.5 xs:space-x-1' : 'space-x-1 sm:space-x-1.5'
+            } transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${
               isActive ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
@@ -173,10 +175,12 @@ export function AnimatedSegmentedControl<T extends string>({
               <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-ping" />
             )}
 
-            {/* Optional Count Badge */}
-            {typeof item.count === 'number' && (
+            {/* Optional Count Badge (Only show if count > 0 to preserve compact geometry on mobile) */}
+            {typeof item.count === 'number' && item.count > 0 && (
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center font-bold shrink-0 transition-colors duration-150 ${
+                className={`${
+                  isSmall ? 'text-[9px] px-1 py-0.2 min-w-[14px]' : 'text-[10px] px-1.5 py-0.5 min-w-[18px]'
+                } rounded-full text-center font-bold shrink-0 transition-colors duration-150 ${
                   isActive
                     ? 'bg-white/20 text-white'
                     : 'bg-white/5 text-gray-400'

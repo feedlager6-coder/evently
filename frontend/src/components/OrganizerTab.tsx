@@ -197,18 +197,20 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       ) : (
         <>
           {/* Segmented Tabs Switcher */}
-          <AnimatedSegmentedControl
-            items={[
-              { value: 'attending', label: 'Я иду', count: activeAttending.length },
-              { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
-              { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
-              { value: 'history', label: 'Прошедшие', count: pastEvents.length },
-            ]}
-            value={activeTab}
-            onChange={(val) => handleTabChange(val as PersonalHubTab)}
-            size="sm"
-            equalWidth={false}
-          />
+          <div className="w-full overflow-hidden">
+            <AnimatedSegmentedControl
+              items={[
+                { value: 'attending', label: 'Я иду', count: activeAttending.length },
+                { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
+                { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
+                { value: 'history', label: 'Прошедшие', count: pastEvents.length },
+              ]}
+              value={activeTab}
+              onChange={(val) => handleTabChange(val as PersonalHubTab)}
+              size="sm"
+              equalWidth={false}
+            />
+          </div>
 
           {/* 4. Tab Contents */}
           <div key={activeTab} className="animate-tab-enter">

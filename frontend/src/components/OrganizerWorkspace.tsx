@@ -1778,7 +1778,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       </div>
                       <div className="text-[10.5px] text-gray-300 leading-snug">
                         {composerTargetType === 'event_interest' ? (
-                          <span>❤️ Получат только пользователи, отметившие это событие ({selectedEvent.interest_count || 0} чел.)</span>
+                          <span>
+                            ❤️ Получат только пользователи, отметившие это событие (
+                            {previewData ? previewData.eligible_recipients : (selectedEvent.interest_count || 0)} чел.
+                            {previewData && previewData.total_audience > previewData.eligible_recipients && (
+                              <span className="opacity-75"> из {previewData.total_audience}</span>
+                            )}
+                            )
+                          </span>
                         ) : (
                           <span>👥 Сообщение будет содержать карточку события и кнопку быстрого перехода</span>
                         )}
@@ -1909,13 +1916,13 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
                   Предпросмотр в Telegram
                 </div>
-                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-indigo-500/20 space-y-2.5">
+                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-indigo-500/20 space-y-2.5 max-w-full overflow-hidden">
                   <div
-                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed"
+                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed break-words [overflow-wrap:anywhere] max-w-full"
                     dangerouslySetInnerHTML={{ __html: previewData.preview_text }}
                   />
                   <div className="pt-2 border-t border-white/5">
-                    <div className="w-full py-2 px-3 rounded-xl bg-indigo-600/30 border border-indigo-500/30 text-center text-xs font-semibold text-indigo-200">
+                    <div className="w-full py-2 px-3 rounded-xl bg-indigo-600/30 border border-indigo-500/30 text-center text-xs font-semibold text-indigo-200 truncate">
                       {previewData.preview_button_text}
                     </div>
                   </div>

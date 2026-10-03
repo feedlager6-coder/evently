@@ -259,10 +259,10 @@ async def notify_event_updated(
     Zero general subscribers, zero viewers, zero city-wide blasts.
     Does NOT count against marketing quota, does NOT attach marketing attribution tokens.
     """
-    # 1. Gather distinct recipient Telegram IDs (ONLY confirmed attendees)
+    # 1. Gather distinct recipient Telegram IDs (ONLY explicit participants: EventAttendee + EventInterest)
     recipient_ids: Set[int] = set()
 
-    # Attendees only
+    # Confirmed attendees ('Я иду')
     att_stmt = (
         select(User.telegram_id)
         .join(EventAttendee, EventAttendee.user_id == User.id)
@@ -272,8 +272,18 @@ async def notify_event_updated(
         if tid:
             recipient_ids.add(tid)
 
+    # Interested users ('Хочу пойти')
+    int_stmt = (
+        select(User.telegram_id)
+        .join(EventInterest, EventInterest.user_id == User.id)
+        .where(EventInterest.event_id == event.id, User.telegram_id.isnot(None))
+    )
+    for tid in (await session.execute(int_stmt)).scalars().all():
+        if tid:
+            recipient_ids.add(tid)
+
     if not recipient_ids:
-        logger.info(f"No attendees for event update notification (event {event.id})")
+        logger.info(f"No attendees or interested users for event update notification (event {event.id})")
         return 0
 
     # 2. Build structured message
