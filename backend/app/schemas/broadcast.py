@@ -63,6 +63,7 @@ class BroadcastPreviewResponse(BaseModel):
     preview_text: str = Field(..., description="Sanitized Telegram HTML preview text")
     preview_button_text: str = Field(..., description="CTA button text")
     preview_button_url: str = Field(..., description="Deep-link CTA URL")
+    cover_image_url: Optional[str] = Field(None, description="Event cover image URL if broadcast includes photo")
 
 
 class BroadcastCreateRequest(BaseModel):

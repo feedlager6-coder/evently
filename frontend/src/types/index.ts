@@ -382,6 +382,7 @@ export interface BroadcastPreviewResponse {
   preview_text: string;
   preview_button_text: string;
   preview_button_url: string;
+  cover_image_url?: string | null;
 }
 
 export interface BroadcastCreateRequest {

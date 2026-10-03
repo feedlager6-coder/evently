@@ -1849,14 +1849,14 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               <textarea
                 value={composerCustomText}
                 maxLength={300}
-                rows={2}
+                rows={3}
                 onChange={(e) => setComposerCustomText(e.target.value)}
                 placeholder={
                   composerTemplateKey === 'custom_update'
                     ? 'Расскажите о новости площадки...'
                     : 'Дополнительные подробности или комментарий...'
                 }
-                className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
+                className="w-full bg-[#181C2E] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none min-h-[68px]"
               />
             </div>
 
@@ -1916,9 +1916,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
                   Предпросмотр в Telegram
                 </div>
-                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-indigo-500/20 space-y-2.5 max-w-full overflow-hidden">
+                <div className="p-3.5 rounded-2xl bg-[#0E121E] border border-indigo-500/20 space-y-2.5 max-w-full overflow-hidden shadow-inner">
+                  {previewData.cover_image_url && (
+                    <div className="w-full h-36 rounded-xl overflow-hidden bg-black/40 border border-white/5">
+                      <img
+                        src={previewData.cover_image_url}
+                        alt={previewData.event_title || 'Афиша'}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   <div
-                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed break-words [overflow-wrap:anywhere] max-w-full"
+                    className="text-xs text-gray-200 whitespace-pre-wrap leading-relaxed break-words [overflow-wrap:break-word] [word-break:normal] max-w-full"
                     dangerouslySetInnerHTML={{ __html: previewData.preview_text }}
                   />
                   <div className="pt-2 border-t border-white/5">

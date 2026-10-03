@@ -317,6 +317,11 @@ async def preview_broadcast(
         custom_text=custom_text,
     )
 
+    cover_image_url = None
+    if event and event.cover_image_url:
+        from app.services.notification_service import resolve_event_cover_url
+        cover_image_url = resolve_event_cover_url(event.cover_image_url)
+
     return BroadcastPreviewResponse(
         organization_id=org.id,
         organization_name=org.name,
@@ -332,6 +337,7 @@ async def preview_broadcast(
         preview_text=message_text,
         preview_button_text=button_text,
         preview_button_url=button_url,
+        cover_image_url=cover_image_url,
     )
 
 
