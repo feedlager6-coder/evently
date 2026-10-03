@@ -13,9 +13,7 @@ import {
   User as UserIcon,
   ChevronRight,
   Heart,
-  Trash2,
-  AlertTriangle,
-  Loader2
+  Edit
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
@@ -62,7 +60,7 @@ interface EventDetailsModalProps {
   onOpenOrgModal?: (orgId: string) => void;
   onOpenCompanyModal?: (event: EventResponse) => void;
   isOrganizer?: boolean;
-  onEventDeleted?: (eventId: string) => void;
+  onEditEvent?: (event: EventResponse) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -76,7 +74,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onOpenOrgModal,
   onOpenCompanyModal,
   isOrganizer = false,
-  onEventDeleted,
+  onEditEvent,
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -84,31 +82,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
   const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
 
-  // Event Deletion state
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const canDelete = Boolean(isOrganizer || event?.is_organizer);
-
-  const handleDeleteEvent = async () => {
-    if (!event) return;
-    try {
-      setIsDeleting(true);
-      setDeleteError(null);
-      await api.deleteEvent(event.id);
-      telegram.hapticNotification('success');
-      setShowDeleteConfirm(false);
-      onClose();
-      onEventDeleted?.(event.id);
-    } catch (err: any) {
-      console.error('Failed to delete event:', err);
-      telegram.hapticNotification('error');
-      setDeleteError(err?.message || 'Не удалось удалить мероприятие');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  const canEdit = Boolean(isOrganizer || event?.is_organizer);
 
   useEffect(() => {
     if (isOpen && event) {
@@ -498,80 +472,27 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             </button>
           )}
 
-          {/* Organizer Delete Action */}
-          {canDelete && (
+          {/* Organizer Edit Action */}
+          {canEdit && (
             <div className="pt-2 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => {
-                  telegram.hapticNotification('warning');
-                  setShowDeleteConfirm(true);
-                  setDeleteError(null);
+                  telegram.hapticImpact('light');
+                  if (onEditEvent && event) {
+                    onEditEvent(event);
+                  }
                 }}
-                disabled={isDeleting || isRsvpLoading || isInterestLoading}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
+                disabled={isRsvpLoading || isInterestLoading}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all flex items-center justify-center space-x-1.5 btn-press"
               >
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                <span>Удалить мероприятие</span>
+                <Edit className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Редактировать событие</span>
               </button>
             </div>
           )}
         </div>
       </div>
-
-      {/* Delete Event Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-[#141724] border border-white/10 p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-bold text-white">Удалить мероприятие?</h3>
-                <p className="text-xs text-gray-400 font-medium truncate">{event.title}</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Мероприятие пропадет из афиши и поиска. Историческая статистика сохранится.
-            </p>
-
-            {deleteError && (
-              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                {deleteError}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  telegram.hapticImpact('light');
-                  setShowDeleteConfirm(false);
-                  setDeleteError(null);
-                }}
-                disabled={isDeleting}
-                className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors btn-press"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteEvent}
-                disabled={isDeleting}
-                className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-semibold text-white shadow-lg shadow-red-600/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
-              >
-                {isDeleting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <span>Удалить мероприятие</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

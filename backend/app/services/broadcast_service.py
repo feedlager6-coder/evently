@@ -525,12 +525,21 @@ async def dispatch_broadcast(
     delay_between_messages = 1.0 / rate_limit
 
     async def _send_to_recipient(client: httpx.AsyncClient, rec: BroadcastRecipient, tg_id: Optional[int]):
+        # Idempotency check: only process PENDING recipients
+        if rec.status != RecipientStatus.PENDING.value:
+            return
+
         if not tg_id:
             rec.status = RecipientStatus.FAILED.value
             rec.error_code = "missing_telegram_id"
             rec.error_message = "User has no telegram_id"
             broadcast.failed_count += 1
+            await session.commit()
             return
+
+        # Atomic transition to SENDING to prevent concurrent duplicate delivery
+        rec.status = RecipientStatus.SENDING.value
+        await session.commit()
 
         cover_image_url = None
         if event and event.cover_image_url:
@@ -558,7 +567,7 @@ async def dispatch_broadcast(
                 }
                 photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
                 try:
-                    resp = await client.post(photo_url, json=photo_payload, timeout=5.0)
+                    resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
                     if resp.status_code == 429:
                         retry_after = 1
                         try:
@@ -569,17 +578,43 @@ async def dispatch_broadcast(
                         except Exception:
                             pass
                         await asyncio.sleep(retry_after)
-                        resp = await client.post(photo_url, json=photo_payload, timeout=5.0)
-                    if resp.status_code != 200 and resp.status_code != 403:
-                        # photo delivery error (e.g. invalid URL) -> fallback to sendMessage
-                        logger.warning(f"sendPhoto failed ({resp.status_code}), falling back to sendMessage for recipient {rec.user_id}")
+                        resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+
+                    # Only fallback to sendMessage if Telegram definitively rejected the photo (HTTP 400 Bad Request)
+                    if resp.status_code == 400:
+                        logger.warning(f"sendPhoto failed (400), falling back to sendMessage for recipient {rec.user_id}: {resp.text}")
                         resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        # Non-400 failure (5xx server error, etc.) -> DO NOT fallback to sendMessage, mark failed to prevent duplicate send
+                        logger.warning(f"sendPhoto failed with status {resp.status_code} for recipient {rec.user_id}, skipping text fallback to prevent duplicate delivery.")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        await session.commit()
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    # CRITICAL FIX: Network timeout or connection drop while sending photo.
+                    # Telegram may have already accepted or queued the photo.
+                    # DO NOT send a duplicate sendMessage!
+                    logger.warning(f"sendPhoto network timeout/error for recipient {rec.user_id}: {photo_net_err}. Skipping text fallback to prevent duplicate delivery.")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
                 except Exception as photo_err:
-                    logger.warning(f"sendPhoto exception, falling back to sendMessage: {photo_err}")
-                    resp = None
+                    logger.warning(f"sendPhoto exception for recipient {rec.user_id}: {photo_err}")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
 
             if resp is None:
-                resp = await client.post(url, json=payload, timeout=5.0)
+                resp = await client.post(url, json=payload, timeout=8.0)
 
             # Handle 429 Too Many Requests
             if resp.status_code == 429:
@@ -593,7 +628,7 @@ async def dispatch_broadcast(
                     pass
                 logger.warning(f"Telegram 429 for recipient {rec.user_id}. Waiting {retry_after}s to retry...")
                 await asyncio.sleep(retry_after)
-                resp = await client.post(url, json=payload, timeout=5.0)
+                resp = await client.post(url, json=payload, timeout=8.0)
 
             if resp.status_code == 200:
                 try:
@@ -644,6 +679,8 @@ async def dispatch_broadcast(
             rec.error_message = str(e)[:500]
             broadcast.failed_count += 1
             logger.warning(f"Exception sending to user {rec.user_id}: {e}")
+
+        await session.commit()
 
     # Process all recipients sequentially with rate limiter
     if http_client:

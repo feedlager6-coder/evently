@@ -93,8 +93,8 @@ async def test_d503_02_pro_org_broadcast_allowed_and_quota_tracked(client, test_
     assert res_ent.status_code == 200
     ent = res_ent.json()
     assert ent["limits"]["broadcasts_used_this_month"] == 1
-    assert ent["limits"]["broadcasts_remaining"] == 29
-    assert ent["limits"]["broadcasts_per_month"] == 30
+    assert ent["limits"]["broadcasts_remaining"] == 19
+    assert ent["limits"]["broadcasts_per_month"] == 20
 
 
 @pytest.mark.asyncio

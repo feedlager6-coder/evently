@@ -418,6 +418,22 @@ export const api = {
     return res.json();
   },
 
+  async updateEvent(eventId: string, payload: Partial<EventCreatePayload>): Promise<EventResponse> {
+    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      if (res.status === 403) throw new Error('Вы не можете редактировать чужое мероприятие');
+      if (res.status === 404) throw new Error('Мероприятие не найдено');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Ошибка сохранения изменений мероприятия'));
+    }
+    return res.json();
+  },
+
   async getOrganizerEvents(): Promise<EventSummary[]> {
     const res = await fetch(`${API_BASE}/organizer/events`, {
       headers: getAuthHeaders(),

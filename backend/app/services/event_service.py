@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from fastapi import HTTPException, status
 
+from app.config import settings
 from app.models.event import Event, EventStatus, utc_now
 from app.models.city import City
 from app.models.category import Category
@@ -733,6 +734,12 @@ async def update_organizer_event(
         if org and org.owner_user_id == user_id:
             is_owner = True
 
+    user_res = await session.execute(select(User).where(User.id == user_id))
+    current_u = user_res.scalar_one_or_none()
+    is_admin = bool(current_u and settings.is_admin(current_u.telegram_id))
+    if not is_owner and is_admin:
+        is_owner = True
+
     if not is_owner:
         raise EventForbiddenError("У вас нет прав для изменения этого мероприятия.")
 
@@ -780,6 +787,31 @@ async def update_organizer_event(
     if data.price_currency is not None:
         event.price_currency = data.price_currency
 
+    if data.category_id is not None and data.category_id.strip():
+        cat_res = await session.execute(select(Category).where(Category.id == data.category_id.strip()))
+        if not cat_res.scalar_one_or_none():
+            raise EventValidationError(f"Invalid category_id '{data.category_id}'")
+        event.category_id = data.category_id.strip()
+
+    if data.city_id is not None and data.city_id.strip():
+        city_res = await session.execute(select(City).where(City.id == data.city_id.strip()))
+        if not city_res.scalar_one_or_none():
+            raise EventValidationError(f"Invalid city_id '{data.city_id}'")
+        event.city_id = data.city_id.strip()
+
+    if data.organization_id is not None:
+        org_id_val = data.organization_id.strip()
+        if not org_id_val or org_id_val.lower() in ("none", "null"):
+            event.organization_id = None
+        else:
+            org_res = await session.execute(select(Organization).where(Organization.id == org_id_val))
+            target_org = org_res.scalar_one_or_none()
+            if not target_org or target_org.status != "active":
+                raise EventValidationError("Указанная организация не найдена или отключена")
+            if target_org.owner_user_id != user_id and not is_admin:
+                raise EventForbiddenError("Вы не можете привязать мероприятие к чужой организации")
+            event.organization_id = target_org.id
+
     event.updated_at = utc_now()
     await session.commit()
     await session.refresh(event)
@@ -813,12 +845,18 @@ async def delete_organizer_event(
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Мероприятие '{event_id}' не найдено.")
 
-    # Check ownership: organizer_user_id or organization owner
+    # Check ownership: organizer_user_id or organization owner or admin
     is_owner = (event.organizer_user_id == user_id)
     if not is_owner and event.organization_id:
         org_res = await session.execute(select(Organization).where(Organization.id == event.organization_id))
         org = org_res.scalar_one_or_none()
         if org and org.owner_user_id == user_id:
+            is_owner = True
+
+    if not is_owner:
+        user_res = await session.execute(select(User).where(User.id == user_id))
+        current_u = user_res.scalar_one_or_none()
+        if current_u and settings.is_admin(current_u.telegram_id):
             is_owner = True
 
     if not is_owner:

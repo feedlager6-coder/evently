@@ -87,6 +87,7 @@ export const App: React.FC = () => {
   const [editingOrgData, setEditingOrgData] = useState<OrganizationResponse | null>(null);
   const [isSubscriptionsModalOpen, setIsSubscriptionsModalOpen] = useState(false);
   const [preselectedOrgForEventCreate, setPreselectedOrgForEventCreate] = useState<string | undefined>(undefined);
+  const [editingEventData, setEditingEventData] = useState<EventResponse | null>(null);
 
   // Admin tab state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -774,14 +775,10 @@ export const App: React.FC = () => {
         onToggleInterest={handleToggleInterest}
         isInterestLoading={isInterestLoading}
         isOrganizer={Boolean(selectedEventDetails?.is_organizer || organizerEvents.some((oe) => oe.id === selectedEventDetails?.id))}
-        onEventDeleted={(deletedId) => {
-          setOrganizerEvents((prev) => prev.filter((e) => e.id !== deletedId));
-          setEvents((prev) => prev.filter((e) => e.id !== deletedId));
-          setAttendingEvents((prev) => prev.filter((e) => e.id !== deletedId));
-          setInterestedEvents((prev) => prev.filter((e) => e.id !== deletedId));
-          loadOrganizerEvents();
-          loadFeedEvents();
-          loadPersonalEvents();
+        onEditEvent={(ev) => {
+          setIsDetailsOpen(false);
+          setEditingEventData(ev);
+          setIsCreateEventModalOpen(true);
         }}
         onOpenOrgModal={(orgId) => {
           setIsDetailsOpen(false);
@@ -828,11 +825,12 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* Create Event Modal */}
+      {/* Create / Edit Event Modal */}
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         onClose={() => {
           setPreselectedOrgForEventCreate(undefined);
+          setEditingEventData(null);
           setIsCreateEventModalOpen(false);
         }}
         cities={cities}
@@ -840,12 +838,33 @@ export const App: React.FC = () => {
         defaultCityId={selectedCityId}
         myOrganizations={myOrganizations}
         initialOrganizationId={preselectedOrgForEventCreate}
+        initialEvent={editingEventData}
+        onEventUpdated={(updatedEvent) => {
+          setEditingEventData(null);
+          setIsCreateEventModalOpen(false);
+          setSelectedEventDetails(updatedEvent);
+          loadFeedEvents();
+          loadOrganizerEvents();
+          loadPersonalEvents();
+        }}
         onEventCreated={() => {
           setPreselectedOrgForEventCreate(undefined);
+          setEditingEventData(null);
           setIsCreateEventModalOpen(false);
           loadFeedEvents();
           loadOrganizerEvents();
           loadMyOrganizations();
+          loadPersonalEvents();
+        }}
+        onEventDeleted={(deletedId) => {
+          setEditingEventData(null);
+          setIsCreateEventModalOpen(false);
+          setOrganizerEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setAttendingEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          setInterestedEvents((prev) => prev.filter((e) => e.id !== deletedId));
+          loadOrganizerEvents();
+          loadFeedEvents();
           loadPersonalEvents();
         }}
       />

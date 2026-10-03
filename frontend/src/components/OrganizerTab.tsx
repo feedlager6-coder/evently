@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 
-export type PersonalHubTab = 'attending' | 'interested' | 'subscriptions';
+export type PersonalHubTab = 'attending' | 'interested' | 'subscriptions' | 'history';
 
 interface OrganizerTabProps {
   attendingEvents: EventSummary[];
@@ -52,6 +52,25 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onExplore,
 }) => {
   const [activeTab, setActiveTab] = useState<PersonalHubTab>('attending');
+
+  const now = new Date();
+  const activeAttending = attendingEvents.filter((e) => new Date(e.start_at) >= now);
+  const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
+
+  const pastEventsMap = new Map<string, EventSummary>();
+  attendingEvents
+    .filter((e) => new Date(e.start_at) < now)
+    .forEach((e) => pastEventsMap.set(e.id, { ...e, is_attending: true }));
+  interestedEvents
+    .filter((e) => new Date(e.start_at) < now)
+    .forEach((e) => {
+      if (!pastEventsMap.has(e.id)) {
+        pastEventsMap.set(e.id, { ...e, current_user_interested: true });
+      }
+    });
+  const pastEvents = Array.from(pastEventsMap.values()).sort(
+    (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
+  );
 
   const isOrganizer = organizations.length > 0 || myCreatedEvents.length > 0;
   const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
@@ -180,9 +199,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
           {/* Segmented Tabs Switcher */}
           <AnimatedSegmentedControl
             items={[
-              { value: 'attending', label: 'Я иду', count: attendingEvents.length },
-              { value: 'interested', label: 'Хочу пойти', count: interestedEvents.length },
+              { value: 'attending', label: 'Я иду', count: activeAttending.length },
+              { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
               { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
+              { value: 'history', label: 'Прошедшие', count: pastEvents.length },
             ]}
             value={activeTab}
             onChange={(val) => handleTabChange(val as PersonalHubTab)}
@@ -197,15 +217,15 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <div className="space-y-3">
           {isLoadingAttending ? (
             <div className="py-16 text-center text-xs text-gray-400">Загрузка ваших планов...</div>
-          ) : attendingEvents.length === 0 ? (
+          ) : activeAttending.length === 0 ? (
             <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
               <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
                 🎟
               </div>
               <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Вы пока не собираетесь на события</div>
+                <div className="text-sm font-semibold text-white">Нет активных планов</div>
                 <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Здесь появятся события, на которые вы нажали «Я иду»
+                  Здесь появятся предстоящие события, на которые вы нажали «Я иду»
                 </p>
               </div>
               <button
@@ -217,7 +237,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {attendingEvents.map((event) => (
+              {activeAttending.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}
@@ -234,7 +254,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <div className="space-y-3">
           {isLoadingInterested ? (
             <div className="py-16 text-center text-xs text-gray-400">Загрузка сохранённых событий...</div>
-          ) : interestedEvents.length === 0 ? (
+          ) : activeInterested.length === 0 ? (
             <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
               <div className="w-12 h-12 rounded-full bg-pink-500/10 text-pink-400 flex items-center justify-center mx-auto text-xl">
                 ❤️
@@ -242,7 +262,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               <div className="space-y-1">
                 <div className="text-sm font-semibold text-white">Нет сохранённых событий</div>
                 <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Сохраняйте интересные события, чтобы вернуться к ним позже
+                  Сохраняйте интересные предстоящие события, чтобы вернуться к ним позже
                 </p>
               </div>
               <button
@@ -254,12 +274,45 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {interestedEvents.map((event) => (
+              {activeInterested.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}
                   onClick={() => onEventClick(event)}
                 />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: HISTORY */}
+      {activeTab === 'history' && (
+        <div className="space-y-3">
+          {pastEvents.length === 0 ? (
+            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                ⏳
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-white">Нет прошедших событий</div>
+                <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                  Здесь сохраняется архив событий из ваших планов и закладок после их завершения
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-[11px] text-gray-400 px-1">
+                Архив прошедших событий из ваших планов и закладок
+              </div>
+              {pastEvents.map((event) => (
+                <div key={event.id} className="opacity-80 hover:opacity-100 transition-opacity">
+                  <EventCard
+                    event={event}
+                    onClick={() => onEventClick(event)}
+                  />
+                </div>
               ))}
             </div>
           )}

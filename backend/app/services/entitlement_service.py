@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Tuple, Any
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 from app.config import settings
 from app.models.organization_plan import OrganizationPlan, PlanType, PlanStatus
@@ -156,7 +156,8 @@ class EntitlementService:
         """
         Returns number of active/queued/completed marketing broadcasts sent by this organization
         in the current calendar month (from 1st of month 00:00:00 UTC).
-        Transactional broadcasts (event updates) do not count toward this marketing quota.
+        Transactional broadcasts (event updates), failed broadcasts (0 sent), cancelled,
+        and other organizations' broadcasts do NOT count toward this marketing quota.
         """
         now = utc_now()
         start_of_month = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -164,8 +165,17 @@ class EntitlementService:
         stmt = select(func.count(Broadcast.id)).where(
             Broadcast.organization_id == organization_id,
             Broadcast.created_at >= start_of_month,
-            Broadcast.status != BroadcastStatus.CANCELLED.value,
-            Broadcast.broadcast_type != BroadcastType.TRANSACTIONAL.value,
+            Broadcast.broadcast_type == BroadcastType.MARKETING.value,
+            Broadcast.status.in_([
+                BroadcastStatus.COMPLETED.value,
+                BroadcastStatus.PROCESSING.value,
+                BroadcastStatus.QUEUED.value,
+                BroadcastStatus.PARTIALLY_FAILED.value
+            ]),
+            or_(
+                Broadcast.status.in_([BroadcastStatus.QUEUED.value, BroadcastStatus.PROCESSING.value]),
+                Broadcast.sent_count > 0
+            )
         )
         return (await session.execute(stmt)).scalar() or 0
 

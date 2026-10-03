@@ -67,11 +67,21 @@ async def send_telegram_event_message(
             )
             if resp.status_code == 200:
                 return True
-            logger.warning(
-                f"sendPhoto failed with status {resp.status_code} for chat_id {chat_id}, falling back to sendMessage: {resp.text}"
-            )
+            if resp.status_code == 400:
+                logger.warning(
+                    f"sendPhoto rejected with status 400 for chat_id {chat_id}, falling back to sendMessage: {resp.text}"
+                )
+            else:
+                logger.warning(
+                    f"sendPhoto failed with status {resp.status_code} for chat_id {chat_id}, skipping text fallback to prevent duplicate delivery."
+                )
+                return False
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning(f"sendPhoto network timeout/error for chat_id {chat_id}: {e}. Skipping text fallback to prevent duplicate delivery.")
+            return False
         except Exception as e:
-            logger.warning(f"sendPhoto exception for chat_id {chat_id}, falling back to sendMessage: {e}")
+            logger.warning(f"sendPhoto exception for chat_id {chat_id}: {e}")
+            return False
 
     # Fallback to standard sendMessage
     msg_payload = {
@@ -245,13 +255,14 @@ async def notify_event_updated(
 ) -> int:
     """
     Sends transactional Telegram notifications when an event's time or venue is updated.
-    Recipients: Attendees, interested users ('Хочу пойти'), and organization subscribers.
+    Recipients: ONLY confirmed attendees (EventAttendee / 'Я иду').
+    Zero general subscribers, zero viewers, zero city-wide blasts.
     Does NOT count against marketing quota, does NOT attach marketing attribution tokens.
     """
-    # 1. Gather distinct recipient Telegram IDs
+    # 1. Gather distinct recipient Telegram IDs (ONLY confirmed attendees)
     recipient_ids: Set[int] = set()
 
-    # Attendees
+    # Attendees only
     att_stmt = (
         select(User.telegram_id)
         .join(EventAttendee, EventAttendee.user_id == User.id)
@@ -261,33 +272,8 @@ async def notify_event_updated(
         if tid:
             recipient_ids.add(tid)
 
-    # Interested
-    int_stmt = (
-        select(User.telegram_id)
-        .join(EventInterest, EventInterest.user_id == User.id)
-        .where(EventInterest.event_id == event.id, User.telegram_id.isnot(None))
-    )
-    for tid in (await session.execute(int_stmt)).scalars().all():
-        if tid:
-            recipient_ids.add(tid)
-
-    # Organization subscribers
-    if event.organization_id:
-        sub_stmt = (
-            select(User.telegram_id)
-            .join(Subscription, Subscription.user_id == User.id)
-            .where(
-                Subscription.organization_id == event.organization_id,
-                Subscription.notifications_enabled == True,
-                User.telegram_id.isnot(None)
-            )
-        )
-        for tid in (await session.execute(sub_stmt)).scalars().all():
-            if tid:
-                recipient_ids.add(tid)
-
     if not recipient_ids:
-        logger.info(f"No recipients for event update notification (event {event.id})")
+        logger.info(f"No attendees for event update notification (event {event.id})")
         return 0
 
     # 2. Build structured message
@@ -367,7 +353,8 @@ async def notify_event_cancelled(
 ) -> int:
     """
     Sends transactional Telegram notifications when an event is cancelled.
-    Recipients: Attendees, interested users ('Хочу пойти'), and organization subscribers.
+    Recipients: ONLY confirmed attendees (EventAttendee) and interested users (EventInterest / 'Хочу пойти'), deduplicated.
+    Zero general subscribers, zero viewers, zero city-wide blasts.
     Does NOT count against marketing quota, does NOT attach marketing attribution tokens.
     """
     recipient_ids: Set[int] = set()
@@ -382,7 +369,7 @@ async def notify_event_cancelled(
         if tid:
             recipient_ids.add(tid)
 
-    # Interested
+    # Interested (deduplicated into set)
     int_stmt = (
         select(User.telegram_id)
         .join(EventInterest, EventInterest.user_id == User.id)
@@ -391,21 +378,6 @@ async def notify_event_cancelled(
     for tid in (await session.execute(int_stmt)).scalars().all():
         if tid:
             recipient_ids.add(tid)
-
-    # Organization subscribers
-    if event.organization_id:
-        sub_stmt = (
-            select(User.telegram_id)
-            .join(Subscription, Subscription.user_id == User.id)
-            .where(
-                Subscription.organization_id == event.organization_id,
-                Subscription.notifications_enabled == True,
-                User.telegram_id.isnot(None)
-            )
-        )
-        for tid in (await session.execute(sub_stmt)).scalars().all():
-            if tid:
-                recipient_ids.add(tid)
 
     if not recipient_ids:
         logger.info(f"No recipients for event cancellation notification (event {event.id})")

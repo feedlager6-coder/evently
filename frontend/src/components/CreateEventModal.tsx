@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { City, Category, EventCreatePayload, LocationSuggestion, OrganizationSummary } from '../types';
+import type { City, Category, EventCreatePayload, LocationSuggestion, OrganizationSummary, EventResponse } from '../types';
 import { api, DEFAULT_CITIES } from '../services/api';
 import { telegram } from '../services/telegram';
 import { 
@@ -13,7 +13,10 @@ import {
   Upload, 
   MapPin, 
   Check,
-  Building2
+  Building2,
+  Edit,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface CreateEventModalProps {
@@ -25,6 +28,9 @@ interface CreateEventModalProps {
   onEventCreated: () => void;
   myOrganizations?: OrganizationSummary[];
   initialOrganizationId?: string;
+  initialEvent?: EventResponse | null;
+  onEventUpdated?: (ev: EventResponse) => void;
+  onEventDeleted?: (eventId: string) => void;
 }
 
 const PRESET_IMAGES = [
@@ -44,6 +50,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   onEventCreated,
   myOrganizations = [],
   initialOrganizationId,
+  initialEvent,
+  onEventUpdated,
+  onEventDeleted,
 }) => {
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(initialOrganizationId);
   const [title, setTitle] = useState('');
@@ -78,24 +87,63 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Form submission state
+  // Form submission & deletion state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Synchronize cityId when defaultCityId changes
-  useEffect(() => {
-    if (defaultCityId) {
-      setCityId(defaultCityId);
-    }
-  }, [defaultCityId]);
-
+  // Synchronize form when initialEvent or isOpen changes
   useEffect(() => {
     if (!isOpen) {
       setSuccess(false);
       setError(null);
+      setShowDeleteConfirm(false);
+      setDeleteError(null);
+      return;
     }
-  }, [isOpen]);
+
+    if (initialEvent) {
+      setTitle(initialEvent.title || '');
+      setDescription(initialEvent.description || '');
+      setCityId(initialEvent.city_id || defaultCityId || 'makhachkala');
+      setCategoryId(initialEvent.category_id || 'concerts');
+      if (initialEvent.start_at) {
+        try {
+          const d = new Date(initialEvent.start_at);
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          setStartAt(localStr);
+        } catch {
+          setStartAt(defaultDateStr);
+        }
+      }
+      setVenueName(initialEvent.venue_name || '');
+      setAddress(initialEvent.address || '');
+      setLatitude(initialEvent.latitude);
+      setLongitude(initialEvent.longitude);
+      setIsFree(initialEvent.is_free ?? (initialEvent.price_amount == null || initialEvent.price_amount === 0));
+      setPriceAmount(initialEvent.price_amount != null ? String(initialEvent.price_amount) : '500');
+      setCoverImageUrl(initialEvent.cover_image_url || PRESET_IMAGES[0].url);
+      setSelectedOrgId(initialEvent.organization_id || undefined);
+    } else {
+      setTitle('');
+      setDescription('');
+      setCityId(defaultCityId || 'makhachkala');
+      setCategoryId('concerts');
+      setStartAt(defaultDateStr);
+      setVenueName('');
+      setAddress('');
+      setLatitude(undefined);
+      setLongitude(undefined);
+      setIsFree(false);
+      setPriceAmount('500');
+      setCoverImageUrl(PRESET_IMAGES[0].url);
+      setSelectedOrgId(initialOrganizationId);
+    }
+  }, [isOpen, initialEvent, defaultCityId, initialOrganizationId]);
 
 
   const handleSelectOrg = (orgId: string | undefined) => {
@@ -207,6 +255,25 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
 
+  const handleDeleteEvent = async () => {
+    if (!initialEvent) return;
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      await api.deleteEvent(initialEvent.id);
+      telegram.hapticSuccess();
+      setShowDeleteConfirm(false);
+      onClose();
+      if (onEventDeleted) {
+        onEventDeleted(initialEvent.id);
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Не удалось удалить мероприятие');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim() || !venueName.trim() || !startAt) {
@@ -235,12 +302,21 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         organization_id: selectedOrgId || undefined,
       };
 
-      await api.createEvent(payload);
-      telegram.hapticSuccess();
-      setSuccess(true);
-      onEventCreated();
+      if (initialEvent) {
+        const updated = await api.updateEvent(initialEvent.id, payload);
+        telegram.hapticSuccess();
+        setSuccess(true);
+        if (onEventUpdated) {
+          onEventUpdated(updated);
+        }
+      } else {
+        await api.createEvent(payload);
+        telegram.hapticSuccess();
+        setSuccess(true);
+        onEventCreated();
+      }
     } catch (err: any) {
-      setError(err.message || 'Ошибка создания мероприятия');
+      setError(err.message || 'Ошибка сохранения мероприятия');
     } finally {
       setIsLoading(false);
     }
@@ -260,11 +336,15 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
           <div className="flex items-center space-x-2">
             <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
-              <PlusCircle className="w-5 h-5" />
+              {initialEvent ? <Edit className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Создать мероприятие</h3>
-              <p className="text-xs text-gray-400">Публикация после модерации</p>
+              <h3 className="text-base font-bold text-white">
+                {initialEvent ? 'Редактирование события' : 'Создать мероприятие'}
+              </h3>
+              <p className="text-xs text-gray-400">
+                {initialEvent ? 'Изменение данных мероприятия' : 'Публикация после модерации'}
+              </p>
             </div>
           </div>
           <button
@@ -281,9 +361,13 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-lg font-bold text-white">Отправлено на модерацию!</h4>
+              <h4 className="text-lg font-bold text-white">
+                {initialEvent ? 'Изменения сохранены!' : 'Отправлено на модерацию!'}
+              </h4>
               <p className="text-xs text-gray-300 max-w-xs mx-auto">
-                Ваше событие успешно создано и отправлено администраторам. Как только его одобрят, оно станет доступно в афише Ivently.
+                {initialEvent
+                  ? 'Информация о событии успешно обновлена.'
+                  : 'Ваше событие успешно создано и отправлено администраторам. Как только его одобрят, оно станет доступно в афише Ivently.'}
               </p>
             </div>
             <button
@@ -616,21 +700,94 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             {/* Submit */}
             <button
               type="submit"
-              disabled={isLoading || isUploadingImage}
+              disabled={isLoading || isUploadingImage || isDeleting}
               className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Отправить на модерацию</span>
+                  {initialEvent ? <Check className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
+                  <span>{initialEvent ? 'Сохранить изменения' : 'Отправить на модерацию'}</span>
                 </>
               )}
             </button>
+
+            {/* Destructive Delete Button for Organizer */}
+            {initialEvent && (
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticNotification('warning');
+                    setShowDeleteConfirm(true);
+                    setDeleteError(null);
+                  }}
+                  disabled={isLoading || isDeleting}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-red-400 hover:text-white hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <span>Удалить мероприятие</span>
+                </button>
+              </div>
+            )}
           </form>
         )}
       </div>
+
+      {/* Delete Event Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-[#141724] border border-white/10 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-white">Удалить мероприятие?</h3>
+                <p className="text-xs text-gray-400 font-medium truncate">{initialEvent?.title}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Мероприятие пропадет из афиши и поиска. Историческая статистика сохранится.
+            </p>
+
+            {deleteError && (
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  setShowDeleteConfirm(false);
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+                className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors btn-press"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteEvent}
+                disabled={isDeleting}
+                className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-semibold text-white shadow-lg shadow-red-600/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <span>Удалить мероприятие</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

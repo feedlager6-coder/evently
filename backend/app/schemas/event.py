@@ -39,6 +39,9 @@ class EventUpdate(BaseModel):
     longitude: Optional[float] = Field(None, description="Venue longitude")
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price")
     price_currency: Optional[str] = Field(None, max_length=10, description="Price currency")
+    category_id: Optional[str] = Field(None, description="Category ID")
+    city_id: Optional[str] = Field(None, description="City ID")
+    organization_id: Optional[str] = Field(None, description="Organization ID (or empty string/null to detach)")
 
     @field_validator("cover_image_url")
     @classmethod

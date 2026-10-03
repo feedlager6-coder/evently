@@ -1398,7 +1398,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-purple-400 shadow-sm shadow-purple-500/50" />
                   <div className="min-w-0 text-xs text-gray-200">
                     <span>
-                      Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 30} анонсов в этом месяце
+                      Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 20} анонсов в этом месяце
                       {(entitlements?.limits?.broadcasts_remaining ?? 0) > 0 ? (
                         <span className="text-emerald-400 font-medium"> (осталось {entitlements?.limits?.broadcasts_remaining})</span>
                       ) : (
@@ -1449,7 +1449,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="space-y-2 text-[11px] text-gray-300">
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">📣</span>
-                    <span><strong>Ручные рассылки в Telegram</strong> — отправка анонсов и новостей подписчикам организации (до 30 в месяц)</span>
+                    <span><strong>Ручные рассылки в Telegram</strong> — отправка анонсов и новостей подписчикам организации (до 20 в месяц)</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">👥</span>
@@ -1461,7 +1461,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">🔔</span>
-                    <span><strong>Авто-напоминания</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро)</span> — своевременные оповещения гостей перед началом</span>
+                    <span><strong>Автоматические напоминания</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро)</span> — своевременные оповещения гостей перед началом</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-purple-400 font-bold shrink-0">💌</span>
+                    <span><strong>Повторные приглашения</strong> <span className="text-[10px] text-purple-300 font-medium">(скоро)</span> — персональные приглашения постоянным посетителям</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <span className="text-purple-400 font-bold shrink-0">🔁</span>
@@ -2165,7 +2169,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="space-y-1.5 text-[11px] text-gray-200">
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span><strong>Ручные рассылки в Telegram</strong> (до 30 в месяц)</span>
+                    <span><strong>Ручные рассылки в Telegram</strong> (до 20 в месяц)</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
@@ -2177,11 +2181,15 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span>Сегменты аудитории и повторные приглашения (скоро)</span>
+                    <span>Сегменты аудитории — Скоро</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-purple-400 font-bold">✓</span>
-                    <span>Автоматические напоминания перед началом (скоро)</span>
+                    <span>Повторные приглашения — Скоро</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-purple-400 font-bold">✓</span>
+                    <span>Автоматические напоминания — Скоро</span>
                   </div>
                 </div>
               </div>
