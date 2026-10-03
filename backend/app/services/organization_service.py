@@ -374,7 +374,10 @@ async def list_organization_events(
                 organization_id=org.id,
                 organization_name=org.name,
                 organization_category=org.category,
-                organization_avatar_url=org.avatar_url
+                organization_avatar_url=org.avatar_url,
+                allow_event_contact=bool(getattr(ev, "allow_event_contact", False)),
+                source_type=getattr(ev, "source_type", "user") or "user",
+                source_name=getattr(ev, "source_name", None)
             )
         )
     return summaries

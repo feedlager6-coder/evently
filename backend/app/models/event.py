@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy import Column, String, Text, Float, DateTime, ForeignKey, Index, Integer
+from sqlalchemy import Column, String, Text, Float, DateTime, ForeignKey, Index, Integer, Boolean
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -37,6 +37,12 @@ class Event(Base):
     status = Column(String(20), nullable=False, default=EventStatus.PENDING.value, index=True)
     organizer_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+    allow_event_contact = Column(Boolean, nullable=False, default=False, server_default="0")
+    source_type = Column(String(30), nullable=False, default="user", server_default="user", index=True)
+    source_name = Column(String(100), nullable=True)
+    external_id = Column(String(255), nullable=True, index=True)
+    source_url = Column(String(1024), nullable=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -55,6 +61,7 @@ class Event(Base):
 
     __table_args__ = (
         Index("idx_events_discovery", "city_id", "status", "start_at"),
+        Index("idx_events_source_external", "source_name", "external_id"),
     )
 
     def __repr__(self) -> str:

@@ -65,7 +65,7 @@ class Broadcast(Base):
     target_type = Column(String(50), nullable=False, default=BroadcastTargetType.ORGANIZATION_SUBSCRIBERS.value)
     broadcast_type = Column(String(30), nullable=False, default=BroadcastType.MARKETING.value)
     template_key = Column(String(50), nullable=False, default=BroadcastTemplateKey.EVENT_ANNOUNCEMENT.value)
-    custom_text = Column(String(300), nullable=True)
+    custom_text = Column(String(500), nullable=True)
     status = Column(String(30), nullable=False, default=BroadcastStatus.QUEUED.value, index=True)
     attribution_token = Column(String(32), unique=True, index=True, nullable=True, default=lambda: secrets.token_hex(8))
 

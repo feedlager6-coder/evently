@@ -88,6 +88,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Privacy / contact permission state
+  const [allowEventContact, setAllowEventContact] = useState(false);
+
   // Form submission & deletion state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +132,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setPriceAmount(initialEvent.price_amount != null ? String(initialEvent.price_amount) : '500');
       setCoverImageUrl(initialEvent.cover_image_url || PRESET_IMAGES[0].url);
       setSelectedOrgId(initialEvent.organization_id || undefined);
+      setAllowEventContact(Boolean(initialEvent.allow_event_contact));
     } else {
       setTitle('');
       setDescription('');
@@ -143,6 +147,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setPriceAmount('500');
       setCoverImageUrl(PRESET_IMAGES[0].url);
       setSelectedOrgId(initialOrganizationId);
+      setAllowEventContact(false);
     }
   }, [isOpen, initialEvent, defaultCityId, initialOrganizationId]);
 
@@ -301,6 +306,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         price_currency: isFree ? undefined : currency,
         cover_image_url: coverImageUrl.trim() || undefined,
         organization_id: selectedOrgId || undefined,
+        allow_event_contact: !selectedOrgId ? allowEventContact : false,
       };
 
       if (initialEvent) {
@@ -419,6 +425,31 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Personal organizer contact toggle */}
+            {!selectedOrgId && (
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#141724] border border-white/5">
+                <div className="space-y-0.5 pr-3">
+                  <div className="text-gray-200 font-medium">Разрешить связь по мероприятию</div>
+                  <div className="text-[11px] text-gray-400">
+                    Позволяет участникам писать вам в Telegram через кнопку «Написать»
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAllowEventContact(!allowEventContact)}
+                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
+                    allowEventContact ? 'bg-indigo-600' : 'bg-white/10'
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                      allowEventContact ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             )}
 

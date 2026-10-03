@@ -69,6 +69,12 @@ async def init_db() -> None:
             ("events", "longitude", "DOUBLE PRECISION", "FLOAT"),
             ("events", "rejection_reason", "TEXT", "TEXT"),
             ("events", "organization_id", "VARCHAR(36)", "VARCHAR(36)"),
+            ("events", "allow_event_contact", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
+            ("events", "source_type", "VARCHAR(30) DEFAULT 'user'", "VARCHAR(30) DEFAULT 'user'"),
+            ("events", "source_name", "VARCHAR(100)", "VARCHAR(100)"),
+            ("events", "external_id", "VARCHAR(255)", "VARCHAR(255)"),
+            ("events", "source_url", "VARCHAR(1024)", "VARCHAR(1024)"),
+            ("events", "last_synced_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
             ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
             ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
             ("broadcasts", "attribution_token", "VARCHAR(32)", "VARCHAR(32)"),
@@ -100,6 +106,7 @@ async def init_db() -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_broadcasts_attribution_token ON broadcasts (attribution_token);",
             "CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_attr ON broadcast_recipients (user_id, broadcast_id, opened_at);",
             "CREATE INDEX IF NOT EXISTS idx_organization_plans_org_status ON organization_plans (organization_id, status);",
+            "CREATE INDEX IF NOT EXISTS idx_events_source_external ON events (source_name, external_id);",
         ]
         for idx_sql in indexes:
             try:

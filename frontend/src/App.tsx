@@ -39,12 +39,13 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
-  // Core metadata - initialize with DEFAULT_CITIES so cities is never empty
-  const [cities, setCities] = useState<City[]>(DEFAULT_CITIES);
+  // Core metadata - initialize with cached cities for instant 0ms startup
+  const [cities, setCities] = useState<City[]>(() => api.getCachedCities());
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCityId, setSelectedCityId] = useState<string>(() => {
     const saved = localStorage.getItem('evently_selected_city_id');
-    return saved && DEFAULT_CITIES.some((c) => c.id === saved) ? saved : 'makhachkala';
+    const cached = api.getCachedCities();
+    return saved && cached.some((c) => c.id === saved) ? saved : 'makhachkala';
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');

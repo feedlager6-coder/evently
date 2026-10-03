@@ -43,6 +43,9 @@ export interface EventSummary {
   organization_name?: string;
   organization_category?: string;
   organization_avatar_url?: string;
+  allow_event_contact?: boolean;
+  source_type?: string;
+  source_name?: string;
   views_count?: number;
   broadcast_opens_count?: number;
   broadcast_interest_count?: number;
@@ -71,6 +74,11 @@ export interface EventResponse extends EventSummary {
   description: string;
   organizer_user_id?: number;
   organizer_name?: string;
+  organizer_username?: string;
+  organizer_contact_url?: string;
+  external_id?: string;
+  source_url?: string;
+  last_synced_at?: string;
   organization_followers_count?: number;
   organization_is_subscribed?: boolean;
   is_organizer?: boolean;
@@ -92,6 +100,7 @@ export interface EventCreatePayload {
   price_amount?: number;
   price_currency?: string;
   organization_id?: string;
+  allow_event_contact?: boolean;
 }
 
 export const ORGANIZATION_CATEGORIES = [

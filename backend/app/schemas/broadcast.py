@@ -45,7 +45,7 @@ class BroadcastPreviewRequest(BaseModel):
         description="Message template"
     )
     event_id: Optional[str] = Field(None, description="Event ID (required for event-related templates)")
-    custom_text: Optional[str] = Field(None, max_length=300, description="Optional custom message text (max 300 chars)")
+    custom_text: Optional[str] = Field(None, max_length=500, description="Optional custom message text (max 500 chars)")
 
 
 class BroadcastPreviewResponse(BaseModel):
@@ -81,7 +81,7 @@ class BroadcastCreateRequest(BaseModel):
         description="Message template"
     )
     event_id: Optional[str] = Field(None, description="Event ID (required for event-related templates)")
-    custom_text: Optional[str] = Field(None, max_length=300, description="Optional custom message text (max 300 chars)")
+    custom_text: Optional[str] = Field(None, max_length=500, description="Optional custom message text (max 500 chars)")
 
 
 class BroadcastItem(BaseModel):

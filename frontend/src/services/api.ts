@@ -136,9 +136,36 @@ export const DEFAULT_CITIES: City[] = [
   { id: 'yaroslavl', name: 'Ярославль', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 57.6261, longitude: 39.8845, is_active: true },
 ];
 
+let memoryCitiesCache: City[] | null = null;
+const CITIES_STORAGE_KEY = 'evently_cached_cities';
+
+export function getCachedCities(): City[] {
+  if (memoryCitiesCache && memoryCitiesCache.length > 0) {
+    return memoryCitiesCache;
+  }
+  try {
+    const raw = localStorage.getItem(CITIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryCitiesCache = parsed;
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  memoryCitiesCache = DEFAULT_CITIES;
+  return DEFAULT_CITIES;
+}
+
 export const api = {
   getBotUsername(): string {
     return cachedBotUsername;
+  },
+
+  getCachedCities(): City[] {
+    return getCachedCities();
   },
 
   async getAppMeta(): Promise<{ app_name: string; bot_username: string; mini_app_url: string }> {
@@ -171,13 +198,25 @@ export const api = {
       const res = await fetch(`${API_BASE}/cities${queryStr}`);
       if (!res.ok) throw new Error('Failed to fetch cities');
       const data = await res.json();
-      return Array.isArray(data) && data.length > 0 ? data : DEFAULT_CITIES;
+      if (Array.isArray(data) && data.length > 0) {
+        if (!search) {
+          memoryCitiesCache = data;
+          try {
+            localStorage.setItem(CITIES_STORAGE_KEY, JSON.stringify(data));
+          } catch {
+            // Storage quota or disabled
+          }
+        }
+        return data;
+      }
+      return getCachedCities();
     } catch {
+      const all = getCachedCities();
       if (search && search.trim()) {
         const q = search.toLowerCase().trim();
-        return DEFAULT_CITIES.filter(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+        return all.filter(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
       }
-      return DEFAULT_CITIES;
+      return all;
     }
   },
 

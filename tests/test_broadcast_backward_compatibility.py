@@ -174,6 +174,12 @@ async def test_schema_migration_preserves_d40_legacy_broadcasts(tmp_path):
 
     # Execute migrations exactly as done in app.database.init_db
     migrations = [
+        ("events", "allow_event_contact", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
+        ("events", "source_type", "VARCHAR(30) DEFAULT 'user'", "VARCHAR(30) DEFAULT 'user'"),
+        ("events", "source_name", "VARCHAR(100)", "VARCHAR(100)"),
+        ("events", "external_id", "VARCHAR(255)", "VARCHAR(255)"),
+        ("events", "source_url", "VARCHAR(1024)", "VARCHAR(1024)"),
+        ("events", "last_synced_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
         ("broadcasts", "attribution_token", "VARCHAR(32)", "VARCHAR(32)"),
         ("broadcast_recipients", "opened_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
         ("broadcast_recipients", "attributed_interest_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),

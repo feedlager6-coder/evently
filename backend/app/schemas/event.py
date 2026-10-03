@@ -17,6 +17,7 @@ class EventCreate(BaseModel):
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price (null if free)")
     price_currency: Optional[str] = Field(None, max_length=10, description="Price currency (e.g. RUB)")
     organization_id: Optional[str] = Field(None, description="Optional organization ID")
+    allow_event_contact: bool = Field(False, description="Allow attendees to contact organizer via Telegram")
 
     @field_validator("cover_image_url")
     @classmethod
@@ -42,6 +43,7 @@ class EventUpdate(BaseModel):
     category_id: Optional[str] = Field(None, description="Category ID")
     city_id: Optional[str] = Field(None, description="City ID")
     organization_id: Optional[str] = Field(None, description="Organization ID (or empty string/null to detach)")
+    allow_event_contact: Optional[bool] = Field(None, description="Allow attendees to contact organizer via Telegram")
 
     @field_validator("cover_image_url")
     @classmethod
@@ -79,6 +81,9 @@ class EventSummary(BaseModel):
     organization_name: Optional[str] = None
     organization_category: Optional[str] = None
     organization_avatar_url: Optional[str] = None
+    allow_event_contact: bool = False
+    source_type: str = "user"
+    source_name: Optional[str] = None
     broadcast_opens_count: int = 0
     broadcast_interest_count: int = 0
     broadcast_rsvp_count: int = 0
@@ -91,6 +96,11 @@ class EventResponse(EventSummary):
     address: str
     organizer_user_id: int
     organizer_name: Optional[str] = None
+    organizer_username: Optional[str] = None
+    organizer_contact_url: Optional[str] = None
+    external_id: Optional[str] = None
+    source_url: Optional[str] = None
+    last_synced_at: Optional[datetime] = None
     organization_followers_count: Optional[int] = None
     organization_is_subscribed: Optional[bool] = None
     is_organizer: bool = False

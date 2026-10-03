@@ -71,7 +71,10 @@ async def get_admin_events(
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
-                organization_avatar_url=org_avatar
+                organization_avatar_url=org_avatar,
+                allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
+                source_type=getattr(event, "source_type", "user") or "user",
+                source_name=getattr(event, "source_name", None)
             )
         )
     return summaries

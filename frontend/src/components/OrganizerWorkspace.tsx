@@ -1844,11 +1844,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     ? 'Текст новости *'
                     : 'Комментарий к событию (опционально)'}
                 </label>
-                <span className="text-[10px] text-gray-500">{composerCustomText.length}/300</span>
+                <span className="text-[10px] text-gray-500">{composerCustomText.length}/500</span>
               </div>
               <textarea
                 value={composerCustomText}
-                maxLength={300}
+                maxLength={500}
                 rows={3}
                 onChange={(e) => setComposerCustomText(e.target.value)}
                 placeholder={

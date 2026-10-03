@@ -13,7 +13,8 @@ import {
   User as UserIcon,
   ChevronRight,
   Heart,
-  Edit
+  Edit,
+  MessageCircle
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
@@ -323,14 +324,26 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               </div>
             </div>
           ) : event.organizer_name ? (
-            <div className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29]/60 border border-white/5">
-              <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                <UserIcon className="w-4 h-4" />
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-[#171B29]/60 border border-white/5">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <div className="text-xs">
+                  <div className="text-gray-400">Организатор</div>
+                  <div className="font-medium text-white">{event.organizer_name}</div>
+                </div>
               </div>
-              <div className="text-xs">
-                <div className="text-gray-400">Организатор</div>
-                <div className="font-medium text-white">@{event.organizer_name}</div>
-              </div>
+              {event.allow_event_contact && event.organizer_contact_url && (
+                <button
+                  type="button"
+                  onClick={() => telegram.openTelegramLink(event.organizer_contact_url!)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 hover:text-indigo-300 text-xs font-medium border border-indigo-500/30 transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Написать</span>
+                </button>
+              )}
             </div>
           ) : null}
 

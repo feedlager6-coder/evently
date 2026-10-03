@@ -231,7 +231,10 @@ async def list_published_events(
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
-                organization_avatar_url=org_avatar
+                organization_avatar_url=org_avatar,
+                allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
+                source_type=getattr(event, "source_type", "user") or "user",
+                source_name=getattr(event, "source_name", None)
             )
         )
 
@@ -295,7 +298,22 @@ async def get_event_details(
     if event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
-    organizer_display = org_username or org_first_name or None
+    if org_id:
+        organizer_display = org_name or "Организация"
+        organizer_username = None
+        organizer_contact_url = None
+    else:
+        allow_contact = bool(getattr(event, "allow_event_contact", False))
+        if allow_contact and org_username:
+            clean_user = org_username.lstrip("@")
+            organizer_username = clean_user
+            organizer_contact_url = f"https://t.me/{clean_user}"
+            organizer_display = org_first_name or f"@{clean_user}"
+        else:
+            organizer_username = None
+            organizer_contact_url = None
+            organizer_display = org_first_name or "Организатор"
+
     is_organizer = bool(current_user_id and current_user_id == event.organizer_user_id)
     # Phase 6: Organizer sees own views_count; public sees 0
     safe_views_count = (raw_views_count or 0) if (current_user_id and current_user_id == event.organizer_user_id) else 0
@@ -356,6 +374,14 @@ async def get_event_details(
         status=event.status,
         organizer_user_id=event.organizer_user_id,
         organizer_name=organizer_display,
+        organizer_username=organizer_username,
+        organizer_contact_url=organizer_contact_url,
+        allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
+        source_type=getattr(event, "source_type", "user") or "user",
+        source_name=getattr(event, "source_name", None),
+        external_id=getattr(event, "external_id", None),
+        source_url=getattr(event, "source_url", None),
+        last_synced_at=getattr(event, "last_synced_at", None),
         organization_id=org_id,
         organization_name=org_name,
         organization_category=org_category,
@@ -699,7 +725,9 @@ async def create_organizer_event(
         price_currency=data.price_currency or "RUB",
         status=EventStatus.PENDING.value,
         organizer_user_id=organizer_user_id,
-        organization_id=org_id
+        organization_id=org_id,
+        allow_event_contact=bool(data.allow_event_contact),
+        source_type="user"
     )
 
     session.add(event)
@@ -806,6 +834,9 @@ async def update_organizer_event(
         if not city_res.scalar_one_or_none():
             raise EventValidationError(f"Invalid city_id '{data.city_id}'")
         event.city_id = data.city_id.strip()
+
+    if data.allow_event_contact is not None:
+        event.allow_event_contact = bool(data.allow_event_contact)
 
     if data.organization_id is not None:
         org_id_val = data.organization_id.strip()
@@ -983,6 +1014,9 @@ async def get_organizer_events(
                 organization_name=org_name,
                 organization_category=org_category,
                 organization_avatar_url=org_avatar,
+                allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
+                source_type=getattr(event, "source_type", "user") or "user",
+                source_name=getattr(event, "source_name", None),
                 broadcast_opens_count=b_opens,
                 broadcast_interest_count=b_interest,
                 broadcast_rsvp_count=b_rsvp,
@@ -1073,7 +1107,10 @@ async def get_user_personal_events(
                 organization_id=event.organization_id,
                 organization_name=org_name,
                 organization_category=org_category,
-                organization_avatar_url=org_avatar
+                organization_avatar_url=org_avatar,
+                allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
+                source_type=getattr(event, "source_type", "user") or "user",
+                source_name=getattr(event, "source_name", None)
             )
         )
     return summaries

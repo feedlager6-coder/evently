@@ -46,6 +46,41 @@ const CITY_EMOJIS: Record<string, string> = {
   khabarovsk: '🐯',
 };
 
+const POPULAR_CITY_IDS = [
+  'makhachkala',
+  'moscow',
+  'spb',
+  'kaspiysk',
+  'derbent',
+  'kazan',
+];
+
+const EN_TO_RU_MAP: Record<string, string> = {
+  'q': 'й', 'w': 'ц', 'e': 'у', 'r': 'к', 't': 'е', 'y': 'н', 'u': 'г', 'i': 'ш', 'o': 'щ', 'p': 'з', '[': 'х', ']': 'ъ',
+  'a': 'ф', 's': 'ы', 'd': 'в', 'f': 'а', 'g': 'п', 'h': 'р', 'j': 'о', 'k': 'л', 'l': 'д', ';': 'ж', "'": 'э',
+  'z': 'я', 'x': 'ч', 'c': 'с', 'v': 'м', 'b': 'и', 'n': 'т', 'm': 'ь', ',': 'б', '.': 'ю',
+};
+
+function convertKeyboardLayout(text: string): string {
+  return text.toLowerCase().split('').map(char => EN_TO_RU_MAP[char] || char).join('');
+}
+
+const TRANSLIT_MAP: Record<string, string> = {
+  'moscow': 'москва',
+  'moskva': 'москва',
+  'spb': 'санкт-петербург',
+  'saint petersburg': 'санкт-петербург',
+  'peterburg': 'санкт-петербург',
+  'piter': 'санкт-петербург',
+  'makhachkala': 'махачкала',
+  'kaspiysk': 'каспийск',
+  'derbent': 'дербент',
+  'kazan': 'казань',
+  'sochi': 'сочи',
+  'krasnodar': 'краснодар',
+  'rostov': 'ростов-на-дону',
+  'grozny': 'грозный',
+};
 
 export const CityModal: React.FC<CityModalProps> = ({
   isOpen,
@@ -58,16 +93,29 @@ export const CityModal: React.FC<CityModalProps> = ({
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  const allCities = useMemo(() => {
+    return cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  }, [cities]);
+
   const filteredCities = useMemo(() => {
-    const list = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase().trim();
-    return list.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q)
-    );
-  }, [cities, searchQuery]);
+    const rawQ = searchQuery.toLowerCase().trim();
+    if (!rawQ) return allCities.slice(0, 40);
+
+    const convertedQ = convertKeyboardLayout(rawQ);
+    const translitQ = TRANSLIT_MAP[rawQ] || '';
+
+    return allCities.filter((c) => {
+      const name = c.name.toLowerCase();
+      const id = c.id.toLowerCase();
+      return (
+        name.includes(rawQ) ||
+        id.includes(rawQ) ||
+        name.includes(convertedQ) ||
+        id.includes(convertedQ) ||
+        (translitQ && (name.includes(translitQ) || id.includes(translitQ)))
+      );
+    }).slice(0, 40);
+  }, [allCities, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -143,6 +191,41 @@ export const CityModal: React.FC<CityModalProps> = ({
           </div>
         )}
 
+        {/* Popular Cities Chips */}
+        {!searchQuery.trim() && (
+          <div className="space-y-1.5 pt-0.5">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              Популярные города
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {POPULAR_CITY_IDS.map((popId) => {
+                const city = allCities.find((c) => c.id === popId);
+                if (!city) return null;
+                const isSelected = city.id === selectedCityId;
+                return (
+                  <button
+                    key={popId}
+                    type="button"
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      onSelectCity(city.id);
+                      onClose();
+                    }}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all flex items-center space-x-1 btn-press ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-[#1C2030] text-gray-300 border border-white/5 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    <span>{CITY_EMOJIS[city.id] || '📍'}</span>
+                    <span>{city.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Search Input */}
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -156,7 +239,7 @@ export const CityModal: React.FC<CityModalProps> = ({
         </div>
 
         {/* Cities list */}
-        <div className="space-y-1.5 overflow-y-auto max-h-[300px] pr-0.5 custom-scrollbar">
+        <div className="space-y-1.5 overflow-y-auto max-h-[260px] pr-0.5 custom-scrollbar">
           {filteredCities.length === 0 ? (
             <div className="py-6 text-center text-xs text-gray-400">
               Город не найден

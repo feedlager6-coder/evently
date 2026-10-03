@@ -221,7 +221,10 @@ class DiscoveryService:
                     organization_id=ev.organization_id,
                     organization_name=org_name,
                     organization_category=org_cat,
-                    organization_avatar_url=org_avatar
+                    organization_avatar_url=org_avatar,
+                    allow_event_contact=bool(getattr(ev, "allow_event_contact", False)),
+                    source_type=getattr(ev, "source_type", "user") or "user",
+                    source_name=getattr(ev, "source_name", None)
                 )
             )
 
