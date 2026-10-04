@@ -1,8 +1,9 @@
 # D6 — Ivently Pro Payments: Architecture & Provider Selection Audit
 
 > **Document Type:** Production Architecture Reference & Payment Provider Selection Audit  
-> **Status:** APPROVED ARCHITECTURAL SPECIFICATION (DO NOT IMPLEMENT REAL PAYMENTS YET)  
-> **Target Release:** D6.0  
+> **Status:** APPROVED ARCHITECTURAL SPECIFICATION — D6.0.1 REVISED (DO NOT IMPLEMENT PAYMENT CODE YET)  
+> **Release:** D6.0.1  
+> **Base Commit:** `1df4263`  
 > **Current Date:** October 2026  
 > **Project:** Ivently (`https://ivently.up.railway.app`)
 
@@ -17,13 +18,89 @@ Ivently is a Telegram-first city event discovery platform operating on a freemiu
 
 Crucially, **transactional notifications** (event date/time/location changes, moderation updates, publication alerts) are operational, 100% free, and strictly isolated from the commercial marketing broadcast quota.
 
-This audit establishes the end-to-end fintech architecture, evaluates payment providers under various legal forms (self-employed individual, individual entrepreneur, LLC), designs a provider-agnostic domain model, defines strict security invariants, and outlines the automated test and production deployment plans.
+This revised specification (**D6.0.1**) incorporates essential architectural and legal corrections before D6.1 implementation:
+1. Corrects the receipt automation assumption for self-employed accounts.
+2. Removes recurring auto-renewals in favor of a clean, one-time purchase model for D6.1.
+3. Removes unapproved hardcoded pricing in favor of server-side configuration.
+4. Simplifies the domain model by keeping `OrganizationPlan` as the single source of truth without premature abstractions.
 
 ---
 
-## 2. Phase 1 — Audit of Existing Pro Implementation
+## 2. D6.0.1 Corrections & Scope Alignment
 
-### 2.1 Existing Pro Architecture Components
+### Correction 1: YooKassa Self-Employed Receipt Assumption
+- **Previous assumption:** The initial draft assumed YooKassa automatically registers income and issues receipts in the Federal Tax Service (ФНС) «Мой налог» application for self-employed individuals.
+- **Official documentation verification:** Current official YooKassa documentation (`https://yookassa.ru/developers/payment-acceptance/receipts/basics#self-employed`) states:
+  > *«Если вы самозанятый, то при приеме оплаты вам нужно регистрировать свой доход в сервисе Мой налог и передавать сформированный чек покупателю. Это регламентирует закон 422-ФЗ. Вы можете делать это вручную. **В ЮKassa эта опция недоступна**.»*
+- **Correction:** We **explicitly remove** any architectural assumption of automated receipt generation by YooKassa.
+- **Architectural Policy:** `RECEIPT DECISION = OPEN BUSINESS/LEGAL DECISION`. The D6.1 implementation MUST NOT silently assume automated receipt generation. Automated receipt integrations will not be built until the merchant legal status (self-employed individual vs. individual entrepreneur) and provider contract terms are finalized by the business owner.
+
+### Correction 2: Auto-Renewal Deferred to Future Releases (D6.2+)
+- **Scope limitation:** D6.1 will implement **ONLY ONE-TIME PURCHASES**:
+  ```
+  User taps "Оплатить Pro"
+      ↓
+  One-time Payment for Fixed Billing Period (e.g. 30 days)
+      ↓
+  Pro is ACTIVE until expires_at
+      ↓
+  When expires_at is reached → Organization degrades to Free
+      ↓
+  User manually purchases again when desired
+  ```
+- **Explicitly Deferred from D6.1:**
+  - Auto-renewal and recurring billing.
+  - Card tokenization and saved payment methods (`save_payment_method`).
+  - Automatic scheduled card charges.
+  - `PAST_DUE` subscription grace state.
+  - Automatic payment retry engine.
+  - Recurring cancellation workflows.
+- **Rationale:** We must first validate organizers' real-world willingness to pay for Pro marketing broadcasts before introducing the legal, UX, and operational complexity of recurring billing.
+
+### Correction 3: Removal of Undecided Hardcoded Pricing
+- **Previous assumption:** Hardcoded `PRO_MONTHLY = 990 RUB` and `PRO_YEARLY = 9900 RUB`.
+- **Correction:** Neither price was approved by the product owner.
+  - All hardcoded price constants are removed.
+  - Yearly plan (`PRO_YEARLY`) is removed from D6.1 scope entirely.
+  - `PRO_MONTHLY_PRICE_RUB` is defined as a server-side configuration setting in `Settings`. It remains unset/disabled until the project owner explicitly chooses the launch price.
+  - The frontend never determines or submits price. Test suites use clearly marked mock values in test fixtures only.
+
+### Correction 4: Simplified D6.1 Domain Model
+- **Previous assumption:** Introduced a separate `OrganizationSubscription` entity alongside `OrganizationPlan`.
+- **Correction:** For one-time purchases with manual renewal, a separate `OrganizationSubscription` entity introduces unnecessary indirection without immediate business value.
+- **D6.1 Domain Model:**
+  ```
+  Organization
+       ↓
+  OrganizationPlan (Entitlement Source of Truth)
+       ↓
+  PaymentOrder (Purchase Intent / Order)
+       ↓
+  PaymentTransaction (Provider Transaction State)
+  ```
+  - `OrganizationPlan` remains the single entitlement source of truth.
+  - `PaymentOrder` represents a purchase attempt with a specific provider.
+  - `PaymentTransaction` records transaction attempts.
+  - A verified successful payment extends `OrganizationPlan.expires_at`.
+
+### Correction 5: Pro Extension Rules
+- **If the organization currently has active Pro (`expires_at > utc_now()`):**
+  A new 30-day purchase extends **from current `expires_at`**:
+  $$\text{new\_expires\_at} = \text{current\_expires\_at} + 30\text{ days}$$
+- **If the organization is Free or Pro is already expired (`expires_at <= utc_now()` or `None`):**
+  The purchase starts **from the current UTC timestamp**:
+  $$\text{new\_expires\_at} = \text{utc\_now()} + 30\text{ days}$$
+- **Quota & Data Invariant:**
+  A new payment **NEVER** resets:
+  - Monthly marketing broadcast usage in the current calendar month.
+  - Event analytics, views, RSVPs, or subscriber counts.
+  - Existing organization data.
+
+---
+
+## 3. Phase 1 — Audit of Existing Pro Implementation
+
+### 3.1 Existing Pro Architecture Components
 
 1. **`OrganizationPlan` Model (`backend/app/models/organization_plan.py`)**:
    - Primary key: `id` (UUIDv4 string).
@@ -65,63 +142,45 @@ This audit establishes the end-to-end fintech architecture, evaluates payment pr
 
 ---
 
-## 3. Phase 2 — Payment Provider Research
+## 4. Phase 2 — Payment Provider Research (Verified Against Current Docs)
 
-We evaluated three candidate Russian payment providers:
-1. **ЮKassa (YooKassa, ООО НКО «ЮМани»)**
-2. **T-Bank Acquiring (Т-Банк / Тинькофф Эквайринг)**
-3. **CloudPayments (АО «КлаудПэйментс»)**
+### Provider Comparison Matrix
 
-### Comprehensive 20-Dimension Comparison Matrix
-
-| # | Dimension | ЮKassa (YooKassa) | T-Bank (Т-Банк) | CloudPayments |
+| № | Dimension | ЮKassa (YooKassa) | T-Bank (Т-Банк) | CloudPayments |
 |---|---|---|---|---|
-| **1** | **Self-Employed Individual (Самозанятый физлицо)** | **YES** (Dedicated program «Платежи для самозанятых») | **NO** for Internet Acquiring (SBP only in personal app, no API) | **NO** (Requires legal entity or IP) |
+| **1** | **Self-Employed Individual (Самозанятый физлицо)** | **YES** (Program «Платежи для самозанятых») | **NO** for Internet Acquiring (SBP only in personal app, no API) | **NO** (Requires legal entity or IP) |
 | **2** | **IP on NPD (ИП на НПД)** | **YES** (Standard merchant acquiring contract) | **YES** (With T-Business current account) | **YES** (Standard merchant acquiring contract) |
 | **3** | **LLC / Company (ООО)** | **YES** | **YES** | **YES** |
 | **4** | **Payment Methods** | Bank cards (MIR, Visa, MC), SBP, SberPay, T-Pay, YooMoney | Bank cards, SBP, T-Pay, Mir Pay | Bank cards, SBP, T-Pay, SberPay |
-| **5** | **Integration Method** | REST API v3, Hosted Checkout redirect page, SDKs | REST API v2, Hosted Payment Page (PaymentURL) | REST API, Hosted Payment Page, Checkout Widget |
-| **6** | **Webhooks** | HTTP POST event notifications (`payment.succeeded`, etc.) | HTTP POST notifications with SHA-256 token | HTTP POST webhooks (`check`, `pay`, `fail`) with HMAC |
-| **7** | **Refunds Support** | Full & partial refunds via `POST /v3/refunds` | Full & partial refunds via `POST /v2/Cancel` | Full & partial refunds via API |
-| **8** | **Recurring Subscriptions** | `save_payment_method: true` -> `payment_method_id` | `Recurrent: "Y"` -> `RebillId` -> `Charge` | Recurrent Subscriptions API / token charge |
-| **9** | **Recurring for Self-Employed Individual** | Supported on card payments; subject to risk scoring & offer terms | **NO** (Internet acquiring not available for individuals) | **NO** (Not available for individuals) |
-| **10** | **Cancellation Flow** | Merchant stops charging stored `payment_method_id` | Merchant stops calling `Charge` with `RebillId` | Merchant calls `POST /subscriptions/cancel` |
-| **11** | **Payment Status Verification** | `GET /v3/payments/{payment_id}` | `POST /v2/GetState` | `POST /payments/get` |
-| **12** | **Idempotency** | HTTP Header `Idempotence-Key: <UUID>` | Request field `OrderId` | Request field `InvoiceId` / `TransactionId` |
-| **13** | **Test Mode** | Full sandbox (test `shopId`, test `secretKey`, test cards) | Test terminal, test credentials, test cards | Test public/private keys, test cards |
-| **14** | **Receipt Requirements (Чеки / 54-ФЗ)** | Self-employed: exempt from 54-ФЗ, covered by 422-ФЗ | 54-ФЗ online cash register required for acquiring | 54-ФЗ online cash register required (CloudKassir) |
-| **15** | **Self-Employed Receipt Automation** | **Automatic** via direct integration with FNS «Мой налог» | **Manual** (self-employed must manually issue in app) | **N/A** (not supported for self-employed individuals) |
-| **16** | **Fund Settlement** | To bank card or bank account in 1–2 business days | To T-Business current account daily | To current account on next business day |
-| **17** | **Fee Structure** | Cards: ~3.5% + VAT of fee; SBP: ~1% + VAT. No monthly fee | Cards: ~1.99–2.69%; SBP: ~0.4–0.7%. Current account fee applies | Cards: ~2.7–3.9%. Cash register fee (~1500–2500 ₽/mo) |
-| **18** | **Telegram Mini App Compatibility** | **High** (`Telegram.WebApp.openLink` -> Hosted Checkout -> return deep-link) | **High** (`openLink` -> PaymentURL -> return deep-link) | **High** (`openLink` -> HPP -> return deep-link) |
-| **19** | **SaaS Subscription Restrictions** | 2.4M ₽/year limit for self-employed NPD; requires IP above | Requires business registration (IP/LLC) | Requires business registration (IP/LLC) |
-| **20** | **Webhook Security Verification** | IP whitelist + mandatory callback GET reconciliation | SHA-256 HMAC digest validation against shared password | HMAC-SHA256 signature in `Content-HMAC` header |
+| **5** | **Hosted Checkout (Redirect)** | **YES** (`confirmation.type: "redirect"`) | **YES** (`PaymentURL`) | **YES** (Hosted Payment Page) |
+| **6** | **Receipts for Self-Employed** | **MANUAL** in «Мой налог» (YooKassa explicitly discontinued automated receipts) | **MANUAL** in «Мой налог» | **N/A** (Only 54-ФЗ cash register for IP/LLC) |
+| **7** | **Receipts for IP/LLC (54-ФЗ)** | Supports cloud cash registers (Чеки от ЮKassa / Атол) | Supports cloud cash registers (Т-Бизнес) | Supports cloud cash registers (CloudKassir) |
+| **8** | **Refunds Support** | Full & partial refunds via `POST /v3/refunds` | Full & partial refunds via `POST /v2/Cancel` | Full & partial refunds via API |
+| **9** | **Idempotency** | Header `Idempotence-Key: <UUID>` | Request field `OrderId` | Request field `InvoiceId` |
+| **10** | **Payment Status Verification** | `GET /v3/payments/{payment_id}` | `POST /v2/GetState` | `POST /payments/get` |
+| **11** | **Webhook Security Verification** | Official IP subnets whitelist + mandatory callback GET reconciliation | SHA-256 HMAC digest validation against shared password | HMAC-SHA256 signature in `Content-HMAC` header |
+| **12** | **Telegram Mini App Compatibility** | **High** (`Telegram.WebApp.openLink` -> Hosted Checkout -> return deep-link) | **High** (`openLink` -> PaymentURL -> return deep-link) | **High** (`openLink` -> HPP -> return deep-link) |
+| **13** | **Fees (Estimated)** | Cards: ~3.5% + VAT of fee; SBP: ~1% + VAT. No monthly fee | Cards: ~1.99–2.69%; SBP: ~0.4–0.7%. Current account fee applies | Cards: ~2.7–3.9%. Cash register fee (~1500–2500 ₽/mo) |
+| **14** | **Test / Sandbox Mode** | Full sandbox (test `shopId`, test `secretKey`, test cards) | Test terminal, test credentials, test cards | Test public/private keys, test cards |
 
 ---
 
-## 4. Phase 3 — Recommendation & Decision Table
+## 5. Phase 3 — Recommendation & Decision Table
 
-### Decision Summary
+| Provider | Self-Employed Individual | IP on NPD | LLC | SBP | Cards | Automated Receipts | Recommendation |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---|
+| **ЮKassa** | **YES** | **YES** | **YES** | **YES** | **YES** | **NO (Manual in Мой налог)** | **PRIMARY CANDIDATE** |
+| **T-Bank** | NO | YES | YES | YES | YES | 54-ФЗ only | Feasible ONLY if registered as IP |
+| **CloudPayments** | NO | YES | YES | YES | YES | 54-ФЗ only | Feasible ONLY if registered as IP/LLC |
 
-| Provider | Self-Employed Individual | IP on NPD | LLC | SBP | Cards | Recurring | Automated Receipts | Recommendation |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---|
-| **ЮKassa** | **YES** | **YES** | **YES** | **YES** | **YES** | **YES** | **YES (Мой налог)** | **PRIMARY RECOMMENDATION (Score: 10/10)** |
-| **T-Bank** | NO | YES | YES | YES | YES | YES | 54-ФЗ only | Feasible ONLY if registered as IP |
-| **CloudPayments** | NO | YES | YES | YES | YES | YES | 54-ФЗ only | Feasible ONLY if registered as IP/LLC |
-
-### Why ЮKassa is the Clear Winner
-
-1. **Legal Viability from Day 1:** If Ivently launches monetization initially under a self-employed individual (самозанятый), ЮKassa is the **only major acquiring provider** that provides full-featured REST API online acquiring without requiring legal entity or IP registration.
-2. **Zero Cash Register Overhead:** Through ЮKassa's official integration with the Federal Tax Service (ФНС) «Мой налог», receipts are created and delivered automatically. Neither an expensive physical/cloud cash register (54-ФЗ) nor a fiscal drive (ФН) is needed.
-3. **Seamless Future Migration:** If Ivently scales beyond the 2.4M ₽ annual limit and transitions to an **IP on NPD** or an **LLC**, the backend integration with ЮKassa API v3 remains **100% unchanged**. Only the merchant contract and credentials in the personal cabinet are updated.
-4. **All Modern Russian Payment Methods:** Customers can pay with Russian bank cards (MIR, Visa, Mastercard), SBP, SberPay, and T-Pay.
-5. **Robust Idempotency & Reconciliation:** Native `Idempotence-Key` support and lightweight `GET /v3/payments/{id}` verification allow bulletproof payment reconciliation even under network failure or delayed webhooks.
+### Recommendation Summary
+- **ЮKassa remains the primary candidate** because it is the only major acquiring provider supporting self-employed individuals without mandatory IP registration.
+- **Important Legal Clarification:** Self-employed income registration in «Мой налог» must initially be done manually by the merchant per current YooKassa API documentation.
+- **Provider-Agnostic Design:** The backend domain is decoupled from provider specifics so switching between YooKassa, T-Bank, or another gateway in the future requires modifying only the client adapter.
 
 ---
 
-## 5. Phase 4 — Provider-Agnostic Payment Domain Design
-
-To prevent vendor lock-in, the payment architecture decouples high-level entitlements from provider-specific payment gateways.
+## 6. Phase 4 — Simplified Payment Domain Design (D6.1)
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -130,62 +189,51 @@ To prevent vendor lock-in, the payment architecture decouples high-level entitle
                                    │ 1 : 1
                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ OrganizationPlan (Fast Entitlement Cache for O(1) Checks)              │
+│ OrganizationPlan (Single Source of Truth for Entitlements & Expiration)│
 │ - plan: "free" | "pro"                                                 │
-│ - status: "active" | "expired" | "cancelled"                           │
-│ - expires_at: datetime                                                 │
-└──────────────────────────────────┬─────────────────────────────────────┘
-                                   │ 1 : 1
-                                   ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│ OrganizationSubscription (Subscription Agreement & Renewal State)     │
-│ - id: UUID                                                             │
-│ - organization_id: String(36)                                          │
-│ - plan_code: "PRO_MONTHLY" | "PRO_YEARLY"                              │
-│ - status: "INACTIVE" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED" │
-│ - provider: "yookassa"                                                 │
-│ - provider_payment_method_id: String (Stored card token)                │
-│ - auto_renew: Boolean                                                  │
-│ - current_period_started_at, current_period_expires_at                 │
+│ - status: "active" | "expired"                                         │
+│ - starts_at: DateTime UTC                                              │
+│ - expires_at: DateTime UTC (Extended upon successful payment)          │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ 1 : N
                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ PaymentOrder (Commercial Purchase Intent / Order)                      │
+│ PaymentOrder (Purchase Intent / Order)                                 │
 │ - id: UUID (Internal Order ID)                                         │
-│ - organization_id: String(36)                                          │
-│ - user_id: Integer (Telegram User who initiated checkout)              │
-│ - subscription_id: UUID                                                │
-│ - plan_code: "PRO_MONTHLY" | "PRO_YEARLY"                              │
-│ - amount: Numeric(10, 2) (e.g. 990.00 RUB)                             │
-│ - currency: "RUB"                                                      │
-│ - status: "CREATED" | "PENDING" | "SUCCEEDED" | "CANCELLED" | "FAILED" │
-│ - provider: "yookassa"                                                 │
-│ - provider_payment_id: String (e.g. YooKassa Payment ID)               │
+│ - organization_id: String(36) (ForeignKey to organizations.id)         │
+│ - user_id: Integer (Telegram User who initiated purchase)              │
+│ - plan_code: String(30) (e.g. "PRO_MONTHLY")                           │
+│ - billing_days: Integer (e.g. 30)                                      │
+│ - amount: Numeric(10, 2) (Server-determined price)                     │
+│ - currency: String(3) ("RUB")                                          │
+│ - status: String(20) ("CREATED" | "PENDING" | "SUCCEEDED" |            │
+│                       "FAILED"  | "CANCELLED" | "REFUNDED")            │
+│ - provider: String(30) ("yookassa")                                    │
+│ - provider_payment_id: Optional[String(255)]                           │
 │ - idempotency_key: String(64)                                          │
-│ - confirmation_url: String (Hosted payment URL)                        │
-│ - paid_at, expires_at (Order TTL)                                      │
+│ - confirmation_url: Optional[String(1024)]                             │
+│ - created_at, paid_at, expires_at (Order TTL, e.g. 30 minutes)         │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ 1 : N
                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ PaymentTransaction (Ledger Entry / Attempt)                            │
+│ PaymentTransaction (Provider Transaction Attempt / Event Log)          │
 │ - id: UUID                                                             │
-│ - payment_order_id: UUID                                               │
-│ - provider: "yookassa"                                                 │
-│ - provider_transaction_id: String                                      │
-│ - transaction_type: "initial" | "renewal" | "refund"                   │
+│ - payment_order_id: UUID (ForeignKey to payment_orders.id)             │
+│ - provider: String(30)                                                 │
+│ - provider_transaction_id: String(255)                                 │
+│ - transaction_type: "payment" | "refund"                               │
 │ - status: "PENDING" | "SUCCEEDED" | "FAILED"                           │
-│ - amount, currency                                                     │
-│ - raw_response: JSON (Masked audit trail)                              │
+│ - amount: Numeric(10, 2)                                               │
+│ - currency: String(3)                                                  │
+│ - error_code, error_message: Optional strings                          │
+│ - created_at, updated_at                                               │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Phase 5 — Payment & Subscription State Machines
-
-### 6.1 PaymentOrder State Machine
+## 7. Phase 5 — Payment State Machine & Transition Rules
 
 ```
                ┌──────────────┐
@@ -196,8 +244,8 @@ To prevent vendor lock-in, the payment architecture decouples high-level entitle
                ┌──────────────┐
         ┌──────┤   PENDING    ├────────┐
         │      └──────┬───────┘        │
-        │ Timeout /   │ Verified       │ Payment
-        │ Cancelled   │ Webhook/API    │ Declined
+        │ Timeout /   │ Verified       │ Bank
+        │ Cancelled   │ Webhook/API    │ Decline
         ▼             ▼                ▼
  ┌───────────┐ ┌──────────────┐ ┌────────────┐
  │ CANCELLED │ │  SUCCEEDED   │ │   FAILED   │
@@ -209,75 +257,66 @@ To prevent vendor lock-in, the payment architecture decouples high-level entitle
                └──────────────┘
 ```
 
-**State Transition Rules:**
-1. Only a verified provider notification (webhook validated via signature or callback GET) or direct API reconciliation can transition `PENDING -> SUCCEEDED`.
-2. The frontend redirect URL or query string is **NEVER** trusted as proof of payment.
-3. Once `SUCCEEDED`, a payment cannot transition to `FAILED` or `CANCELLED`.
-4. Transition to `REFUNDED` immediately revokes commercial Pro entitlements.
-
-### 6.2 OrganizationSubscription State Machine
-
-```
-               ┌──────────────┐
-               │   INACTIVE   │
-               └──────┬───────┘
-                      │ First successful PaymentOrder
-                      ▼
- ┌───────────┐ ┌──────────────┐ ┌────────────┐
- │  EXPIRED  │ │    ACTIVE    │ │  PAST_DUE  │
- └─────▲─────┘ └──┬─────────┬─┘ └──────▲─────┘
-       │          │         │          │
-       │ Period   │ User    │ Failed   │ Grace
-       │ elapsed  │ cancels │ renewal  │ period
-       │          ▼         │          │ (3 days)
-       │   ┌───────────┐    └──────────┘
-       └───┤ CANCELLED │
-           └───────────┘
-```
-
-**Subscription Rules:**
-- `ACTIVE`: Organization has full Pro entitlements.
-- `PAST_DUE`: An automatic renewal attempt failed. Pro access is temporarily maintained during a 3-day grace period while retries occur.
-- `CANCELLED`: User toggled off auto-renewal. Pro remains accessible until `current_period_expires_at`, then transitions to `EXPIRED`.
-- `EXPIRED`: Period ended without payment. Organization degrades to Free tier instantly.
+### Transition & Activation Invariants
+1. **Source of Truth:** Only a verified provider notification (callback reconciliation or validated webhook) can transition `PENDING -> SUCCEEDED`.
+2. **Frontend Independence:** Neither `return_url` nor client query parameters can ever trigger activation.
+3. **Pro Activation Logic:**
+   ```python
+   if order.status == PaymentOrderStatus.SUCCEEDED:
+       now = utc_now()
+       plan_record = await get_or_create_plan_record(session, order.organization_id)
+       
+       if plan_record.expires_at and plan_record.expires_at > now:
+           # Active Pro: extend from existing expiration
+           new_expires = plan_record.expires_at + timedelta(days=order.billing_days)
+       else:
+           # Free or expired Pro: start from now
+           new_expires = now + timedelta(days=order.billing_days)
+           
+       plan_record.plan = "pro"
+       plan_record.status = "active"
+       plan_record.expires_at = new_expires
+   ```
+4. **Refund Policy:** If an order transitions to `REFUNDED`, the organization's Pro plan is revoked and reset to Free tier.
 
 ---
 
-## 7. Phase 6 — Security Model & Payment Invariants
+## 8. Phase 6 — Security Model & Payment Invariants
 
 1. **Secret Isolation**:
-   - Provider credentials (`YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`) exist strictly in Railway environment variables.
-   - Absolutely zero credentials in Git, frontend code, or client responses.
+   - Provider credentials (`YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`) reside exclusively in Railway environment variables.
+   - Absolutely zero credentials in Git, frontend code, or API responses.
 2. **Server-Side Pricing Invariant**:
-   - Price and currency are determined strictly on the backend via server settings (`settings.PRO_MONTHLY_PRICE_RUB`, `settings.PRO_YEARLY_PRICE_RUB`).
-   - The client submits only `organization_id` and `plan_code`. Client-provided price tampering is technically impossible.
+   - Price and currency are determined strictly on the backend from server settings.
+   - The client submits only `organization_id` and `plan_code`. Client price manipulation is rejected by Pydantic schema validation.
 3. **Strict Ownership Validation**:
-   - Only the authenticated owner of an organization (`org.owner_user_id == current_user.id`) can create a payment order or view billing details.
+   - Only the authenticated owner of an organization (`org.owner_user_id == current_user.id`) can create a payment order or view order status.
 4. **Idempotency & Replay Protection**:
    - Every `PaymentOrder` generates a unique `idempotency_key` (UUIDv4) passed to YooKassa.
-   - Webhook processing checks whether the event has already been processed. Duplicate deliveries return `200 OK` without triggering duplicate subscription extensions.
+   - Webhooks are idempotent: duplicate deliveries return `200 OK` without duplicating days.
+   - Double-click protection: submitting order creation while an active pending order exists reuses the pending checkout URL within its 30-minute TTL.
 5. **Two-Way Webhook Verification (Reconciliation Pattern)**:
    - When a webhook arrives at `POST /api/v1/payments/webhooks/yookassa`, the backend verifies that the remote IP belongs to YooKassa's official subnets (`185.71.76.0/27`, `185.71.77.0/27`, `77.75.153.0/25`, `77.75.156.11`, `77.75.156.35`).
-   - Additionally, the backend immediately queries `GET https://api.yookassa.ru/v3/payments/{provider_payment_id}` using HTTP Basic Auth to verify the official payment status, amount, and currency before updating database state.
+   - Additionally, the backend queries `GET https://api.yookassa.ru/v3/payments/{provider_payment_id}` using HTTP Basic Auth to verify the official payment status, amount, and currency before updating database state.
 6. **No Card Data On Ivently Servers (PCI-DSS Scoping)**:
-   - Ivently never receives, processes, or stores card numbers, CVVs, or expiration dates. All payment inputs are handled securely on YooKassa's hosted payment page.
+   - Ivently never receives, processes, or stores card numbers, CVVs, or expiration dates. All payment inputs occur on YooKassa's hosted checkout form.
 7. **Audit & Log Redaction**:
-   - Payment logs must never record cardholder names, tokens, or webhook authorization headers.
+   - Payment logs must never record cardholder names, tokens, or authorization headers.
 
 ---
 
-## 8. Phase 7 — Telegram Mini App UX & Payment Flow
+## 9. Phase 7 — Telegram Mini App UX & Flow
 
 ```
 [ Organizer Workspace ]
          │
          ▼
-[ Click "Тариф Pro" ]
+[ Pro Card / Banner: Click "Оформить Pro" ]
          │
          ▼
-[ Pro Modal: Choose Monthly (990 ₽) or Yearly (9,900 ₽) ]
+[ Pro Details Sheet: View Features & Server-Provided Price ]
          │
-         ▼ User taps "Оплатить Pro"
+         ▼ User taps "Оплатить"
 [ POST /api/v1/payments/orders ]
          │
          ▼ Backend returns { order_id, confirmation_url }
@@ -298,69 +337,59 @@ To prevent vendor lock-in, the payment architecture decouples high-level entitle
          ├─── If SUCCEEDED ───► [ Show Celebration Screen: "Pro активирован!" ]
          │                      [ Refresh Entitlements -> 20 broadcasts available ]
          │
-         └─── If PENDING/FAILED ► [ Show retry or support help options ]
+         └─── If PENDING/FAILED ► [ Show retry or assistance options ]
 ```
-
-### Edge Cases Handled
-
-1. **User Closes Payment Page Without Paying**:
-   - Order remains `PENDING` until TTL (30 min), then expires to `CANCELLED`.
-   - Returning to the app shows a gentle message: *«Оплата не была завершена. Вы можете вернуться к оформлению в любой момент.»*
-2. **Delayed Webhook (Network Lag / Asynchronous Processing)**:
-   - When the client returns to the app and polls `GET /api/v1/payments/orders/{order_id}/status`, the backend actively queries YooKassa's API (`GET /v3/payments/{provider_payment_id}`).
-   - If YooKassa reports `succeeded`, the backend activates the subscription immediately during the poll request, guaranteeing instant activation even if the webhook is delayed.
-3. **Double Click on "Pay"**:
-   - Frontend disables the pay button and shows a spinner immediately upon tap.
-   - If a duplicate request is sent, the backend checks for an existing active `PENDING` order for this organization created in the last 60 seconds and returns the existing checkout URL.
-4. **Mini App Reload / Session Restart**:
-   - Order ID is persisted in `sessionStorage` or URL parameter. The user can reopen the app at any time and the status verification flow will resume cleanly.
 
 ---
 
-## 9. Phase 8 — Product & Pricing Model
+## 10. Phase 8 — Product & Pricing Model
 
-### Server-Configured Pricing
+### Server-Configured Pricing (Settings)
 
 ```python
 class Settings(BaseSettings):
-    # Pro Commercial Pricing (RUB)
-    PRO_MONTHLY_PRICE_RUB: float = 990.00
-    PRO_YEARLY_PRICE_RUB: float = 9900.00
+    # Pro Commercial Pricing (RUB) - Unset until owner decision
+    PRO_MONTHLY_PRICE_RUB: Optional[float] = None
     PRO_BILLING_CURRENCY: str = "RUB"
+    PAYMENTS_ENABLED: bool = False
     
     # Quotas
     PRO_BROADCASTS_PER_MONTH: int = 20
     FREE_BROADCASTS_PER_MONTH: int = 0
 ```
 
-### Plan Comparison
-
-| Feature | Free Tier | Pro Tier (990 ₽/mo) |
-|---|:---:|:---:|
-| Event creation & editing | Unlimited | Unlimited |
-| Organization profile & subscribers | Included | Included |
-| Attendee RSVPs («Хочу пойти» / «Я иду») | Included | Included |
-| Basic views & interaction analytics | Included | Included |
-| **Transactional notifications** (event changes) | **Free & Unlimited** | **Free & Unlimited** |
-| **Manual marketing broadcasts** | **0 / month** | **20 / month** |
-| Broadcast conversion analytics | Locked | Available |
-| Target interested guests | Locked | Available |
-| Future: Audience segments & Auto-reminders | Locked | Included upon launch |
-
-### Commercial Policies (Requiring Legal Approval)
-
-1. **Auto-Renewal Policy**: Clearly disclosed on checkout screen with an explicit checkbox or button label: *«Оплачивая, вы соглашаетесь с условиями оферты и регулярным списанием 990 ₽/месяц. Подписку можно отменить в любой момент в кабинете организатора.»*
-2. **Cancellation Policy**: Cancellation takes effect at the end of the paid billing cycle. No further charges occur.
-3. **Refund Policy**: Refunds permitted within 14 days of purchase if fewer than 2 broadcasts were sent during the billing period.
+- When `PRO_MONTHLY_PRICE_RUB` is `None` or `PAYMENTS_ENABLED` is `False`, the payment endpoint returns `503 Service Unavailable` with `"Платежи временно недоступны"`.
+- Launch pricing is an open business decision requiring project owner confirmation.
 
 ---
 
-## 10. Phase 9 — API Contract Specification
+## 11. Phase 9 — API Contract Specification (D6.1)
 
-### 1. `POST /api/v1/payments/orders`
-Initiates a new subscription purchase.
+### 1. `GET /api/v1/payments/plans`
+Returns available commercial plans and current server-configured prices.
 
-- **Auth:** Required (`get_current_user`)
+- **Auth:** Public / Authenticated
+- **Response (200 OK):**
+  ```json
+  {
+    "plans": [
+      {
+        "plan_code": "PRO_MONTHLY",
+        "title": "Ivently Pro (1 месяц)",
+        "billing_days": 30,
+        "price_amount": 990.00,
+        "currency": "RUB",
+        "broadcasts_per_month": 20,
+        "is_available": true
+      }
+    ]
+  }
+  ```
+
+### 2. `POST /api/v1/payments/orders`
+Initiates a new one-time purchase.
+
+- **Auth:** Required (`get_current_user`, must be organization owner)
 - **Request Body:**
   ```json
   {
@@ -382,10 +411,10 @@ Initiates a new subscription purchase.
   }
   ```
 
-### 2. `GET /api/v1/payments/orders/{order_id}/status`
+### 3. `GET /api/v1/payments/orders/{order_id}/status`
 Polls payment status with automatic real-time reconciliation.
 
-- **Auth:** Required (`get_current_user`)
+- **Auth:** Required (`get_current_user`, must be order owner)
 - **Response (200 OK):**
   ```json
   {
@@ -393,122 +422,79 @@ Polls payment status with automatic real-time reconciliation.
     "status": "SUCCEEDED",
     "plan": "pro",
     "paid_at": "2026-10-04T20:05:12Z",
-    "subscription_expires_at": "2026-11-04T20:05:12Z",
+    "pro_expires_at": "2026-11-04T20:05:12Z",
     "is_active": true
   }
   ```
 
-### 3. `POST /api/v1/payments/webhooks/yookassa`
+### 4. `POST /api/v1/payments/webhooks/yookassa`
 Public webhook endpoint for YooKassa notifications.
 
 - **Auth:** Public (verified by IP whitelist + callback reconciliation)
 - **Request Body:** Standard YooKassa Event Notification
 - **Response (200 OK):** `{"received": true}`
 
-### 4. `POST /api/v1/organizer/subscription/cancel`
-Disables automatic renewal for an organization's subscription.
-
-- **Auth:** Required (`get_current_user`, must be owner)
-- **Request Body:**
-  ```json
-  {
-    "organization_id": "c7a82924-43cb-4654-97c7-08e1a1234567"
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "organization_id": "c7a82924-43cb-4654-97c7-08e1a1234567",
-    "status": "CANCELLED",
-    "auto_renew": false,
-    "expires_at": "2026-11-04T20:05:12Z"
-  }
-  ```
-
 ---
 
-## 11. Phase 10 — Automated Test Plan (28 Scenarios)
+## 12. Phase 10 — Automated Test Plan (26 Scenarios for D6.1)
 
-The implementation sprint must build and verify the following 28 automated test scenarios:
+The D6.1 implementation sprint will verify the following 26 automated test scenarios (using mocked YooKassa responses without real money):
 
 1. `test_create_payment_order_success`: Authenticated owner creates valid order; receives 201 with `confirmation_url`.
-2. `test_create_payment_order_price_server_determined`: Client cannot override or tamper with plan price.
-3. `test_create_payment_order_non_owner_forbidden`: Stranger attempting to pay for another user's org receives 403.
+2. `test_create_payment_order_server_side_price`: Price is determined server-side; client cannot tamper with amount.
+3. `test_create_payment_order_unauthorized_org_rejected`: Stranger attempting to pay for another user's org receives 403.
 4. `test_create_payment_order_invalid_plan_rejected`: Submitting unknown plan code receives 422/400.
 5. `test_create_payment_order_deleted_org_rejected`: Soft-deleted organization receives 404.
-6. `test_duplicate_payment_order_reuse`: Repeated creation within TTL returns existing pending order.
-7. `test_webhook_payment_succeeded_activates_pro`: Valid webhook triggers subscription activation and sets Pro.
-8. `test_webhook_duplicate_delivery_idempotent`: Duplicate webhook execution is harmless and does not duplicate days.
-9. `test_webhook_payment_canceled_marks_order_cancelled`: Cancelled payment updates order status without activating Pro.
-10. `test_webhook_payment_failed_does_not_activate_pro`: Failed transaction leaves plan on Free.
-11. `test_delayed_webhook_handled_by_polling_reconciliation`: Polling endpoint verifies directly with provider API.
+6. `test_duplicate_payment_order_reuses_pending`: Repeated checkout click within TTL returns existing pending order.
+7. `test_webhook_payment_succeeded_activates_pro`: Valid webhook triggers Pro activation.
+8. `test_webhook_duplicate_delivery_is_noop`: Duplicate webhook is harmless and does not duplicate activation days.
+9. `test_webhook_payment_failed_does_not_activate_pro`: Failed transaction leaves plan on Free.
+10. `test_webhook_payment_canceled_marks_order_cancelled`: Cancelled payment updates order status without activating Pro.
+11. `test_delayed_webhook_handled_by_polling_reconciliation`: Polling endpoint reconciles directly with provider API.
 12. `test_webhook_replay_attack_rejected`: Stale or forged webhook is rejected.
-13. `test_webhook_unauthorized_ip_rejected`: Webhook from non-YooKassa IP address is blocked.
-14. `test_subscription_expiry_downgrades_to_free`: When `expires_at` passes, effective plan resolves to Free.
-15. `test_cancel_subscription_preserves_access_until_period_end`: Cancelled subscription remains Pro until expiration.
-16. `test_refund_webhook_immediately_revokes_pro`: Refund event cancels subscription and restores Free tier.
-17. `test_second_payment_extends_active_subscription`: Paying while active adds 30 days onto current expiration date.
-18. `test_double_click_pay_protection`: Concurrent checkout creation requests execute safely via database locks.
-19. `test_admin_test_endpoints_remain_isolated`: Admin toggle remains strictly separate from customer billing paths.
-20. `test_free_org_blocked_from_broadcast`: Free organization cannot send manual marketing broadcasts (403).
-21. `test_active_pro_can_broadcast`: Organization with activated Pro successfully sends broadcast up to quota.
-22. `test_expired_pro_cannot_broadcast`: Organization whose Pro just expired is immediately blocked (403).
-23. `test_transactional_notifications_remain_free`: Event changes dispatch freely regardless of plan or quota.
-24. `test_broadcast_quota_fixed_at_20_per_month`: Pro limit strictly enforces 20 marketing broadcasts.
-25. `test_payment_order_does_not_reset_current_month_usage`: Paying for renewal does not wipe current broadcast counters.
-26. `test_payment_state_survives_db_reconnect`: Subscription and order states persist cleanly across restarts.
-27. `test_schema_migration_idempotent_on_postgres_and_sqlite`: Database migration script runs without errors on both engines.
-28. `test_sensitive_data_not_leaked_in_logs_or_errors`: Secret keys and card tokens never appear in tracebacks or responses.
+13. `test_amount_mismatch_rejected`: Webhook reporting unexpected amount is rejected.
+14. `test_currency_mismatch_rejected`: Webhook with non-RUB currency is rejected.
+15. `test_expired_pro_purchase_starts_from_now`: Purchasing Pro for expired org sets `expires_at = now() + 30 days`.
+16. `test_active_pro_purchase_extends_from_expires_at`: Purchasing Pro for active org sets `expires_at = current_expires_at + 30 days`.
+17. `test_payment_does_not_reset_broadcast_quota`: Purchasing Pro does not wipe current month broadcast counters.
+18. `test_payment_state_survives_restart`: Order and plan records persist cleanly across app/db restart.
+19. `test_refund_webhook_revokes_pro`: Refund event cancels active Pro and restores Free tier.
+20. `test_sensitive_data_not_leaked_in_logs`: Secret keys and auth tokens never appear in tracebacks or responses.
+21. `test_admin_test_pro_remains_separate`: Admin toggle remains strictly separate from customer billing paths.
+22. `test_frontend_cannot_provide_custom_price`: Request payload with custom price is rejected.
+23. `test_free_org_cannot_use_marketing_broadcast`: Free organization receives 403 ENTITLEMENT_REQUIRED.
+24. `test_active_pro_can_broadcast`: Organization with activated Pro successfully sends marketing broadcast.
+25. `test_expired_pro_cannot_broadcast`: Organization whose Pro expired is immediately blocked (403).
+26. `test_transactional_notifications_remain_free`: Operational event notifications dispatch freely on Free and Pro.
 
 ---
 
-## 12. Phase 11 — Production Deployment & Rollout Plan
+## 13. Phase 11 — D6.1 Implementation Boundary
 
-### Step-by-Step Production Roadmap
+### Included in D6.1 Scope
+- **Backend Models:** `PaymentOrder`, `PaymentTransaction`, `PaymentWebhookLog` in `app/models/payment.py`.
+- **Database Migrations:** Idempotent table and index creation in `init_db()` in `app/database.py`.
+- **YooKassa Client:** `YooKassaClient` abstraction with `Idempotence-Key`, timeout handling, and test mocking.
+- **Order Endpoints:** `GET /plans`, `POST /orders`, `GET /orders/{id}/status`, `POST /webhooks/yookassa`.
+- **Status Reconciliation:** Real-time polling reconciliation against YooKassa API.
+- **Entitlement Extension:** Clean extension of `OrganizationPlan.expires_at`.
+- **Frontend UI:** Pro modal with server-provided price, redirect to checkout, pending status polling, success state, and error handling.
+- **Automated Tests:** 26 test scenarios in `tests/test_d6_payments.py`.
 
-1. **Pre-Flight Configuration**:
-   - Register account in YooKassa as self-employed individual (or IP).
-   - Complete FNS «Мой налог» integration in YooKassa dashboard.
-   - Configure Railway variables:
-     - `YOOKASSA_SHOP_ID`
-     - `YOOKASSA_SECRET_KEY`
-     - `YOOKASSA_WEBHOOK_SECRET`
-     - `PRO_MONTHLY_PRICE_RUB=990`
-     - `PRO_YEARLY_PRICE_RUB=9900`
-2. **Database Migration**:
-   - Deploy schema additions (`organization_subscriptions`, `payment_orders`, `payment_transactions`, `payment_webhook_logs`) via idempotent migrations in `init_db()`.
-3. **Webhook Registration**:
-   - Register webhook URL in YooKassa dashboard:
-     `https://ivently.up.railway.app/api/v1/payments/webhooks/yookassa`
-   - Select events: `payment.succeeded`, `payment.canceled`, `refund.succeeded`.
-4. **End-to-End Test in Sandbox**:
-   - Run 1 real sandbox test transaction using YooKassa test cards.
-   - Confirm automatic activation, UI feedback, and broadcast quota unlock.
-5. **Production Enablement**:
-   - Switch credentials from sandbox to live keys in Railway.
-   - Flip `PAYMENTS_ENABLED=true`.
+### Strictly Deferred (Out of Scope for D6.1)
+- Yearly plans (`PRO_YEARLY`).
+- Auto-renewal / recurring billing.
+- Card tokenization (`save_payment_method`).
+- `PAST_DUE` subscription grace period.
+- Payment retry engine.
+- Automated receipt integration.
+- Real production credentials / real money transactions.
 
 ---
 
-## 13. Risks & Open Questions for Project Owner
+## 14. Phase 12 — Open Decisions for Project Owner
 
-1. **Legal Status Confirmation**:
-   - Is Ivently launching as a **физлицо-самозанятый** (НПД) or an **ИП на НПД**?
-   - *Architectural impact:* If launching as an individual self-employed, ЮKassa is mandatory. If launching as an IP, T-Bank or CloudPayments can also be considered.
-2. **Annual Turnover Limit**:
-   - Self-employed status is capped at **2.4 million RUB/year** (~200 Pro subscribers paying 990 ₽/mo reaches ~2.37M ₽/year). Once this threshold is approached, registration as an IP is required by Russian law.
-3. **Public Offer & Legal Terms**:
-   - A public user agreement and offer (Публичная оферта на оказание информационных услуг) must be published at `/terms` or linked in the Mini App before accepting live payments.
-4. **Chargeback & Cancellation Policy**:
-   - Decision on refund window (e.g. 14 calendar days) and automated vs. manual refund processing.
-
----
-
-## 14. Next Implementation Sprint (D6.1)
-
-When authorized, the next development sprint (**D6.1**) will execute:
-1. Creation of database models (`PaymentOrder`, `OrganizationSubscription`, `PaymentTransaction`, `PaymentWebhookLog`) and migrations in `app/database.py`.
-2. Implementation of `YooKassaClient` with idempotency, retry backoff, and mock test fixtures.
-3. Creation of payment endpoints (`POST /api/v1/payments/orders`, `GET /api/v1/payments/orders/{id}/status`, `POST /api/v1/payments/webhooks/yookassa`).
-4. Implementation of the 28 automated tests.
-5. Frontend payment flow integration in `OrganizerWorkspace.tsx` and `EventDetailsModal.tsx`.
+1. **Merchant Legal Status:** Confirmation whether merchant contract is registered as a **самозанятый физлицо** or an **ИП на НПД**.
+2. **Launch Price Decision:** Final approval of the single monthly price (`PRO_MONTHLY_PRICE_RUB`), which remains unset in settings until approved.
+3. **Public Offer & Terms:** Legal text of the service agreement to be linked from the Mini App checkout screen.
+4. **Receipt Operational Workflow:** Acknowledgment that for self-employed status, income registration in «Мой налог» must initially be performed manually per current YooKassa documentation.
