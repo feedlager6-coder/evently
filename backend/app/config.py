@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     TYPESAFE_API_KEY: Optional[str] = None
     TYPESAFE_ENABLED: bool = False
 
+    # External Verifications (e.g. Yandex Distribution)
+    YANDEX_VERIFICATION_CODE: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -89,6 +92,7 @@ class Settings(BaseSettings):
         "S3_SECRET_ACCESS_KEY",
         "S3_PUBLIC_URL_PREFIX",
         "STORAGE_LOCAL_DIR",
+        "YANDEX_VERIFICATION_CODE",
         mode="before"
     )
     @classmethod

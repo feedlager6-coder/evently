@@ -13,7 +13,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.config import settings
 from app.database import init_db, close_db, AsyncSessionLocal
@@ -109,6 +109,20 @@ async def health_check():
     }
 
 
+@app.get("/verification/yandex", response_class=PlainTextResponse, tags=["Verification"])
+@app.get("/verification/yandex/", response_class=PlainTextResponse, include_in_schema=False)
+async def verify_yandex():
+    """
+    Public ownership verification endpoint for Yandex Distribution.
+    Returns plain text verification code if configured via YANDEX_VERIFICATION_CODE.
+    Returns 404 neutral response when not configured.
+    """
+    code = settings.YANDEX_VERIFICATION_CODE
+    if not code or not code.strip():
+        return PlainTextResponse("Verification unavailable", status_code=404)
+    return PlainTextResponse(code.strip(), media_type="text/plain")
+
+
 # Mount Uploads directory (supports Railway Persistent Volume or local storage)
 from app.services.storage_service import storage_service
 UPLOADS_DIR = storage_service.get_local_storage_dir()
@@ -127,7 +141,13 @@ if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        if full_path.startswith("api/") or full_path.startswith("uploads/") or full_path == "health":
+        if (
+            full_path.startswith("api/")
+            or full_path.startswith("uploads/")
+            or full_path == "health"
+            or full_path.startswith("verification/")
+            or full_path == "verification"
+        ):
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Not Found")
         file_path = FRONTEND_DIST_DIR / full_path
