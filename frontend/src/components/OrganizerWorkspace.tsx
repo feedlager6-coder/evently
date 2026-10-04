@@ -11,6 +11,8 @@ import type {
   BroadcastTemplateKey,
   OrganizerInsightsResponse,
   OrganizerEntitlementsResponse,
+  PaymentConfigResponse,
+  PaymentOrder,
 } from '../types';
 import { SafeAvatar } from './SafeAvatar';
 import { telegram } from '../services/telegram';
@@ -39,6 +41,9 @@ import {
   X,
   Sparkles,
   Compass,
+  Receipt,
+  CreditCard,
+  Loader2,
 } from 'lucide-react';
 
 export type WorkspaceTab = 'overview' | 'events' | 'organizations' | 'audience' | 'broadcasts';
@@ -56,6 +61,7 @@ interface OrganizerWorkspaceProps {
   onEventClick: (event: EventSummary) => void;
   onOrgDeleted?: (orgId: string) => void;
   isAdmin?: boolean;
+  paymentReturnOrderId?: string | null;
 }
 
 export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
@@ -70,6 +76,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onEventClick,
   onOrgDeleted: _onOrgDeleted,
   isAdmin = false,
+  paymentReturnOrderId,
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
   const [eventFilter, setEventFilter] = useState<EventFilter>('upcoming');
@@ -81,6 +88,119 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [entitlements, setEntitlements] = useState<OrganizerEntitlementsResponse | null>(null);
   const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
   const [isTogglingPlan, setIsTogglingPlan] = useState<boolean>(false);
+
+  // Payment & Pro subscription state
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfigResponse | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentOrder[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState<boolean>(false);
+  const [isPaying, setIsPaying] = useState<boolean>(false);
+  const [checkoutEmail, setCheckoutEmail] = useState<string>('');
+  const [paymentPollStatus, setPaymentPollStatus] = useState<'checking' | 'success' | 'pending' | 'failed' | null>(null);
+  const [activePollOrder, setActivePollOrder] = useState<PaymentOrder | null>(null);
+
+  useEffect(() => {
+    api.getPaymentConfig()
+      .then((cfg) => setPaymentConfig(cfg))
+      .catch((err) => console.error('Failed to load payment config:', err));
+  }, []);
+
+  useEffect(() => {
+    const orderIdToPoll = paymentReturnOrderId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('payment_order_id') : null);
+    if (!orderIdToPoll) return;
+
+    let isMounted = true;
+    let pollCount = 0;
+    const maxPolls = 4;
+    setPaymentPollStatus('checking');
+
+    const checkStatus = async () => {
+      try {
+        const order = await api.getPaymentOrder(orderIdToPoll);
+        if (!isMounted) return;
+        setActivePollOrder(order);
+
+        if (order.status === 'succeeded') {
+          setPaymentPollStatus('success');
+          telegram.hapticSuccess();
+          loadEntitlements();
+          return;
+        }
+
+        if (order.status === 'canceled' || order.status === 'failed') {
+          setPaymentPollStatus('failed');
+          telegram.hapticNotification('error');
+          return;
+        }
+
+        pollCount++;
+        if (pollCount < maxPolls) {
+          setTimeout(checkStatus, 2000);
+        } else {
+          setPaymentPollStatus('pending');
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Error polling payment status:', err);
+        setPaymentPollStatus('pending');
+      }
+    };
+
+    checkStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [paymentReturnOrderId]);
+
+  const handleInitiateProPayment = async () => {
+    const orgId = composerOrgId || (organizations.length > 0 ? organizations[0].id : null);
+    if (!orgId) {
+      alert('Сначала создайте или выберите организацию.');
+      return;
+    }
+
+    try {
+      setIsPaying(true);
+      telegram.hapticImpact('medium');
+
+      const emailTrim = checkoutEmail.trim();
+      const order = await api.createProPayment({
+        organization_id: orgId,
+        customer_email: emailTrim || undefined,
+      });
+
+      if (order.confirmation_url) {
+        telegram.hapticSuccess();
+        if (telegram.isAvailable() && typeof (window as any).Telegram?.WebApp?.openLink === 'function') {
+          (window as any).Telegram.WebApp.openLink(order.confirmation_url);
+        } else {
+          window.location.href = order.confirmation_url;
+        }
+      } else {
+        alert('Не удалось получить ссылку на оплату.');
+      }
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      telegram.hapticNotification('error');
+      alert(err.message || 'Ошибка создания платежа.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const loadPaymentHistory = async () => {
+    const orgId = composerOrgId || (organizations.length > 0 ? organizations[0].id : null);
+    if (!orgId) return;
+    try {
+      setIsLoadingPayments(true);
+      const history = await api.getOrganizationPayments(orgId);
+      setPaymentHistory(history);
+    } catch (err) {
+      console.error('Failed to load payment history:', err);
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
 
   const loadInsights = () => {
     api.getOrganizerInsights()
@@ -120,6 +240,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     if (activeTab === 'overview') {
       loadInsights();
       loadEntitlements();
+      loadPaymentHistory();
     }
   }, [activeTab, organizations]);
 
@@ -659,6 +780,69 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   >
                     {isTogglingPlan ? '...' : entitlements?.plan === 'pro' ? 'Вернуть Free' : 'Включить Pro'}
                   </button>
+                </div>
+              )}
+            </div>
+
+            {/* Payment History Card */}
+            <div className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-white text-xs font-semibold">
+                  <Receipt className="w-4 h-4 text-purple-400" />
+                  <span>История оплат</span>
+                </div>
+                <button
+                  onClick={loadPaymentHistory}
+                  disabled={isLoadingPayments}
+                  className="text-[11px] text-purple-400 hover:text-purple-300 font-medium btn-press"
+                >
+                  {isLoadingPayments ? 'Загрузка...' : 'Обновить'}
+                </button>
+              </div>
+
+              {paymentHistory.length === 0 ? (
+                <div className="text-[11px] text-gray-500 py-0.5">
+                  История оплат пока пуста.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {paymentHistory.map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-semibold text-white">
+                          {p.amount} {p.currency}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {new Date(p.created_at).toLocaleDateString('ru-RU')} · {p.service_name}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          p.status === 'succeeded'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : p.status === 'pending'
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                        }`}>
+                          {p.status === 'succeeded' ? 'Оплачено' : p.status === 'pending' ? 'Ожидает' : 'Отменено'}
+                        </span>
+                        {p.receipt_url && (
+                          <a
+                            href={p.receipt_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-purple-300"
+                            title="Чек"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -2121,9 +2305,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         </div>
       )}
 
-      {/* Fake Door Pro Modal */}
+      {/* Ivently Pro Checkout Modal */}
       {isProModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-[#141724] border border-white/10 rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl animate-sheet-slide-up max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
@@ -2131,8 +2315,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white tracking-tight">Что даёт Pro?</h3>
-                  <p className="text-[11px] text-gray-400">Возможности для регулярных организаторов</p>
+                  <h3 className="text-base font-bold text-white tracking-tight">Ivently Pro</h3>
+                  <p className="text-[11px] text-gray-400">Для регулярных организаторов</p>
                 </div>
               </div>
               <button
@@ -2144,89 +2328,289 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </button>
             </div>
 
-            {/* Free vs Pro Comparison */}
-            <div className="space-y-3 pt-1">
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-2">
-                <div className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
-                  <span>Бесплатный тариф (Free)</span>
-                  <span className="text-[10px] text-gray-400 font-medium lowercase px-2 py-0.5 rounded-full bg-white/5">сейчас</span>
-                </div>
-                <div className="space-y-1.5 text-[11px] text-gray-300">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-400">•</span>
-                    <span>Создание и публикация событий без ограничений</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-400">•</span>
-                    <span>Профиль организации и сбор подписчиков в Telegram</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-400">•</span>
-                    <span>Отметки «Хочу пойти» и база участников</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-400">•</span>
-                    <span>Базовая аналитика просмотров и интереса</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-400">•</span>
-                    <span><strong>Бесплатные</strong> автоуведомления об изменениях событий</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 space-y-2">
-                <div className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
+            {/* If Pro is already active */}
+            {entitlements?.plan === 'pro' ? (
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Тариф Pro</span>
+                    <span>Тариф Pro активен</span>
                   </span>
-                  <span className="text-[10px] text-purple-300 font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/30">в разработке</span>
+                  <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                    Активен
+                  </span>
                 </div>
-                <div className="space-y-1.5 text-[11px] text-gray-200">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span><strong>Ручные рассылки в Telegram</strong> (до 20 в месяц)</span>
+                <div className="text-[11px] text-gray-300 space-y-1">
+                  <div>
+                    Срок действия:{' '}
+                    <strong className="text-white">
+                      {entitlements.expires_at
+                        ? new Date(entitlements.expires_at).toLocaleDateString('ru-RU')
+                        : 'Бессрочно'}
+                    </strong>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span>Анонсы событий и новости организации с кнопками перехода</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span>Расширенная аналитика кликов и конверсий</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span>Сегменты аудитории — Скоро</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span>Повторные приглашения — Скоро</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-purple-400 font-bold">✓</span>
-                    <span>Автоматические напоминания — Скоро</span>
+                  <div>
+                    Маркетинговые рассылки:{' '}
+                    <strong className="text-white">
+                      {entitlements.limits.broadcasts_used_this_month} из {entitlements.limits.broadcasts_per_month}
+                    </strong>{' '}
+                    в этом месяце
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-center space-y-1">
-              <div className="text-xs font-semibold text-purple-300">
-                Оплата пока не запущена. Мы готовим Pro.
+                <div className="pt-2 border-t border-white/10">
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    Вы можете продлить тариф заранее. Новый период (+30 дней) добавится к текущему сроку действия.
+                  </p>
+                  <button
+                    onClick={handleInitiateProPayment}
+                    disabled={isPaying || !(paymentConfig?.payments_enabled ?? false)}
+                    className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold text-xs transition-all btn-press flex items-center justify-center space-x-2"
+                  >
+                    {isPaying ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Создаём платёж...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Продлить на 30 дней ({paymentConfig?.pro_monthly_price_rub ?? 499} ₽)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-              <p className="text-[10.5px] text-gray-400">
-                Все базовые функции Ivently навсегда остаются бесплатными для организаторов.
-              </p>
-            </div>
+            ) : (
+              /* Upgrade to Pro Flow */
+              <div className="space-y-3 pt-1">
+                {/* Price & Period Badge */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#141724] border border-purple-500/30 text-center space-y-1">
+                  <div className="text-2xl font-black text-white tracking-tight">
+                    {paymentConfig?.pro_monthly_price_rub ?? 499} ₽
+                    <span className="text-xs font-normal text-purple-300 ml-1.5">
+                      / {paymentConfig?.pro_days ?? 30} дней
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-300 font-medium">
+                    Разовая оплата на 30 дней. Автопродления нет.
+                  </div>
+                </div>
+
+                {/* What's included */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/5 space-y-2">
+                  <div className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>В тариф Pro входит</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] text-gray-200">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-purple-400 font-bold">✓</span>
+                      <span><strong>Ручные рассылки в Telegram</strong> (до 20 в месяц)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-purple-400 font-bold">✓</span>
+                      <span>Анонсы событий и новости организации с кнопками перехода</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-purple-400 font-bold">✓</span>
+                      <span>Расширенная аналитика кликов и конверсий</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span><strong>Транзакционные уведомления</strong> об изменениях всегда бесплатны</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email for receipt */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-gray-300 flex items-center justify-between">
+                    <span>Email для чека</span>
+                    <span className="text-[10px] text-gray-500">электронный чек</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={checkoutEmail}
+                    onChange={(e) => setCheckoutEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                  />
+                  <p className="text-[10px] text-gray-500">
+                    Для плательщиков НПД электронный чек формируется после зачисления платежа.
+                  </p>
+                </div>
+
+                {/* CTA Action */}
+                {paymentConfig?.payments_enabled ? (
+                  <button
+                    onClick={handleInitiateProPayment}
+                    disabled={isPaying}
+                    className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs transition-all btn-press shadow-lg shadow-purple-600/30 flex items-center justify-center space-x-2"
+                  >
+                    {isPaying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Создаём платёж...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4" />
+                        <span>Оплатить {paymentConfig?.pro_monthly_price_rub ?? 499} ₽</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-1.5">
+                    <button
+                      disabled
+                      className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-gray-400 font-semibold text-xs cursor-not-allowed text-center"
+                    >
+                      Оплата Pro пока недоступна
+                    </button>
+                    <p className="text-[10px] text-gray-500 text-center">
+                      Мы готовим запуск онлайн-оплаты через ЮKassa.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={() => setIsProModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors btn-press"
+              className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors btn-press"
             >
-              Понятно
+              Закрыть
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Return Status Polling Modal */}
+      {paymentPollStatus !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-[#141724] border border-white/15 rounded-3xl p-5 space-y-4 shadow-2xl text-center">
+            {paymentPollStatus === 'checking' && (
+              <div className="space-y-3 py-4">
+                <div className="flex justify-center">
+                  <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
+                </div>
+                <h3 className="text-base font-bold text-white">Проверяем оплату...</h3>
+                <p className="text-xs text-gray-400">
+                  Пожалуйста, подождите, связываемся со шлюзом ЮKassa для подтверждения транзакции.
+                </p>
+              </div>
+            )}
+
+            {paymentPollStatus === 'success' && (
+              <div className="space-y-3 py-2">
+                <div className="flex justify-center">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                </div>
+                <h3 className="text-base font-bold text-white">Pro успешно активирован 🎉</h3>
+                <p className="text-xs text-gray-300">
+                  {activePollOrder?.expires_at ? (
+                    <>Тариф Pro активен до <strong>{new Date(activePollOrder.expires_at).toLocaleDateString('ru-RU')}</strong>.</>
+                  ) : (
+                    <>Тариф Pro активен на 30 дней.</>
+                  )}
+                  <br />
+                  Вам доступно до 20 маркетинговых рассылок в месяц.
+                </p>
+                {activePollOrder?.receipt_url && (
+                  <div className="pt-2">
+                    <a
+                      href={activePollOrder.receipt_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 text-xs font-medium"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>Открыть электронный чек</span>
+                    </a>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setPaymentPollStatus(null);
+                    loadEntitlements();
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors btn-press mt-2"
+                >
+                  Отлично
+                </button>
+              </div>
+            )}
+
+            {paymentPollStatus === 'pending' && (
+              <div className="space-y-3 py-2">
+                <div className="flex justify-center">
+                  <Clock className="w-12 h-12 text-amber-400" />
+                </div>
+                <h3 className="text-base font-bold text-white">Платёж ещё обрабатывается</h3>
+                <p className="text-xs text-gray-400">
+                  Банк обрабатывает операцию. Мы автоматически активируем Pro сразу после подтверждения зачисления.
+                </p>
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    onClick={() => {
+                      if (activePollOrder?.id) {
+                        setPaymentPollStatus('checking');
+                        api.getPaymentOrder(activePollOrder.id)
+                          .then((ord) => {
+                            setActivePollOrder(ord);
+                            if (ord.status === 'succeeded') {
+                              setPaymentPollStatus('success');
+                              loadEntitlements();
+                            } else {
+                              setPaymentPollStatus('pending');
+                            }
+                          })
+                          .catch(() => setPaymentPollStatus('pending'));
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold btn-press"
+                  >
+                    Проверить снова
+                  </button>
+                  <button
+                    onClick={() => setPaymentPollStatus(null)}
+                    className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-semibold btn-press"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {paymentPollStatus === 'failed' && (
+              <div className="space-y-3 py-2">
+                <div className="flex justify-center">
+                  <XCircle className="w-12 h-12 text-red-400" />
+                </div>
+                <h3 className="text-base font-bold text-white">Оплата не завершена</h3>
+                <p className="text-xs text-gray-400">
+                  Платёж был отменён или прерван. Средства не были списаны.
+                </p>
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setPaymentPollStatus(null);
+                      setIsProModalOpen(true);
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold btn-press"
+                  >
+                    Попробовать снова
+                  </button>
+                  <button
+                    onClick={() => setPaymentPollStatus(null)}
+                    className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-semibold btn-press"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

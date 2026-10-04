@@ -487,5 +487,31 @@ export interface AdminOrganizationItem {
   created_at: string;
 }
 
+export interface PaymentConfigResponse {
+  payments_enabled: boolean;
+  pro_monthly_price_rub: number;
+  pro_days: number;
+}
+
+export interface PaymentOrder {
+  id: string;
+  organization_id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'waiting_for_payment' | 'succeeded' | 'canceled' | 'failed' | 'refunded' | string;
+  service_name: string;
+  confirmation_url?: string | null;
+  paid_at?: string | null;
+  expires_at?: string | null;
+  receipt_status: 'pending' | 'issued' | 'not_required' | string;
+  receipt_url?: string | null;
+  created_at: string;
+}
+
+export interface CreatePaymentOrderRequest {
+  organization_id: string;
+  customer_email?: string | null;
+}
+
 
 

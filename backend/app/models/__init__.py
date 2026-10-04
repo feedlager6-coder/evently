@@ -18,6 +18,15 @@ from app.models.broadcast import (
     RecipientStatus,
 )
 from app.models.organization_plan import OrganizationPlan, PlanType, PlanStatus
+from app.models.payment import (
+    PaymentOrder,
+    PaymentTransaction,
+    PaymentWebhookLog,
+    PaymentOrderStatus,
+    ReceiptStatus,
+    PaymentOperationType,
+    WebhookProcessingStatus,
+)
 
 __all__ = [
     "City",
@@ -45,4 +54,11 @@ __all__ = [
     "OrganizationPlan",
     "PlanType",
     "PlanStatus",
+    "PaymentOrder",
+    "PaymentTransaction",
+    "PaymentWebhookLog",
+    "PaymentOrderStatus",
+    "ReceiptStatus",
+    "PaymentOperationType",
+    "WebhookProcessingStatus",
 ]

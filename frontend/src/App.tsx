@@ -75,6 +75,7 @@ export const App: React.FC = () => {
 
   // Organizer workspace & creation state
   const [isOrganizerWorkspaceOpen, setIsOrganizerWorkspaceOpen] = useState(false);
+  const [paymentReturnOrderId, setPaymentReturnOrderId] = useState<string | null>(null);
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
   const [isLoadingOrganizer, setIsLoadingOrganizer] = useState(false);
@@ -167,6 +168,13 @@ export const App: React.FC = () => {
       if (orgId) {
         openOrgById(orgId);
       }
+    } else if (clean.startsWith('payment_')) {
+      const orderId = clean.slice(8).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      if (orderId) {
+        setPaymentReturnOrderId(orderId);
+        setCurrentTab('organizer');
+        setIsOrganizerWorkspaceOpen(true);
+      }
     } else if (clean === 'create') {
       setIsCreateEventModalOpen(true);
     }
@@ -181,6 +189,19 @@ export const App: React.FC = () => {
 
     let t1: ReturnType<typeof setTimeout> | undefined;
     let t2: ReturnType<typeof setTimeout> | undefined;
+
+    // Check URL query parameters for payment return (?payment_order_id=...)
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlPaymentId = searchParams.get('payment_order_id');
+      if (urlPaymentId) {
+        setPaymentReturnOrderId(urlPaymentId);
+        setCurrentTab('organizer');
+        setIsOrganizerWorkspaceOpen(true);
+      }
+    } catch {
+      // ignore URLSearchParams errors
+    }
 
     // Process deep link IMMEDIATELY on mount without waiting for metadata
     const initialParam = telegram.getStartParam();
@@ -684,7 +705,11 @@ export const App: React.FC = () => {
           isOrganizerWorkspaceOpen ? (
             <OrganizerWorkspace
               isAdmin={isAdmin}
-              onBack={() => setIsOrganizerWorkspaceOpen(false)}
+              paymentReturnOrderId={paymentReturnOrderId}
+              onBack={() => {
+                setPaymentReturnOrderId(null);
+                setIsOrganizerWorkspaceOpen(false);
+              }}
               organizations={myOrganizations}
               events={organizerEvents}
               isLoading={isLoadingOrganizer || isLoadingMyOrganizations}

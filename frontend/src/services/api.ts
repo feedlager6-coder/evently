@@ -31,6 +31,9 @@ import type {
   OrganizerInsightsResponse,
   OrganizerEntitlementsResponse,
   AdminOrganizationItem,
+  PaymentConfigResponse,
+  PaymentOrder,
+  CreatePaymentOrderRequest,
 } from '../types';
 import { telegram } from './telegram';
 
@@ -924,6 +927,49 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(extractErrorMessage(err, 'Не удалось загрузить данные о тарифе'));
+    }
+    return res.json();
+  },
+
+  async getPaymentConfig(): Promise<PaymentConfigResponse> {
+    const res = await fetch(`${API_BASE}/meta/payment-config`);
+    if (!res.ok) {
+      return { payments_enabled: false, pro_monthly_price_rub: 499, pro_days: 30 };
+    }
+    return res.json();
+  },
+
+  async createProPayment(payload: CreatePaymentOrderRequest): Promise<PaymentOrder> {
+    const res = await fetch(`${API_BASE}/organizer/payments/pro`, {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось создать платёж'));
+    }
+    return res.json();
+  },
+
+  async getPaymentOrder(orderId: string): Promise<PaymentOrder> {
+    const res = await fetch(`${API_BASE}/organizer/payments/${encodeURIComponent(orderId)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить статус платежа'));
+    }
+    return res.json();
+  },
+
+  async getOrganizationPayments(orgId: string): Promise<PaymentOrder[]> {
+    const res = await fetch(`${API_BASE}/organizer/payments?org_id=${encodeURIComponent(orgId)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось загрузить историю платежей'));
     }
     return res.json();
   }

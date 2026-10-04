@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # External Verifications (e.g. Yandex Distribution)
     YANDEX_VERIFICATION_CODE: Optional[str] = None
 
+    # Payments & Pro Subscriptions (D6.1 YooKassa Hosted Checkout)
+    PAYMENTS_ENABLED: bool = False
+    PRO_MONTHLY_PRICE_RUB: float = 499.0
+    PRO_SUBSCRIPTION_DAYS: int = 30
+    YOOKASSA_SHOP_ID: Optional[str] = None
+    YOOKASSA_SECRET_KEY: Optional[str] = None
+    YOOKASSA_RETURN_URL: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -93,6 +101,9 @@ class Settings(BaseSettings):
         "S3_PUBLIC_URL_PREFIX",
         "STORAGE_LOCAL_DIR",
         "YANDEX_VERIFICATION_CODE",
+        "YOOKASSA_SHOP_ID",
+        "YOOKASSA_SECRET_KEY",
+        "YOOKASSA_RETURN_URL",
         mode="before"
     )
     @classmethod
@@ -251,6 +262,14 @@ class Settings(BaseSettings):
             self.effective_storage_bucket and
             self.effective_storage_access_key and
             self.effective_storage_secret_key
+        )
+
+    @property
+    def is_yookassa_configured(self) -> bool:
+        """Checks if minimal required YooKassa credentials are provided."""
+        return bool(
+            self.YOOKASSA_SHOP_ID and
+            self.YOOKASSA_SECRET_KEY
         )
 
 

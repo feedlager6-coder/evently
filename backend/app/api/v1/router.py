@@ -12,6 +12,7 @@ from app.api.v1.meta import router as meta_router
 from app.api.v1.organizations import router as organizations_router
 from app.api.v1.discovery import router as discovery_router
 from app.api.v1.company import router as company_router
+from app.api.v1.payments import router as payments_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -27,6 +28,7 @@ api_v1_router.include_router(telegram_router)
 api_v1_router.include_router(locations_router)
 api_v1_router.include_router(users_router)
 api_v1_router.include_router(meta_router)
+api_v1_router.include_router(payments_router)
 
 __all__ = ["api_v1_router"]
 

@@ -512,3 +512,49 @@ async def notify_company_request(
     except Exception as e:
         logger.warning(f"Failed to deliver company request notification to {receiver_telegram_id}: {e}")
         return False
+
+
+async def send_telegram_notification(
+    chat_id: int,
+    text: str,
+    reply_markup: Optional[Dict[str, Any]] = None,
+    http_client: Optional[httpx.AsyncClient] = None
+) -> bool:
+    """
+    Sends a direct transactional message to a single Telegram chat_id.
+    Safely handles test/dev mode without live bot tokens.
+    """
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated telegram notification to chat_id {chat_id}: {text}")
+        return True
+
+    payload: Dict[str, Any] = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+
+    bot_token = settings.clean_bot_token
+
+    try:
+        if http_client:
+            resp = await http_client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json=payload,
+                timeout=5.0
+            )
+            return resp.status_code == 200
+        else:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json=payload,
+                    timeout=5.0
+                )
+                return resp.status_code == 200
+    except Exception as e:
+        logger.warning(f"Failed to deliver telegram notification to {chat_id}: {e}")
+        return False
+
