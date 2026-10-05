@@ -38,3 +38,13 @@ Thumbs.db
 # Uploads
 uploads/*
 !uploads/.gitkeep
+
+# Backups and Keys
+*.dump
+*.sql
+*.tar.gz
+*.key
+*.pem
+id_ed25519*
+id_rsa*
+

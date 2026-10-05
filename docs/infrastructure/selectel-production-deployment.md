@@ -354,8 +354,9 @@ find "${BACKUP_DIR}" -type f -name "*.dump" -mtime +14 -delete
 
 ### 7.2 Crontab Schedule
 ```bash
-# Daily backup at 03:00 Moscow Time
-0 3 * * * /usr/local/bin/backup-ivently.sh >> /var/log/ivently_backup.log 2>&1
+# Recommended via /etc/cron.d/ivently-backup (Daily at 03:00 Moscow Time):
+echo "0 3 * * * root /usr/local/bin/backup-ivently.sh >> /var/log/ivently_backup.log 2>&1" > /etc/cron.d/ivently-backup
+chmod 644 /etc/cron.d/ivently-backup
 ```
 
 ---
@@ -369,3 +370,21 @@ find "${BACKUP_DIR}" -type f -name "*.dump" -mtime +14 -delete
 | Database | Colocated PostgreSQL 16 in Docker | 0 ₽ (included) |
 | Storage | Local NVMe `/var/lib/ivently/uploads` | 0 ₽ (included) |
 | **Total Monthly Cost** | | **~950 – 1,350 ₽ / month** |
+
+---
+
+## 9. Current Deployment Status & Verification Matrix
+
+- **Server IP**: `135.106.172.157` (Selectel Moscow)
+- **Base OS & Security**: Ubuntu 24.04 LTS, UFW active (22, 80, 443 allowed; 5432 private).
+- **Containers**:
+  - `ivently-caddy-1` (`caddy:2-alpine`): Running on ports 80 & 443.
+  - `ivently-app-1` (`ivently-app:latest`): Running on internal port 8000, `HEALTHY`.
+  - `ivently-db-1` (`postgres:16-alpine`): Running on internal port 5432, `HEALTHY`.
+- **Database Initialized**: All 18 tables created and seeded (1134 cities, 30 events, 7 categories).
+- **Media Transferred**: 136 covers, 58 avatars (`/var/lib/ivently/uploads/`, permissions `1000:1000`).
+- **Persistence & Reboot**: Tested via `docker compose restart` and `systemctl restart docker`. All services recover to healthy within 15 seconds; database data preserved.
+- **Automated Backup**: Tested via `/usr/local/bin/backup-ivently.sh`. Valid custom pg_dump archive generated and verified with `pg_restore -l`. Daily cron configured at 03:00 MSK with 14-day rotation.
+- **Monetization Safety**: `PAYMENTS_ENABLED=false` strictly enforced in `.env`.
+- **Telegram Production Isolation**: Railway (`https://ivently.up.railway.app`) remains 100% untouched and active as the production environment until domain and SSL cutover is approved by the owner.
+
