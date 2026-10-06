@@ -46,7 +46,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>(ORGANIZATION_CATEGORIES[0]);
   const [description, setDescription] = useState('');
-  const [cityId, setCityId] = useState(defaultCityId || 'makhachkala');
+  const [cityId, setCityId] = useState(defaultCityId || (cities && cities[0]?.id) || '');
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
@@ -100,7 +100,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
       setName(initialData.name || '');
       setCategory(initialData.category || ORGANIZATION_CATEGORIES[0]);
       setDescription(initialData.description || '');
-      setCityId(initialData.city_id || defaultCityId || 'makhachkala');
+      setCityId(initialData.city_id || defaultCityId || (cities && cities[0]?.id) || '');
       setAddress(initialData.address || '');
       setLatitude(initialData.latitude);
       setLongitude(initialData.longitude);
@@ -111,7 +111,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
       setName('');
       setCategory(ORGANIZATION_CATEGORIES[0]);
       setDescription('');
-      setCityId(defaultCityId || 'makhachkala');
+      setCityId(defaultCityId || (cities && cities[0]?.id) || '');
       setAddress('');
       setLatitude(undefined);
       setLongitude(undefined);

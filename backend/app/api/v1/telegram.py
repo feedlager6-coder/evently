@@ -68,24 +68,9 @@ async def telegram_webhook(
                 chat_id = msg.get("chat", {}).get("id")
                 user_id = msg.get("from", {}).get("id")
                 logger.info(f"Telegram write_access_allowed received for user {user_id} in chat {chat_id}")
-                reply_payload = {
-                    "chat_id": chat_id,
-                    "text": (
-                        "🔔 <b>Уведомления включены!</b>\n\n"
-                        "Теперь вы будете вовремя узнавать о событиях, изменениях в расписании "
-                        "и новостях площадок, на которые подписаны."
-                    ),
-                    "parse_mode": "HTML",
-                    "reply_markup": {
-                        "inline_keyboard": [
-                            [
-                                build_mini_app_button("🧭 Открыть Ivently", style="primary")
-                            ]
-                        ]
-                    }
-                }
-            else:
-                reply_payload = handle_private_message(msg)
+                return {"ok": True, "type": "write_access_allowed", "update_id": update_id}
+
+            reply_payload = handle_private_message(msg)
             if reply_payload:
                 dispatched = False
                 if settings.is_live_bot:

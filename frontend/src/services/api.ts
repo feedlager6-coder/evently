@@ -247,6 +247,21 @@ export const api = {
     return closest;
   },
 
+  async setDefaultCity(cityId: string): Promise<City | null> {
+    try {
+      const res = await fetch(`${API_BASE}/cities/default?city_id=${encodeURIComponent(cityId)}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
   async getCategories(): Promise<Category[]> {
     const res = await fetch(`${API_BASE}/categories`);
     if (!res.ok) throw new Error('Failed to fetch categories');

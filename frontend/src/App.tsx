@@ -32,20 +32,31 @@ import { DiscoveryModal } from './components/DiscoveryModal';
 import { EventCompanyModal } from './components/EventCompanyModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
-import { Loader2, Compass, AlertCircle, RefreshCw, Search } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Navigation & UI state
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
-  const [isCityModalOpen, setIsCityModalOpen] = useState(false);
+  const [isCityModalOpen, setIsCityModalOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('evently_selected_city_id');
+      return !saved;
+    } catch {
+      return true;
+    }
+  });
 
   // Core metadata - initialize with cached cities for instant 0ms startup
   const [cities, setCities] = useState<City[]>(() => api.getCachedCities());
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCityId, setSelectedCityId] = useState<string>(() => {
-    const saved = localStorage.getItem('evently_selected_city_id');
-    const cached = api.getCachedCities();
-    return saved && cached.some((c) => c.id === saved) ? saved : 'makhachkala';
+    try {
+      const saved = localStorage.getItem('evently_selected_city_id');
+      const cached = api.getCachedCities();
+      return saved && cached.some((c) => c.id === saved) ? saved : '';
+    } catch {
+      return '';
+    }
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
@@ -233,22 +244,42 @@ export const App: React.FC = () => {
           setCategories(loadedCategories);
         }
 
-        // City selection preference: localStorage -> defaultCity
+        // City selection preference:
+        // 1. Explicitly saved city in localStorage
+        // 2. Returning user's saved default_city_id on backend
+        // 3. NO silent fallback to Makhachkala! Prompt CityModal immediately.
         const savedCityId = localStorage.getItem('evently_selected_city_id');
         const effectiveCities = (loadedCities && loadedCities.length > 0) ? loadedCities : DEFAULT_CITIES;
+        let confirmedCity = '';
+
         if (savedCityId && effectiveCities.some((c) => c.id === savedCityId)) {
-          setSelectedCityId(savedCityId);
-        } else if (effectiveCities.length > 0) {
-          const defaultCity = effectiveCities.find((c) => c.id === 'makhachkala') || effectiveCities[0];
-          setSelectedCityId(defaultCity.id);
+          confirmedCity = savedCityId;
         }
 
         // Verify user profile & admin permission via GET /api/v1/users/me
         try {
           const userProfile = await api.getCurrentUser();
           setIsAdmin(Boolean(userProfile?.is_admin));
+
+          // If no city saved in localStorage, restore returning user's saved city
+          if (!confirmedCity && userProfile?.default_city_id && effectiveCities.some((c) => c.id === userProfile.default_city_id)) {
+            confirmedCity = userProfile.default_city_id;
+            try {
+              localStorage.setItem('evently_selected_city_id', confirmedCity);
+            } catch {
+              // Ignore storage write error
+            }
+          }
         } catch {
           setIsAdmin(false);
+        }
+
+        if (confirmedCity) {
+          setSelectedCityId(confirmedCity);
+          setIsCityModalOpen(false);
+        } else {
+          setSelectedCityId('');
+          setIsCityModalOpen(true);
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -287,6 +318,12 @@ export const App: React.FC = () => {
 
   // 2. Fetch Discovery Feed Events
   const loadFeedEvents = useCallback(async () => {
+    if (!selectedCityId) {
+      setEvents([]);
+      setIsLoadingEvents(false);
+      setFeedError(null);
+      return;
+    }
     try {
       setIsLoadingEvents(true);
       setFeedError(null);
@@ -672,28 +709,107 @@ export const App: React.FC = () => {
                   </button>
                 </div>
               ) : events.length === 0 ? (
-                <div className="py-16 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-indigo-400">
-                    <Compass className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-sm text-white">Событий не найдено</h3>
-                    <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                      Попробуйте выбрать другой день или переключить категорию
-                    </p>
-                  </div>
-                  {(dateFilter !== 'all' || selectedCategoryId) && (
-                    <button
-                      onClick={() => {
-                        setDateFilter('all');
-                        setSelectedCategoryId(undefined);
-                      }}
-                      className="px-4 py-2 rounded-xl bg-indigo-600/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-600/40 btn-press"
-                    >
-                      Сбросить фильтры
-                    </button>
-                  )}
-                </div>
+                (() => {
+                  if (!selectedCityId) {
+                    return (
+                      <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3.5">
+                        <div className="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center mx-auto">
+                          <MapPin className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-sm text-white">Город не выбран</h3>
+                          <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                            Выберите город, чтобы увидеть актуальную афишу мероприятий
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setIsCityModalOpen(true);
+                          }}
+                          className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 shadow-md shadow-indigo-600/25 btn-press transition-all inline-flex items-center space-x-1.5"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>Выбрать город</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  const hasActiveFilters = Boolean(dateFilter !== 'all' || selectedCategoryId);
+                  const currentCity = cities.find((c) => c.id === selectedCityId);
+                  const cityName = currentCity ? currentCity.name : 'выбранном городе';
+
+                  if (hasActiveFilters) {
+                    return (
+                      <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3.5">
+                        <div className="w-12 h-12 rounded-full bg-white/5 text-gray-400 flex items-center justify-center mx-auto">
+                          <Compass className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-sm text-white">Ничего не найдено</h3>
+                          <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                            По выбранным фильтрам ничего не найдено.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setDateFilter('all');
+                            setSelectedCategoryId(undefined);
+                          }}
+                          className="px-4 py-2.5 rounded-xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold hover:bg-indigo-600/30 btn-press transition-all"
+                        >
+                          Сбросить фильтры
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // Genuine empty city
+                  return (
+                    <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center mx-auto">
+                        <Calendar className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1.5 max-w-xs mx-auto">
+                        <h3 className="font-bold text-sm text-white">
+                          В г. {cityName} пока нет актуальных событий
+                        </h3>
+                        <p className="text-xs text-gray-400 leading-relaxed">
+                          Станьте первым, кто опубликует событие, или выберите другой город.
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1 max-w-xs mx-auto w-full">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('medium');
+                            setPreselectedOrgForEventCreate(undefined);
+                            setIsCreateEventModalOpen(true);
+                          }}
+                          className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/25 transition-all btn-press flex items-center justify-center space-x-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Создать событие</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setIsCityModalOpen(true);
+                          }}
+                          className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-xs font-medium transition-all btn-press flex items-center justify-center space-x-1.5"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                          <span>Выбрать другой город</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="space-y-4">
                   {events.map((event) => (
@@ -796,6 +912,7 @@ export const App: React.FC = () => {
           } catch (e) {
             console.warn('Failed to save selected city:', e);
           }
+          api.setDefaultCity(cid).catch(() => {});
         }}
       />
 

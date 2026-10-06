@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 
-export type PersonalHubTab = 'attending' | 'interested' | 'subscriptions' | 'history';
+export type PersonalHubTab = 'attending' | 'interested' | 'created' | 'subscriptions' | 'history';
 
 interface OrganizerTabProps {
   attendingEvents: EventSummary[];
@@ -72,10 +72,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
     (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
   );
 
-  const isOrganizer = organizations.length > 0 || myCreatedEvents.length > 0;
+  const isOrganizer = organizations.length > 0;
   const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
   const hasAnyPersonalActivity =
-    attendingEvents.length > 0 || interestedEvents.length > 0 || subscriptions.length > 0;
+    attendingEvents.length > 0 || interestedEvents.length > 0 || subscriptions.length > 0 || myCreatedEvents.length > 0;
   const isBusyLoading =
     isLoadingAttending || isLoadingInterested || isLoadingSubscriptions;
 
@@ -88,7 +88,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
 
   return (
     <div className="space-y-4 px-4 py-2 pb-20">
-      {/* 1. Organizer Entry Banner (Only if user has created org or event) */}
+      {/* 1. Organizer Entry Banner (Only if user owns/manages organizations) */}
       {isOrganizer && (
         <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/60 via-purple-950/40 to-[#141724] border border-indigo-500/25 shadow-lg flex items-center justify-between gap-3">
           <div className="space-y-1 min-w-0">
@@ -100,8 +100,6 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
             <p className="text-xs text-gray-300 truncate">
               {organizations.length} {organizations.length === 1 ? 'организация' : 'организаций'} •{' '}
-              {myCreatedEvents.length}{' '}
-              {myCreatedEvents.length === 1 ? 'событие' : 'событий'} •{' '}
               {totalFollowers} {formatFollowers(totalFollowers).split(' ')[1]}
             </p>
           </div>
@@ -202,6 +200,9 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               items={[
                 { value: 'attending', label: 'Я иду', count: activeAttending.length },
                 { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
+                ...(myCreatedEvents.length > 0
+                  ? [{ value: 'created', label: 'Созданные', count: myCreatedEvents.length }]
+                  : []),
                 { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
                 { value: 'history', label: 'Прошедшие', count: pastEvents.length },
               ]}
@@ -282,6 +283,47 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   event={event}
                   onClick={() => onEventClick(event)}
                 />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: CREATED EVENTS (Personal Creations) */}
+      {activeTab === 'created' && (
+        <div className="space-y-3">
+          {myCreatedEvents.length === 0 ? (
+            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                📅
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-white">Нет созданных событий</div>
+                <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                  Здесь отображаются мероприятия, опубликованные вами
+                </p>
+              </div>
+              {onOpenCreateEvent && (
+                <button
+                  onClick={onOpenCreateEvent}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
+                >
+                  Создать событие
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-[11px] text-gray-400 px-1">
+                Мероприятия, опубликованные вами
+              </div>
+              {myCreatedEvents.map((event) => (
+                <div key={event.id} className="hover:opacity-95 transition-opacity">
+                  <EventCard
+                    event={event}
+                    onClick={() => onEventClick(event)}
+                  />
+                </div>
               ))}
             </div>
           )}

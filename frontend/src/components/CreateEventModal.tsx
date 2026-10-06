@@ -58,7 +58,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(initialOrganizationId);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [cityId, setCityId] = useState(defaultCityId || 'makhachkala');
+  const [cityId, setCityId] = useState(defaultCityId || (cities && cities[0]?.id) || '');
   const [categoryId, setCategoryId] = useState('concerts');
   
   // Tomorrow at 19:00 default start date
@@ -112,7 +112,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     if (initialEvent) {
       setTitle(initialEvent.title || '');
       setDescription(initialEvent.description || '');
-      setCityId(initialEvent.city_id || defaultCityId || 'makhachkala');
+      setCityId(initialEvent.city_id || defaultCityId || (cities && cities[0]?.id) || '');
       setCategoryId(initialEvent.category_id || 'concerts');
       if (initialEvent.start_at) {
         try {
@@ -136,7 +136,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     } else {
       setTitle('');
       setDescription('');
-      setCityId(defaultCityId || 'makhachkala');
+      setCityId(defaultCityId || (cities && cities[0]?.id) || '');
       setCategoryId('concerts');
       setStartAt(defaultDateStr);
       setVenueName('');

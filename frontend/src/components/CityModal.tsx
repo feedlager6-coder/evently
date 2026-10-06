@@ -143,8 +143,13 @@ export const CityModal: React.FC<CityModalProps> = ({
     }
   };
 
+  const isMandatory = !selectedCityId;
+
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-fade-in">
+    <div 
+      className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-fade-in"
+      onClick={isMandatory ? undefined : onClose}
+    >
       <div 
         className="w-full max-w-sm max-h-[85vh] rounded-t-[28px] sm:rounded-3xl bg-[#131722] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3 sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
@@ -155,14 +160,22 @@ export const CityModal: React.FC<CityModalProps> = ({
             <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
               <MapPin className="w-5 h-5" />
             </div>
-            <h3 className="text-base font-bold text-white">Выберите город</h3>
+            <div>
+              <h3 className="text-base font-bold text-white">Выберите город</h3>
+              {isMandatory && (
+                <p className="text-[10px] text-gray-400">Для отображения афиши событий</p>
+              )}
+            </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 btn-press transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!isMandatory && (
+            <button 
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 btn-press transition-colors"
+              title="Закрыть"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Location Detection Button */}
