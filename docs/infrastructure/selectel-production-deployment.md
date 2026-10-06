@@ -1,11 +1,12 @@
 # Ivently — Selectel Production Deployment Guide
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.1.0  
 **Target Environment:** Selectel Moscow VDS  
 **Server IP:** `135.106.172.157`  
+**Domain:** `https://iventlyapp.ru`  
 **Operating System:** Ubuntu 24.04 LTS 64-bit  
 **Specifications:** 2 vCPU, 4 GB RAM, 50 GB NVMe  
-**Status:** Staging / Production Deployment Runbook  
+**Status:** Staging / Production Deployment Runbook (HTTPS Active)  
 **Security Level:** Production-Hardened (No secrets committed)
 
 ---
@@ -17,7 +18,7 @@ The Ivently production stack on Selectel is designed as a minimal, reliable, sel
 ```
 [ Internet / Telegram Clients ]
                │
-               ▼  Ports 80 & 443
+               ▼  Ports 80 & 443 (Domain: iventlyapp.ru)
    ┌───────────────────────┐
    │ Caddy Reverse Proxy   │ (Automatic Let's Encrypt TLS, HTTP/2 & HTTP/3)
    └───────────┬───────────┘
@@ -154,9 +155,9 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
       start_period: 25s
     networks:
       - ivently-net
@@ -165,14 +166,14 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=ivently_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=ivently_prod
+      POSTGRES_USER: ivently_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ivently_prod
     volumes:
       - /var/lib/ivently/postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ivently_user -d ivently_prod"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
@@ -189,7 +190,7 @@ networks:
 
 ### 3.3 `/opt/ivently/Caddyfile`
 ```caddy
-{$PUBLIC_HOST} {
+iventlyapp.ru {
     encode gzip zstd
 
     # Direct static file serving for uploads with immutable caching
@@ -203,7 +204,6 @@ networks:
     handle {
         reverse_proxy app:8000 {
             header_up X-Forwarded-Proto https
-            header_up X-Forwarded-Host {host}
         }
     }
 }
@@ -224,7 +224,7 @@ APP_ENV=production
 DEBUG=false
 PORT=8000
 HOST=0.0.0.0
-PUBLIC_HOST=135.106.172.157 # or custom domain when DNS configured
+PUBLIC_HOST=iventlyapp.ru
 CORS_ORIGINS=*
 
 # ==================================================
@@ -376,15 +376,26 @@ chmod 644 /etc/cron.d/ivently-backup
 ## 9. Current Deployment Status & Verification Matrix
 
 - **Server IP**: `135.106.172.157` (Selectel Moscow)
-- **Base OS & Security**: Ubuntu 24.04 LTS, UFW active (22, 80, 443 allowed; 5432 private).
+- **Domain**: `https://iventlyapp.ru` (delegation active, DNS resolves globally to `135.106.172.157`)
+- **Public TLS / SSL**: Valid Let's Encrypt production certificate issued automatically by Caddy (HTTP/2 & HTTP/3 ALPN, 90-day automatic renewal cycle).
+- **HTTP -> HTTPS Redirect**: Fully functional (HTTP 308 Permanent Redirect on port 80).
+- **Base OS & Security**: Ubuntu 24.04 LTS, UFW active (22, 80, 443 allowed; 5432 strictly internal).
 - **Containers**:
   - `ivently-caddy-1` (`caddy:2-alpine`): Running on ports 80 & 443.
   - `ivently-app-1` (`ivently-app:latest`): Running on internal port 8000, `HEALTHY`.
   - `ivently-db-1` (`postgres:16-alpine`): Running on internal port 5432, `HEALTHY`.
+- **Endpoints Verified via HTTPS**:
+  - `https://iventlyapp.ru/health` -> HTTP 200 `{"status":"healthy",...}`
+  - `https://iventlyapp.ru/` -> HTTP 200 (React 19 SPA)
+  - `https://iventlyapp.ru/api/v1/categories` -> HTTP 200 (7 categories)
+  - `https://iventlyapp.ru/api/v1/events?limit=2` -> HTTP 200 (Events catalog)
+  - `https://iventlyapp.ru/uploads/covers/...` -> HTTP 200 (`Cache-Control: public, max-age=2592000, immutable`)
+  - `https://iventlyapp.ru/uploads/avatars/...` -> HTTP 200 (Avatars served)
 - **Database Initialized**: All 18 tables created and seeded (1134 cities, 30 events, 7 categories).
 - **Media Transferred**: 136 covers, 58 avatars (`/var/lib/ivently/uploads/`, permissions `1000:1000`).
-- **Persistence & Reboot**: Tested via `docker compose restart` and `systemctl restart docker`. All services recover to healthy within 15 seconds; database data preserved.
+- **Persistence & Reboot**: Tested via `docker compose restart` and `systemctl restart docker`. All services recover to healthy within 15 seconds; database data and TLS certificates preserved in volumes.
 - **Automated Backup**: Tested via `/usr/local/bin/backup-ivently.sh`. Valid custom pg_dump archive generated and verified with `pg_restore -l`. Daily cron configured at 03:00 MSK with 14-day rotation.
 - **Monetization Safety**: `PAYMENTS_ENABLED=false` strictly enforced in `.env`.
-- **Telegram Production Isolation**: Railway (`https://ivently.up.railway.app`) remains 100% untouched and active as the production environment until domain and SSL cutover is approved by the owner.
+- **Telegram Production Isolation**: Railway (`https://ivently.up.railway.app`) remains 100% untouched and active as the production environment until domain and Telegram webhook cutover is approved by the owner.
+
 
