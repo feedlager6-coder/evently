@@ -119,7 +119,7 @@ async def telegram_info():
 
     if token_configured:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 me_resp = await client.get(f"https://api.telegram.org/bot{settings.clean_bot_token}/getMe")
                 if me_resp.status_code == 200 and me_resp.json().get("ok"):
                     diag["telegram_api_reachable"] = True
