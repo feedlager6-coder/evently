@@ -25,6 +25,7 @@ services:
       - .env
     volumes:
       - /var/lib/ivently/uploads:/app/uploads
+      - ./backend:/app/backend
     extra_hosts:
       - "api.telegram.org:149.154.167.220"
     depends_on:

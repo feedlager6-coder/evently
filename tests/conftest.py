@@ -22,6 +22,7 @@ from app.seeds.seed_data import seed_database
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 TEST_BOT_TOKEN = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ_testtoken"
+settings.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN
 
 
 def make_test_init_data(

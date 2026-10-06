@@ -33,6 +33,7 @@ async def get_current_user_optional(
     except AuthenticationError:
         return None
     except Exception:
+        await session.rollback()
         return None
 
 
@@ -66,6 +67,7 @@ async def get_current_user(
             detail=f"Telegram authentication failed: {str(e)}"
         )
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Authentication error: {str(e)}"

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
+    ADMIN_IDS: Optional[str] = None
 
     # Security & Networking
     SECRET_KEY: str = "evently_mvp_secret_key_change_in_production_32bytes"
@@ -220,10 +221,14 @@ class Settings(BaseSettings):
     def admin_ids(self) -> List[int]:
         """Returns parsed list of integer admin Telegram IDs."""
         ids: List[int] = []
-        for part in self.ADMIN_USER_IDS.split(","):
-            part = part.strip()
-            if part.isdigit():
-                ids.append(int(part))
+        raw_values = [self.ADMIN_USER_IDS, self.ADMIN_IDS or ""]
+        for raw in raw_values:
+            for part in raw.split(","):
+                part = part.strip()
+                if part.isdigit():
+                    val = int(part)
+                    if val not in ids:
+                        ids.append(val)
         return ids
 
     def is_admin(self, telegram_id: int) -> bool:

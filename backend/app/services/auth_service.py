@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.models.user import User
+from app.models.city import City
 from app.schemas.telegram import TelegramUserPayload, TelegramInitDataParsed
 
 
@@ -108,13 +109,20 @@ async def get_or_create_user(session: AsyncSession, tg_user: TelegramUserPayload
             await session.commit()
             await session.refresh(user)
     else:
+        # Resolve default city safely against database to avoid FK violation
+        city_id = "makhachkala"
+        city_check = await session.execute(select(City.id).where(City.id == city_id))
+        if not city_check.scalar_one_or_none():
+            first_city = await session.execute(select(City.id).limit(1))
+            city_id = first_city.scalar_one_or_none()
+
         user = User(
             telegram_id=tg_user.id,
             username=tg_user.username,
             first_name=tg_user.first_name,
             last_name=tg_user.last_name,
             avatar_url=tg_user.photo_url,
-            default_city_id="warsaw"  # Default city
+            default_city_id=city_id
         )
         session.add(user)
         await session.commit()
