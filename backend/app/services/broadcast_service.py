@@ -1,5 +1,6 @@
 import asyncio
 import html
+import json
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -579,9 +580,11 @@ async def dispatch_broadcast(
         await session.commit()
 
         cover_image_url = None
+        local_cover_path = None
         if event and event.cover_image_url:
-            from app.services.notification_service import resolve_event_cover_url
+            from app.services.notification_service import resolve_event_cover_url, resolve_local_cover_path
             cover_image_url = resolve_event_cover_url(event.cover_image_url)
+            local_cover_path = resolve_local_cover_path(event.cover_image_url)
 
         payload = {
             "chat_id": tg_id,
@@ -594,7 +597,62 @@ async def dispatch_broadcast(
 
         try:
             resp = None
-            if cover_image_url:
+            photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+
+            # Priority 1: If local file exists, upload multipart directly to avoid external URL fetch issues
+            if local_cover_path:
+                try:
+                    photo_bytes = local_cover_path.read_bytes()
+                    files = {"photo": (local_cover_path.name, photo_bytes, "image/jpeg")}
+                    data = {
+                        "chat_id": str(tg_id),
+                        "caption": message_text,
+                        "parse_mode": "HTML",
+                        "reply_markup": json.dumps(reply_markup)
+                    }
+                    resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
+                    if resp.status_code == 429:
+                        retry_after = 1
+                        try:
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
+
+                    if resp.status_code == 400:
+                        logger.warning(f"Multipart sendPhoto failed (400), falling back to sendMessage for recipient {rec.user_id}: {resp.text}")
+                        resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        logger.warning(f"Multipart sendPhoto failed with status {resp.status_code} for recipient {rec.user_id}, skipping text fallback to prevent duplicate delivery.")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        await session.commit()
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    logger.warning(f"Multipart sendPhoto network timeout/error for recipient {rec.user_id}: {photo_net_err}. Skipping text fallback to prevent duplicate delivery.")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
+                except Exception as photo_err:
+                    logger.warning(f"Multipart sendPhoto exception for recipient {rec.user_id}: {photo_err}")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
+
+            # Priority 2: Remote image URL
+            elif cover_image_url:
                 photo_payload = {
                     "chat_id": tg_id,
                     "photo": cover_image_url,
@@ -602,16 +660,15 @@ async def dispatch_broadcast(
                     "parse_mode": "HTML",
                     "reply_markup": reply_markup
                 }
-                photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
                 try:
                     resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
                     if resp.status_code == 429:
                         retry_after = 1
                         try:
-                            data = resp.json()
-                            if asyncio.iscoroutine(data):
-                                data = await data
-                            retry_after = data.get("parameters", {}).get("retry_after", 1)
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
                         except Exception:
                             pass
                         await asyncio.sleep(retry_after)
@@ -622,7 +679,6 @@ async def dispatch_broadcast(
                         logger.warning(f"sendPhoto failed (400), falling back to sendMessage for recipient {rec.user_id}: {resp.text}")
                         resp = None
                     elif resp.status_code != 200 and resp.status_code != 403:
-                        # Non-400 failure (5xx server error, etc.) -> DO NOT fallback to sendMessage, mark failed to prevent duplicate send
                         logger.warning(f"sendPhoto failed with status {resp.status_code} for recipient {rec.user_id}, skipping text fallback to prevent duplicate delivery.")
                         rec.status = RecipientStatus.FAILED.value
                         rec.error_code = str(resp.status_code)
@@ -631,9 +687,6 @@ async def dispatch_broadcast(
                         await session.commit()
                         return
                 except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
-                    # CRITICAL FIX: Network timeout or connection drop while sending photo.
-                    # Telegram may have already accepted or queued the photo.
-                    # DO NOT send a duplicate sendMessage!
                     logger.warning(f"sendPhoto network timeout/error for recipient {rec.user_id}: {photo_net_err}. Skipping text fallback to prevent duplicate delivery.")
                     rec.status = RecipientStatus.FAILED.value
                     rec.error_code = "photo_timeout"
@@ -674,45 +727,88 @@ async def dispatch_broadcast(
                         data = await data
                 except Exception:
                     data = {}
-                msg_id = data.get("result", {}).get("message_id") if isinstance(data, dict) else None
-                rec.status = RecipientStatus.SENT.value
-                rec.telegram_message_id = msg_id
-                rec.sent_at = utc_now()
-                broadcast.sent_count += 1
-                broadcast.delivered_count += 1
+
+                # Invariant: ok MUST be True and message_id MUST be present
+                if isinstance(data, dict) and data.get("ok") is False:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = str(data.get("error_code", "200_not_ok"))
+                    rec.error_message = data.get("description", "Telegram API returned ok=false")
+                    broadcast.failed_count += 1
+                else:
+                    msg_id = data.get("result", {}).get("message_id") if isinstance(data, dict) else None
+                    if msg_id:
+                        rec.status = RecipientStatus.SENT.value
+                        rec.telegram_message_id = msg_id
+                        rec.sent_at = utc_now()
+                        broadcast.sent_count += 1
+                        broadcast.delivered_count += 1
+                    else:
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = "missing_message_id"
+                        rec.error_message = "Ответ Telegram не содержит message_id"
+                        broadcast.failed_count += 1
 
             elif resp.status_code == 403:
-                # User blocked the bot
-                rec.status = RecipientStatus.BLOCKED.value
-                rec.error_code = "403"
-                rec.error_message = resp.text
-                broadcast.blocked_count += 1
+                resp_text = resp.text.lower()
+                if "blocked" in resp_text:
+                    rec.status = RecipientStatus.BLOCKED.value
+                    rec.error_code = "403"
+                    rec.error_message = "Пользователь заблокировал бота"
+                    broadcast.blocked_count += 1
 
-                # Disable notification subscription for this organization
-                sub_stmt = (
-                    select(Subscription)
-                    .where(
-                        Subscription.user_id == rec.user_id,
-                        Subscription.organization_id == broadcast.organization_id
+                    # Disable notification subscription for this organization
+                    sub_stmt = (
+                        select(Subscription)
+                        .where(
+                            Subscription.user_id == rec.user_id,
+                            Subscription.organization_id == broadcast.organization_id
+                        )
                     )
-                )
-                sub_res = await session.execute(sub_stmt)
-                sub = sub_res.scalar_one_or_none()
-                if sub:
-                    sub.notifications_enabled = False
-                    logger.info(f"Disabled notifications for user {rec.user_id} in org {broadcast.organization_id} after 403")
+                    sub_res = await session.execute(sub_stmt)
+                    sub = sub_res.scalar_one_or_none()
+                    if sub:
+                        sub.notifications_enabled = False
+                        logger.info(f"Disabled notifications for user {rec.user_id} in org {broadcast.organization_id} after 403 bot_blocked")
+                elif "can't initiate" in resp_text or "cant initiate" in resp_text:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "cant_initiate_conversation"
+                    rec.error_message = "Пользователь не начал диалог с ботом и не разрешил отправку сообщений"
+                    broadcast.failed_count += 1
+                elif "deactivated" in resp_text:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "user_deactivated"
+                    rec.error_message = "Аккаунт пользователя в Telegram деактивирован"
+                    broadcast.failed_count += 1
+                else:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "403_forbidden"
+                    rec.error_message = resp.text[:500]
+                    broadcast.failed_count += 1
+
+            elif resp.status_code == 400:
+                rec.status = RecipientStatus.FAILED.value
+                rec.error_code = "400_bad_request"
+                rec.error_message = resp.text[:500]
+                broadcast.failed_count += 1
+                logger.warning(f"Telegram 400 Bad Request for user {rec.user_id}: {resp.text}")
 
             else:
-                # Any other error code (e.g. 400 Bad Request, 500)
+                # Any other error code (e.g. 500)
                 rec.status = RecipientStatus.FAILED.value
                 rec.error_code = str(resp.status_code)
                 rec.error_message = resp.text[:500]
                 broadcast.failed_count += 1
                 logger.warning(f"Failed to send to user {rec.user_id}: {resp.status_code} {resp.text}")
 
+        except (httpx.TimeoutException, httpx.NetworkError) as net_err:
+            rec.status = RecipientStatus.FAILED.value
+            rec.error_code = "network_timeout" if isinstance(net_err, httpx.TimeoutException) else "network_error"
+            rec.error_message = "Таймаут или ошибка сети при обращении к Telegram API"
+            broadcast.failed_count += 1
+            logger.warning(f"Network error sending to user {rec.user_id}: {net_err}")
         except Exception as e:
             rec.status = RecipientStatus.FAILED.value
-            rec.error_code = "network_error"
+            rec.error_code = "internal_error"
             rec.error_message = str(e)[:500]
             broadcast.failed_count += 1
             logger.warning(f"Exception sending to user {rec.user_id}: {e}")
@@ -734,7 +830,7 @@ async def dispatch_broadcast(
 
     # Determine final broadcast status
     broadcast.completed_at = utc_now()
-    if broadcast.failed_count == 0 and broadcast.blocked_count == 0:
+    if broadcast.failed_count == 0 and broadcast.blocked_count == 0 and broadcast.sent_count > 0:
         broadcast.status = BroadcastStatus.COMPLETED.value
     elif broadcast.sent_count > 0:
         broadcast.status = BroadcastStatus.PARTIALLY_FAILED.value

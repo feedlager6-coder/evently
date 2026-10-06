@@ -345,7 +345,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "text": (
                     f"⛔ <b>У вас нет прав администратора</b> для использования этой команды.\n\n"
                     f"Ваш Telegram ID: <code>{user_id}</code>\n\n"
-                    f"Чтобы получить доступ к панели модерации, добавьте этот ID в переменную окружения <code>ADMIN_USER_IDS</code> в настройках проекта на Railway."
+                    f"Чтобы получить доступ к панели модерации, добавьте этот ID в переменную окружения <code>ADMIN_USER_IDS</code> в настройках проекта Ivently."
                 ),
                 "parse_mode": "HTML"
             }

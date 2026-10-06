@@ -1,8 +1,8 @@
 import math
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 
 from app.database import get_db
 from app.models.city import City
@@ -30,16 +30,25 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
 
 @router.get("", response_model=List[CityResponse])
 async def get_cities(
+    response: Response,
     q: Optional[str] = Query(None, description="Search city by name"),
+    limit: Optional[int] = Query(None, description="Limit result count", ge=1, le=2000),
     session: AsyncSession = Depends(get_db)
 ):
-    """Returns list of active supported cities with optional search filtering."""
-    query = select(City).where(City.is_active == True).order_by(City.name.asc())
-    result = await session.execute(query)
+    """Returns list of active supported cities with search filtering and HTTP caching."""
+    stmt = select(City).where(City.is_active == True).order_by(City.name.asc())
+    result = await session.execute(stmt)
     cities = list(result.scalars().all())
+
     if q and q.strip():
         term = q.strip().lower()
         cities = [c for c in cities if term in c.name.lower() or term in c.id.lower()]
+
+    if limit:
+        cities = cities[:limit]
+
+    # Cache catalog response for 24 hours to accelerate client warm startups
+    response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
     return cities
 
 

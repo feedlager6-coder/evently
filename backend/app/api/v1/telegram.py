@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import settings
-from app.services.telegram_bot import handle_inline_query, handle_private_message
+from app.services.telegram_bot import handle_inline_query, handle_private_message, build_mini_app_button
 
 logger = logging.getLogger("evently.telegram_webhook")
 
@@ -22,6 +22,7 @@ async def telegram_webhook(
     Ingests and routes Telegram updates:
     - inline_query (@evently ...) -> handle_inline_query
     - message (/start, /create, /admin, /help) -> handle_private_message
+    - write_access_allowed -> handles permission grant confirmation
 
     Ensures zero silent drop:
     If live bot token is present and online, dispatches directly via Telegram Bot API.
@@ -63,7 +64,28 @@ async def telegram_webhook(
 
         elif "message" in update:
             msg = update["message"]
-            reply_payload = handle_private_message(msg)
+            if "write_access_allowed" in msg:
+                chat_id = msg.get("chat", {}).get("id")
+                user_id = msg.get("from", {}).get("id")
+                logger.info(f"Telegram write_access_allowed received for user {user_id} in chat {chat_id}")
+                reply_payload = {
+                    "chat_id": chat_id,
+                    "text": (
+                        "🔔 <b>Уведомления включены!</b>\n\n"
+                        "Теперь вы будете вовремя узнавать о событиях, изменениях в расписании "
+                        "и новостях площадок, на которые подписаны."
+                    ),
+                    "parse_mode": "HTML",
+                    "reply_markup": {
+                        "inline_keyboard": [
+                            [
+                                build_mini_app_button("🧭 Открыть Ivently", style="primary")
+                            ]
+                        ]
+                    }
+                }
+            else:
+                reply_payload = handle_private_message(msg)
             if reply_payload:
                 dispatched = False
                 if settings.is_live_bot:

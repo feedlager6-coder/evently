@@ -254,6 +254,26 @@ export const telegram = {
     window.open(url, '_blank');
   },
 
+  async requestWriteAccess(): Promise<boolean> {
+    try {
+      const wa = (window.Telegram?.WebApp as any);
+      if (wa && typeof wa.requestWriteAccess === 'function') {
+        return await new Promise<boolean>((resolve) => {
+          try {
+            wa.requestWriteAccess((allowed: boolean) => {
+              resolve(Boolean(allowed));
+            });
+          } catch {
+            resolve(false);
+          }
+        });
+      }
+    } catch {
+      // Ignored outside Telegram
+    }
+    return false;
+  },
+
   async requestLocation(): Promise<{ latitude: number; longitude: number } | null> {
     // 1. Try official Telegram WebApp LocationManager (Bot API 8.0+)
     const tgLocationManager = (window.Telegram?.WebApp as any)?.LocationManager;

@@ -19,6 +19,36 @@ from app.database import AsyncSessionLocal
 logger = logging.getLogger("evently.notifications")
 
 
+from pathlib import Path
+import json
+
+
+def resolve_local_cover_path(url: Optional[str]) -> Optional[Path]:
+    """
+    If event cover image points to a local upload (/uploads/...), checks if the file
+    exists on disk in the persistent uploads directory.
+    Returns the absolute Path if present, otherwise None.
+    """
+    if not url or not url.strip():
+        return None
+    clean = url.strip()
+    if clean.startswith("/uploads/"):
+        rel_path = clean[len("/uploads/"):]
+    elif clean.startswith("uploads/"):
+        rel_path = clean[len("uploads/"):]
+    else:
+        return None
+    try:
+        from app.services.storage_service import storage_service
+        local_dir = storage_service.get_local_storage_dir()
+        candidate = local_dir / rel_path
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    except Exception:
+        pass
+    return None
+
+
 def resolve_event_cover_url(url: Optional[str]) -> Optional[str]:
     """
     Ensures event cover URL sent to Telegram is a valid absolute HTTP/HTTPS URL, or None.
@@ -44,14 +74,53 @@ async def send_telegram_event_message(
     chat_id: int,
     text: str,
     reply_markup: Dict[str, Any],
-    image_url: Optional[str] = None
+    image_url: Optional[str] = None,
+    raw_image_url: Optional[str] = None
 ) -> bool:
     """
-    Delivers a unified Telegram photo+caption message if image_url is available,
+    Delivers a unified Telegram photo+caption message if image_url or local file is available,
     with an immediate and graceful fallback to standard sendMessage if sendPhoto fails
     or if image_url is not provided.
     """
-    if image_url:
+    # 1. First priority: if local upload exists, upload directly via multipart to avoid external crawler issues
+    local_path = resolve_local_cover_path(raw_image_url or image_url)
+    if local_path:
+        try:
+            photo_bytes = local_path.read_bytes()
+            files = {"photo": (local_path.name, photo_bytes, "image/jpeg")}
+            data = {
+                "chat_id": str(chat_id),
+                "caption": text,
+                "parse_mode": "HTML",
+                "reply_markup": json.dumps(reply_markup)
+            }
+            resp = await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+                data=data,
+                files=files,
+                timeout=8.0
+            )
+            if resp.status_code == 200:
+                resp_json = resp.json() if resp.text else {}
+                if resp_json.get("ok") is not False:
+                    return True
+            if resp.status_code == 400:
+                logger.warning(
+                    f"Multipart sendPhoto rejected with status 400 for chat_id {chat_id}, falling back to sendMessage: {resp.text}"
+                )
+            else:
+                logger.warning(
+                    f"Multipart sendPhoto failed with status {resp.status_code} for chat_id {chat_id}, skipping text fallback to prevent duplicate delivery."
+                )
+                return False
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning(f"Multipart sendPhoto network timeout/error for chat_id {chat_id}: {e}. Skipping text fallback.")
+            return False
+        except Exception as e:
+            logger.warning(f"Multipart sendPhoto exception for chat_id {chat_id}: {e}")
+            return False
+
+    elif image_url:
         photo_payload = {
             "chat_id": chat_id,
             "photo": image_url,
@@ -63,10 +132,12 @@ async def send_telegram_event_message(
             resp = await client.post(
                 f"https://api.telegram.org/bot{bot_token}/sendPhoto",
                 json=photo_payload,
-                timeout=5.0
+                timeout=6.0
             )
             if resp.status_code == 200:
-                return True
+                resp_json = resp.json() if resp.text else {}
+                if resp_json.get("ok") is not False:
+                    return True
             if resp.status_code == 400:
                 logger.warning(
                     f"sendPhoto rejected with status 400 for chat_id {chat_id}, falling back to sendMessage: {resp.text}"
@@ -230,7 +301,8 @@ async def _dispatch_notifications(
             chat_id=tg_id,
             text=message_text,
             reply_markup=reply_markup,
-            image_url=image_url
+            image_url=image_url,
+            raw_image_url=event.cover_image_url
         )
         if ok:
             sent_count += 1
@@ -340,7 +412,8 @@ async def notify_event_updated(
             chat_id=tg_id,
             text=message_text,
             reply_markup=reply_markup,
-            image_url=image_url
+            image_url=image_url,
+            raw_image_url=event.cover_image_url
         )
         if ok:
             sent_count += 1
@@ -431,7 +504,8 @@ async def notify_event_cancelled(
             chat_id=tg_id,
             text=message_text,
             reply_markup=reply_markup,
-            image_url=image_url
+            image_url=image_url,
+            raw_image_url=event.cover_image_url
         )
         if ok:
             sent_count += 1

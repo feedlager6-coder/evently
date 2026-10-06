@@ -26,6 +26,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   Users,
   Eye,
   Heart,
@@ -271,7 +272,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState<boolean>(false);
-  const [broadcastNotice, setBroadcastNotice] = useState<string | null>(null);
+  const [broadcastNotice, setBroadcastNotice] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
 
   useEffect(() => {
@@ -389,10 +390,28 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         custom_text: composerCustomText || undefined,
       });
       setIsComposerOpen(false);
-      setBroadcastNotice(`Рассылка отправлена (${detail.sent_count}/${detail.total_recipients} доставлено)`);
+      if (detail.sent_count > 0 && detail.failed_count === 0 && detail.blocked_count === 0) {
+        setBroadcastNotice({
+          type: 'success',
+          text: `Рассылка успешно доставлена в Telegram (${detail.sent_count}/${detail.total_recipients})`
+        });
+        telegram.hapticSuccess();
+      } else if (detail.sent_count > 0) {
+        setBroadcastNotice({
+          type: 'warning',
+          text: `Рассылка частично отправлена: ${detail.sent_count} из ${detail.total_recipients} (не доставлено: ${detail.failed_count + detail.blocked_count})`
+        });
+        telegram.hapticNotification('warning');
+      } else {
+        setBroadcastNotice({
+          type: 'error',
+          text: `Рассылка не доставлена: получатели не начали диалог с ботом или заблокировали его (${detail.failed_count + detail.blocked_count}/${detail.total_recipients})`
+        });
+        telegram.hapticNotification('error');
+      }
       loadBroadcasts();
       loadEntitlements();
-      setTimeout(() => setBroadcastNotice(null), 5000);
+      setTimeout(() => setBroadcastNotice(null), 6000);
     } catch (err: any) {
       telegram.hapticImpact('heavy');
       console.error('Failed to send broadcast:', err);
@@ -501,9 +520,17 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         />
 
         {broadcastNotice && (
-          <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{broadcastNotice}</span>
+          <div className={`p-3 rounded-2xl border text-xs flex items-center space-x-2 animate-fade-in ${
+            broadcastNotice.type === 'success'
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+              : broadcastNotice.type === 'warning'
+              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+              : 'bg-red-500/15 border-red-500/30 text-red-300'
+          }`}>
+            {broadcastNotice.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+            {broadcastNotice.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+            {broadcastNotice.type === 'error' && <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />}
+            <span>{broadcastNotice.text}</span>
           </div>
         )}
 
@@ -2209,7 +2236,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400">Статус:</span>
-                  <span className="font-semibold text-emerald-400">{selectedBroadcast.status}</span>
+                  <span className={`font-semibold ${
+                    selectedBroadcast.status === 'completed'
+                      ? 'text-emerald-400'
+                      : selectedBroadcast.status === 'partially_failed'
+                      ? 'text-amber-400'
+                      : selectedBroadcast.status === 'failed'
+                      ? 'text-red-400'
+                      : 'text-indigo-400'
+                  }`}>
+                    {selectedBroadcast.status === 'completed'
+                      ? 'Доставлено'
+                      : selectedBroadcast.status === 'partially_failed'
+                      ? 'Частично доставлено'
+                      : selectedBroadcast.status === 'failed'
+                      ? 'Не доставлено'
+                      : selectedBroadcast.status === 'processing'
+                      ? 'В процессе...'
+                      : selectedBroadcast.status}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-white/5">
                   <span className="text-gray-400">Доставлено:</span>
@@ -2225,7 +2270,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 )}
                 {selectedBroadcast.failed_count > 0 && (
                   <div className="flex items-center justify-between text-red-400">
-                    <span>Ошибок отправки:</span>
+                    <span>Не доставлено (не начат диалог):</span>
                     <span>{selectedBroadcast.failed_count} чел.</span>
                   </div>
                 )}
