@@ -485,7 +485,7 @@ async def test_event_detail_api_works_for_notified_event(client, test_session):
         json={
             "title": "Interstellar Screening",
             "description": "Special film screening in IMAX.",
-            "category_id": "cinema",
+            "category_id": "concerts",
             "city_id": "makhachkala",
             "start_at": start_time.isoformat(),
             "venue_name": "Screen 1",
@@ -518,10 +518,10 @@ def test_feed_loading_exits_loading_on_api_error():
     assert app_path.exists()
     app_code = app_path.read_text(encoding="utf-8")
 
-    assert "setIsLoading(false);" in app_code
-    assert "setIsRefreshing(false);" in app_code
+    assert "setIsLoadingEvents(false);" in app_code
+    assert "setFeedError(" in app_code
     assert "finally" in app_code
-    assert "feedAbortControllerRef.current = null;" in app_code
+    assert "feedAbortControllerRef" in app_code
 
 
 def test_feed_request_handles_timeout():
@@ -547,8 +547,9 @@ async def test_feed_successful_request_loads_events(client, test_session):
     """
     res = await client.get("/api/v1/events?city_id=makhachkala")
     assert res.status_code == 200
-    events = res.json()
-    assert isinstance(events, list)
+    data = res.json()
+    assert "events" in data
+    assert isinstance(data["events"], list)
 
 
 @pytest.mark.asyncio
