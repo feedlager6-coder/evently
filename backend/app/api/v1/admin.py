@@ -182,15 +182,28 @@ async def admin_set_organization_plan(
 
 @router.post("/reminders/process")
 async def admin_process_reminders(
+    force_all_daytime: bool = False,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
     Manually triggers processing of due event reminders.
-    Safe, idempotent, and daytime-aware.
+    Safe, idempotent, and daytime-aware (or forced for testing).
     """
     from app.services.reminder_service import process_due_reminders
-    report = await process_due_reminders(session)
+    report = await process_due_reminders(session, force_all_daytime=force_all_daytime)
     return {"status": "ok", "report": report}
+
+
+@router.get("/reminders/diagnostics")
+async def admin_get_reminder_diagnostics(
+    admin: User = Depends(require_admin),
+):
+    """
+    Returns diagnostics on periodic reminders: last run, lifetime stats, and window rules.
+    """
+    from app.services.reminder_service import get_reminder_diagnostics
+    return get_reminder_diagnostics()
+
 
 

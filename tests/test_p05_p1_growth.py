@@ -290,6 +290,26 @@ async def test_admin_process_reminders_endpoint(client, test_session, monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_admin_reminder_diagnostics_endpoint(client, monkeypatch):
+    """
+    P1: Verify admin endpoint GET /api/v1/admin/reminders/diagnostics
+    - Requires admin access
+    - Returns policy rules and last run telemetry
+    """
+    monkeypatch.setattr(settings, "ADMIN_USER_IDS", "1110001")
+    admin_init_data = make_test_init_data(user_id=1110001, username="admin_super")
+    headers = {"Authorization": f"tma {admin_init_data}"}
+
+    resp = await client.get("/api/v1/admin/reminders/diagnostics", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "policy" in data
+    assert data["policy"]["min_local_hour"] == 9
+    assert data["policy"]["window_horizon_hours"] == 24
+    assert "total_sent_lifetime" in data
+
+
+@pytest.mark.asyncio
 async def test_free_vs_pro_broadcast_quota_and_operational_isolation(test_session):
     """
     P0.5 & P1: Verify:

@@ -332,14 +332,50 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               <div className="text-[11px] text-gray-400 px-1">
                 Мероприятия, опубликованные вами
               </div>
-              {myCreatedEvents.map((event) => (
-                <div key={event.id} className="hover:opacity-95 transition-opacity">
-                  <EventCard
-                    event={event}
-                    onClick={() => onEventClick(event)}
-                  />
-                </div>
-              ))}
+              {myCreatedEvents.map((event) => {
+                const interestCount = event.interest_count || 0;
+                const isUpcoming = new Date(event.start_at) >= now;
+
+                return (
+                  <div key={event.id} className="space-y-2">
+                    <div className="hover:opacity-95 transition-opacity">
+                      <EventCard
+                        event={event}
+                        onClick={() => onEventClick(event)}
+                      />
+                    </div>
+                    {/* Contextual Pro Trigger Banner for author */}
+                    {isUpcoming && interestCount > 0 && (
+                      <div
+                        onClick={() => {
+                          telegram.hapticImpact('light');
+                          if (isOrganizer) {
+                            onOpenOrganizerWorkspace();
+                          } else {
+                            onOpenCreateOrg();
+                          }
+                        }}
+                        className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 flex items-center justify-between gap-2.5 cursor-pointer hover:border-purple-500/40 transition-all text-xs"
+                      >
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="text-base shrink-0">🔥</span>
+                          <div className="min-w-0">
+                            <span className="text-white font-medium">
+                              <strong className="text-purple-300 font-semibold">{interestCount}</strong> {interestCount === 1 ? 'человек хочет' : 'человек хотят'} пойти
+                            </span>
+                            <div className="text-[11px] text-gray-400 truncate">
+                              Аудитория собрана • Отправить рассылку в Pro
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-purple-400 font-semibold text-[11px] shrink-0 flex items-center gap-0.5">
+                          В кабинет →
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

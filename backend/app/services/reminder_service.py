@@ -16,6 +16,28 @@ from app.services.notification_service import notify_event_reminder
 
 logger = logging.getLogger("evently.reminders")
 
+# In-memory diagnostic tracker for service transparency
+_last_reminder_run: Optional[Dict[str, Any]] = None
+_total_reminders_sent: int = 0
+
+
+def get_reminder_diagnostics() -> Dict[str, Any]:
+    """
+    Returns runtime diagnostics of the reminder subsystem without PII.
+    """
+    return {
+        "last_run": _last_reminder_run,
+        "total_sent_lifetime": _total_reminders_sent,
+        "schedule_interval_seconds": 900,
+        "policy": {
+            "window_horizon_hours": 24,
+            "min_local_hour": 9,
+            "allowed_days": "same_day_of_event",
+            "eligible_states": ["attending", "interested"],
+            "idempotency_key": "(event_id, user_id, 'same_day')"
+        }
+    }
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -150,6 +172,7 @@ async def process_due_reminders(
                     f"Failed sending reminder for event {event.id} to user {uid}: {send_err}"
                 )
 
+    global _last_reminder_run, _total_reminders_sent
     report = {
         "timestamp": now.isoformat(),
         "events_checked": events_checked,
@@ -157,5 +180,7 @@ async def process_due_reminders(
         "reminders_sent": reminders_sent,
         "reminders_skipped": reminders_skipped,
     }
+    _last_reminder_run = report
+    _total_reminders_sent += reminders_sent
     logger.info(f"Reminder loop completed: {report}")
     return report

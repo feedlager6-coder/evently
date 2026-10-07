@@ -1027,6 +1027,28 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             <span className="text-gray-400">идут</span>
                           </div>
                         )}
+
+                        {ev.status === 'published' && (ev.interest_count || 0) > 0 && (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (entitlements?.plan === 'pro') {
+                                handleTabChange('broadcasts');
+                                handleOpenComposer(ev.id, ev.organization_id);
+                              } else {
+                                setIsProModalOpen(true);
+                              }
+                            }}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press"
+                          >
+                            <span className="truncate">
+                              💬 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти. Отправить предложение?
+                            </span>
+                            <span className="text-[10px] font-bold text-purple-400 shrink-0 ml-1.5 underline">
+                              {entitlements?.plan === 'pro' ? 'Рассылка →' : 'Тариф Pro →'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

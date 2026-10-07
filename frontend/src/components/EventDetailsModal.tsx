@@ -117,7 +117,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
-    const shareText = `🧭 ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\nСмотрите в Ivently:`;
+    const shareText = `🎟 ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\n👉 Открыть в Ivently:`;
 
     // 1. If running inside Telegram, use native Telegram share picker
     if (telegram.isAvailable()) {
@@ -146,11 +146,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     // 3. Clipboard copy fallback
     if (!shared) {
       try {
+        const fullShareText = `${shareText}\n${shareUrl}`;
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(shareUrl);
+          await navigator.clipboard.writeText(fullShareText);
         } else {
           const textArea = document.createElement('textarea');
-          textArea.value = shareUrl;
+          textArea.value = fullShareText;
           document.body.appendChild(textArea);
           textArea.select();
           document.execCommand('copy');
@@ -400,6 +401,22 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             </button>
           )}
 
+          {/* Organizer Pro Trigger banner inside event details */}
+          {canEdit && (event.interest_count || 0) > 0 && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  <span>🔥</span>
+                  <span><strong>{event.interest_count}</strong> {getInterestedWord(event.interest_count)}</span>
+                </span>
+                <span className="text-[11px] text-purple-300 font-medium">Аудитория события</span>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Пользователи проявили интерес к вашему событию. В личном кабинете доступна отправка рассылки для конверсии в участников.
+              </p>
+            </div>
+          )}
+
           {/* Social Discovery: «Найти компанию» entry card */}
           {isPast ? (
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 opacity-60">
@@ -451,24 +468,20 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3 space-y-2">
           {isPast ? (
             <div className="py-1">
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
-                <div className="space-y-0.5">
-                  <div className="text-white font-semibold">Мероприятие завершено</div>
-                  <div className="text-[11px] text-gray-400">Событие находится в архиве</div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-1">
+                <div className="text-sm font-semibold text-white flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
+                  <span>Мероприятие завершено</span>
                 </div>
-                {event.is_attending ? (
-                  <span className="text-emerald-400 font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[11px]">
-                    ✓ Вы были участником
-                  </span>
-                ) : event.current_user_interested ? (
-                  <span className="text-purple-300 font-semibold px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-[11px]">
-                    ✓ Вы сохраняли событие
-                  </span>
-                ) : (
-                  <span className="text-gray-400 font-medium px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[11px]">
-                    Архив
-                  </span>
-                )}
+                <div className="text-xs">
+                  {event.is_attending ? (
+                    <span className="text-emerald-400 font-medium">✓ Вы были участником этого события</span>
+                  ) : event.current_user_interested ? (
+                    <span className="text-indigo-300 font-medium">✓ Вы сохраняли это событие в избранное</span>
+                  ) : (
+                    <span className="text-gray-400">Событие находится в архиве</span>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

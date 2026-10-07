@@ -73,11 +73,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
 
-    # Start periodic reminder runner in background (checks every 15 minutes)
+    # Start periodic reminder runner in background (initial run at +5s, then every 15 minutes)
     async def reminder_loop():
+        # Short initial warm-up delay for DB connections and app initialization
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            return
+
         while True:
             try:
-                await asyncio.sleep(900)
                 async with AsyncSessionLocal() as session:
                     from app.services.reminder_service import process_due_reminders
                     await process_due_reminders(session)
@@ -85,6 +90,11 @@ async def lifespan(app: FastAPI):
                 break
             except Exception as e:
                 logger.error(f"Error in periodic reminder runner: {e}")
+
+            try:
+                await asyncio.sleep(900)
+            except asyncio.CancelledError:
+                break
 
     reminder_task = asyncio.create_task(reminder_loop())
 
