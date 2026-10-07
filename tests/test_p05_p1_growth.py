@@ -4,14 +4,16 @@ from unittest.mock import patch, AsyncMock
 from sqlalchemy import select
 
 from tests.conftest import make_test_init_data
+from app.config import settings
 from app.models.event import Event, EventStatus
 from app.models.city import City
+from app.models.category import Category
 from app.models.user import User
 from app.models.attendee import EventAttendee
 from app.models.interest import EventInterest
 from app.models.reminder import EventReminder
 from app.models.organization import Organization, OrganizationStatus
-from app.models.organization_plan import OrganizationPlan
+from app.schemas.entitlement import CapabilityStatus
 from app.services.reminder_service import process_due_reminders
 from app.services.entitlement_service import EntitlementService
 
@@ -23,18 +25,23 @@ async def test_past_event_rsvp_rejected(client, test_session):
     """
     user_id = 70001
     init_data = make_test_init_data(user_id=user_id, username="past_rsvp_user")
+    headers = {"Authorization": f"tma {init_data}"}
+
+    # Fetch required relationships
+    city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
 
     # Create an event in the past
-    city = (await test_session.execute(select(City))).scalars().first()
     past_event = Event(
         title="Past Rock Concert",
         description="Epic concert in the past",
         city_id=city.id,
-        category="music",
+        category_id=category.id,
         start_at=datetime.now(timezone.utc) - timedelta(days=2),
-        end_at=datetime.now(timezone.utc) - timedelta(days=2, hours=-3),
-        location_name="Rock Stadium",
+        venue_name="Rock Stadium",
         address="Central Ave 1",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     test_session.add(past_event)
@@ -42,7 +49,6 @@ async def test_past_event_rsvp_rejected(client, test_session):
     await test_session.refresh(past_event)
 
     # Attempt RSVP
-    headers = {"X-Telegram-Init-Data": init_data}
     resp = await client.post(f"/api/v1/events/{past_event.id}/rsvp", headers=headers)
     assert resp.status_code == 400
     assert "прошедшее событие" in resp.json()["detail"]
@@ -60,23 +66,27 @@ async def test_past_event_interest_rejected(client, test_session):
     """
     user_id = 70002
     init_data = make_test_init_data(user_id=user_id, username="past_interest_user")
+    headers = {"Authorization": f"tma {init_data}"}
 
     city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
     past_event = Event(
         title="Past Art Gallery",
         description="Historical gallery",
         city_id=city.id,
-        category="art",
+        category_id=category.id,
         start_at=datetime.now(timezone.utc) - timedelta(days=5),
-        location_name="Art Space",
+        venue_name="Art Space",
         address="Art St 12",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     test_session.add(past_event)
     await test_session.commit()
     await test_session.refresh(past_event)
 
-    headers = {"X-Telegram-Init-Data": init_data}
     resp = await client.post(f"/api/v1/events/{past_event.id}/interest", headers=headers)
     assert resp.status_code == 400
     assert "прошедшему событию" in resp.json()["detail"]
@@ -93,23 +103,27 @@ async def test_past_event_company_profile_rejected(client, test_session):
     """
     user_id = 70003
     init_data = make_test_init_data(user_id=user_id, username="past_company_user")
+    headers = {"Authorization": f"tma {init_data}"}
 
     city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
     past_event = Event(
         title="Past Marathon",
         description="City run",
         city_id=city.id,
-        category="sports",
+        category_id=category.id,
         start_at=datetime.now(timezone.utc) - timedelta(days=1),
-        location_name="Park",
+        venue_name="Park",
         address="Park Alley 1",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     test_session.add(past_event)
     await test_session.commit()
     await test_session.refresh(past_event)
 
-    headers = {"X-Telegram-Init-Data": init_data}
     resp = await client.post(
         f"/api/v1/events/{past_event.id}/company-profile",
         headers=headers,
@@ -125,14 +139,18 @@ async def test_past_event_details_accessible(client, test_session):
     P0.5: Verify that past event details can still be retrieved (HTTP 200) for history and review.
     """
     city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
     past_event = Event(
         title="Archived Lecture",
         description="Great lecture",
         city_id=city.id,
-        category="education",
+        category_id=category.id,
         start_at=datetime.now(timezone.utc) - timedelta(days=3),
-        location_name="University Hall",
+        venue_name="University Hall",
         address="Campus 1",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     test_session.add(past_event)
@@ -155,6 +173,8 @@ async def test_reminder_service_same_day_idempotency(test_session):
     - Excludes past events, cancelled events, and deleted events
     """
     city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
     now = datetime.now(timezone.utc)
 
     # User 1: RSVP attendee
@@ -174,10 +194,11 @@ async def test_reminder_service_same_day_idempotency(test_session):
         title="Today's Festival",
         description="Fun festival today",
         city_id=city.id,
-        category="festivals",
+        category_id=category.id,
         start_at=now + timedelta(hours=3),
-        location_name="Main Square",
+        venue_name="Main Square",
         address="Square 1",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     # Cancelled event
@@ -185,10 +206,11 @@ async def test_reminder_service_same_day_idempotency(test_session):
         title="Cancelled Show",
         description="Cancelled",
         city_id=city.id,
-        category="theatre",
+        category_id=category.id,
         start_at=now + timedelta(hours=4),
-        location_name="Theatre",
+        venue_name="Theatre",
         address="Theatre Lane 2",
+        organizer_user_id=org_user.id,
         status=EventStatus.CANCELLED.value
     )
     # Past event
@@ -196,10 +218,11 @@ async def test_reminder_service_same_day_idempotency(test_session):
         title="Past Meetup",
         description="Done",
         city_id=city.id,
-        category="meetup",
+        category_id=category.id,
         start_at=now - timedelta(hours=2),
-        location_name="Cafe",
+        venue_name="Cafe",
         address="Cafe 5",
+        organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
     test_session.add_all([active_event, cancelled_event, past_event])
@@ -240,19 +263,16 @@ async def test_reminder_service_same_day_idempotency(test_session):
 
 
 @pytest.mark.asyncio
-async def test_admin_process_reminders_endpoint(client, test_session):
+async def test_admin_process_reminders_endpoint(client, test_session, monkeypatch):
     """
     P1: Verify admin endpoint POST /api/v1/admin/reminders/process
     - Requires admin access
     - Returns report correctly
     """
-    # Setup admin user
-    admin = User(telegram_id=1110001, username="admin_super", is_admin=True)
-    test_session.add(admin)
-    await test_session.commit()
+    monkeypatch.setattr(settings, "ADMIN_USER_IDS", "1110001")
 
     admin_init_data = make_test_init_data(user_id=1110001, username="admin_super")
-    headers = {"X-Telegram-Init-Data": admin_init_data}
+    headers = {"Authorization": f"tma {admin_init_data}"}
 
     with patch("app.services.reminder_service.notify_event_reminder", new_callable=AsyncMock) as mock_notify:
         mock_notify.return_value = True
@@ -265,7 +285,7 @@ async def test_admin_process_reminders_endpoint(client, test_session):
 
     # Non-admin user rejected
     regular_init_data = make_test_init_data(user_id=888888, username="regular_user")
-    resp_reg = await client.post("/api/v1/admin/reminders/process", headers={"X-Telegram-Init-Data": regular_init_data})
+    resp_reg = await client.post("/api/v1/admin/reminders/process", headers={"Authorization": f"tma {regular_init_data}"})
     assert resp_reg.status_code == 403
 
 
@@ -296,12 +316,12 @@ async def test_free_vs_pro_broadcast_quota_and_operational_isolation(test_sessio
 
     ent_free = await EntitlementService.get_entitlements(test_session, org_free.id)
     assert ent_free.plan == "free"
-    assert ent_free.can_broadcast is False
-    assert ent_free.broadcasts_remaining == 0
+    assert ent_free.limits.broadcasts_remaining == 0
+    assert ent_free.capabilities["custom_broadcasts"].status == CapabilityStatus.LOCKED
 
     # Upgrade to Pro
     await EntitlementService.set_organization_plan(test_session, org_free.id, plan="pro", status_val="active")
     ent_pro = await EntitlementService.get_entitlements(test_session, org_free.id)
     assert ent_pro.plan == "pro"
-    assert ent_pro.can_broadcast is True
-    assert ent_pro.broadcasts_remaining == 20
+    assert ent_pro.limits.broadcasts_remaining == 20
+    assert ent_pro.capabilities["custom_broadcasts"].status == CapabilityStatus.AVAILABLE
