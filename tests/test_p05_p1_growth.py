@@ -51,12 +51,12 @@ async def test_past_event_rsvp_rejected(client, test_session):
     # Attempt RSVP
     resp = await client.post(f"/api/v1/events/{past_event.id}/rsvp", headers=headers)
     assert resp.status_code == 400
-    assert "прошедшее событие" in resp.json()["detail"]
+    assert "завершено" in resp.json()["detail"]
 
     # Attempt un-RSVP
     resp_del = await client.delete(f"/api/v1/events/{past_event.id}/rsvp", headers=headers)
     assert resp_del.status_code == 400
-    assert "прошедшее событие" in resp_del.json()["detail"]
+    assert "завершено" in resp_del.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -89,11 +89,11 @@ async def test_past_event_interest_rejected(client, test_session):
 
     resp = await client.post(f"/api/v1/events/{past_event.id}/interest", headers=headers)
     assert resp.status_code == 400
-    assert "прошедшему событию" in resp.json()["detail"]
+    assert "завершено" in resp.json()["detail"]
 
     resp_del = await client.delete(f"/api/v1/events/{past_event.id}/interest", headers=headers)
     assert resp_del.status_code == 400
-    assert "прошедшему событию" in resp_del.json()["detail"]
+    assert "завершено" in resp_del.json()["detail"]
 
 
 @pytest.mark.asyncio
