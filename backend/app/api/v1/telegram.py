@@ -14,27 +14,20 @@ logger = logging.getLogger("evently.telegram_webhook")
 router = APIRouter(prefix="/telegram", tags=["Telegram Webhook"])
 
 
-@router.post("/webhook")
-async def telegram_webhook(
+async def dispatch_telegram_update(
     update: Dict[str, Any],
-    session: AsyncSession = Depends(get_db)
-):
+    session: AsyncSession,
+    http_client: Optional[httpx.AsyncClient] = None,
+    bot_token: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Ingests and routes Telegram updates:
-    - inline_query (@evently ...) -> handle_inline_query
-    - message (/start, /create, /admin, /help) -> handle_private_message
-    - write_access_allowed -> handles permission grant confirmation
-
-    Performance & Zero-Latency Guarantee:
-    Returns the Telegram Bot API method directly in the JSON response payload
-    (e.g. {"method": "sendMessage", ...} or {"method": "answerInlineQuery", ...}).
-    Telegram Bot API executes this immediately upon receiving the HTTP 200 response.
-    This guarantees <1ms local processing, eliminating outbound HTTP roundtrips,
-    socket exhaustion, and Telegram webhook timeout / backoff delivery queues.
+    Unified core dispatcher for Telegram updates (used by both webhook and long polling).
+    Returns Bot API payload dict (e.g. {"method": "sendMessage", ...}) or status dict.
+    If http_client is provided (in long-polling mode), dispatches outbound HTTP POST immediately.
     """
     t0 = time.perf_counter()
     update_id = update.get("update_id")
-    logger.info(f"Received Telegram update: update_id={update_id}, keys={list(update.keys())}")
+    token = bot_token or settings.clean_bot_token
 
     try:
         if "inline_query" in update:
@@ -42,6 +35,13 @@ async def telegram_webhook(
             answer_payload = await handle_inline_query(session, inline_query)
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
             logger.info(f"Handled inline_query {answer_payload.get('inline_query_id')} in {duration_ms}ms")
+            
+            if http_client and token:
+                await http_client.post(
+                    f"https://api.telegram.org/bot{token}/answerInlineQuery",
+                    json=answer_payload
+                )
+
             return {
                 "method": "answerInlineQuery",
                 **answer_payload
@@ -59,7 +59,17 @@ async def telegram_webhook(
             reply_payload = handle_private_message(msg)
             if reply_payload:
                 duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-                logger.info(f"Returning sendMessage in webhook response for chat {reply_payload.get('chat_id')} in {duration_ms}ms")
+                logger.info(f"Generated sendMessage reply for chat {reply_payload.get('chat_id')} in {duration_ms}ms")
+                
+                if http_client and token:
+                    t_post = time.perf_counter()
+                    resp = await http_client.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        json=reply_payload
+                    )
+                    post_ms = round((time.perf_counter() - t_post) * 1000, 2)
+                    logger.info(f"Outbound sendMessage dispatched in {post_ms}ms (status={resp.status_code})")
+
                 return {
                     "method": "sendMessage",
                     **reply_payload
@@ -69,8 +79,22 @@ async def telegram_webhook(
         return {"ok": True, "type": "ignored", "update_id": update_id, "duration_ms": duration_ms}
     except Exception as e:
         duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-        logger.error(f"Error handling Telegram webhook update {update_id} after {duration_ms}ms: {e}", exc_info=True)
+        logger.error(f"Error handling Telegram update {update_id} after {duration_ms}ms: {e}", exc_info=True)
         return {"ok": False, "error": str(e), "update_id": update_id, "duration_ms": duration_ms}
+
+
+@router.post("/webhook")
+async def telegram_webhook(
+    update: Dict[str, Any],
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Ingests and routes Telegram updates from webhook.
+    Returns Bot API method directly in response for webhook clients.
+    """
+    update_id = update.get("update_id")
+    logger.info(f"Received Telegram webhook update: update_id={update_id}, keys={list(update.keys())}")
+    return await dispatch_telegram_update(update, session)
 
 
 @router.get("/info")

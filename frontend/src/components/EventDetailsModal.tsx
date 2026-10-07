@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Heart,
   Edit,
-  MessageCircle
+  MessageCircle,
+  Send
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
@@ -62,6 +63,7 @@ interface EventDetailsModalProps {
   onOpenCompanyModal?: (event: EventResponse) => void;
   isOrganizer?: boolean;
   onEditEvent?: (event: EventResponse) => void;
+  onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -76,6 +78,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onOpenCompanyModal,
   isOrganizer = false,
   onEditEvent,
+  onOpenBroadcastComposer,
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -117,11 +120,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
-    const shareText = `🎟 ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\n👉 Открыть в Ivently:`;
+    const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
+    const shareMessage = `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:\n${shareUrl}`;
 
-    // 1. If running inside Telegram, use native Telegram share picker
+    // 1. If running inside Telegram, use native Telegram share picker with formatted text & bottom link
     if (telegram.isAvailable()) {
-      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+      const tgShareUrl = `https://t.me/share/url?text=${encodeURIComponent(shareMessage)}`;
       telegram.openTelegramLink(tgShareUrl);
       return;
     }
@@ -131,8 +135,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${event.title} — Ivently`,
-          text: shareText,
+          title: `Пойдём вместе на «${event.title}»!`,
+          text: `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:`,
           url: shareUrl,
         });
         shared = true;
@@ -146,12 +150,11 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     // 3. Clipboard copy fallback
     if (!shared) {
       try {
-        const fullShareText = `${shareText}\n${shareUrl}`;
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(fullShareText);
+          await navigator.clipboard.writeText(shareMessage);
         } else {
           const textArea = document.createElement('textarea');
-          textArea.value = fullShareText;
+          textArea.value = shareMessage;
           document.body.appendChild(textArea);
           textArea.select();
           document.execCommand('copy');
@@ -403,17 +406,28 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
           {/* Organizer Pro Trigger banner inside event details */}
           {canEdit && (event.interest_count || 0) > 0 && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-white flex items-center gap-1.5">
                   <span>🔥</span>
                   <span><strong>{event.interest_count}</strong> {getInterestedWord(event.interest_count)}</span>
                 </span>
-                <span className="text-[11px] text-purple-300 font-medium">Аудитория события</span>
+                <span className="text-[11px] text-purple-300 font-medium">Интерес к событию</span>
               </div>
-              <p className="text-[11px] text-gray-400">
-                Пользователи проявили интерес к вашему событию. В личном кабинете доступна отправка рассылки для конверсии в участников.
+              <p className="text-[11px] text-gray-300 leading-relaxed">
+                Можно написать им и рассказать об изменениях, предложить скидку или напомнить о событии — так больше людей могут прийти.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenBroadcastComposer?.(event.id, event.organization_id);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/40 text-xs font-semibold text-purple-100 flex items-center justify-center space-x-1.5 transition-all btn-press shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5 text-purple-300" />
+                <span>Написать тем, кто хочет пойти</span>
+              </button>
             </div>
           )}
 

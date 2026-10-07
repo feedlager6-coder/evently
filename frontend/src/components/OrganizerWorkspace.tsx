@@ -63,6 +63,10 @@ interface OrganizerWorkspaceProps {
   onOrgDeleted?: (orgId: string) => void;
   isAdmin?: boolean;
   paymentReturnOrderId?: string | null;
+  initialTab?: WorkspaceTab;
+  initialBroadcastEventId?: string | null;
+  initialBroadcastOrgId?: string | null;
+  initialOpenProModal?: boolean;
 }
 
 export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
@@ -78,8 +82,12 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onOrgDeleted: _onOrgDeleted,
   isAdmin = false,
   paymentReturnOrderId,
+  initialTab,
+  initialBroadcastEventId,
+  initialBroadcastOrgId,
+  initialOpenProModal,
 }) => {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab || 'overview');
   const [eventFilter, setEventFilter] = useState<EventFilter>('upcoming');
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
   const [isLoadingAudience, setIsLoadingAudience] = useState<boolean>(false);
@@ -384,6 +392,22 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     setPreviewError(null);
     setIsComposerOpen(true);
   };
+
+  useEffect(() => {
+    if (initialOpenProModal) {
+      setIsProModalOpen(true);
+    }
+  }, [initialOpenProModal]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+    if (initialBroadcastEventId) {
+      setActiveTab('broadcasts');
+      handleOpenComposer(initialBroadcastEventId, initialBroadcastOrgId || undefined);
+    }
+  }, [initialTab, initialBroadcastEventId, initialBroadcastOrgId, entitlements]);
 
   const handleSendBroadcast = async () => {
     if (!previewData || previewData.eligible_recipients === 0 || isSubmittingBroadcast) return;
@@ -1039,14 +1063,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                                 setIsProModalOpen(true);
                               }
                             }}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press"
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press gap-2"
                           >
-                            <span className="truncate">
-                              💬 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти. Отправить предложение?
-                            </span>
-                            <span className="text-[10px] font-bold text-purple-400 shrink-0 ml-1.5 underline">
-                              {entitlements?.plan === 'pro' ? 'Рассылка →' : 'Тариф Pro →'}
-                            </span>
+                            <div className="min-w-0 pr-1">
+                              <span className="text-white font-medium">
+                                🔥 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти
+                              </span>
+                              <div className="text-[10px] text-gray-400 truncate">
+                                Напишите им, чтобы рассказать о деталях или предложить скидку
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-purple-500/30 transition-all flex items-center gap-1"
+                            >
+                              <span>Написать им</span>
+                              <span className="text-xs">→</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1222,14 +1255,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                               setIsProModalOpen(true);
                             }
                           }}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press"
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press gap-2"
                         >
-                          <span className="truncate">
-                            💬 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти. Отправить предложение?
-                          </span>
-                          <span className="text-[10px] font-bold text-purple-400 shrink-0 ml-1.5 underline">
-                            {entitlements?.plan === 'pro' ? 'Рассылка →' : 'Тариф Pro →'}
-                          </span>
+                          <div className="min-w-0 pr-1">
+                            <span className="text-white font-medium">
+                              🔥 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти
+                            </span>
+                            <div className="text-[10px] text-gray-400 truncate">
+                              Напишите им, чтобы рассказать о деталях или предложить скидку
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-purple-500/30 transition-all flex items-center gap-1"
+                          >
+                            <span>Написать им</span>
+                            <span className="text-xs">→</span>
+                          </button>
                         </div>
                       )}
                     </div>

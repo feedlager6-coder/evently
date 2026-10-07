@@ -43,35 +43,109 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error seeding database: {e}")
 
-    # Auto-sync Telegram webhook if live token and public host are configured
-    if settings.is_live_bot and settings.effective_public_host:
-        webhook_url = f"{settings.effective_public_host}/api/v1/telegram/webhook"
-        logger.info(f"Checking/syncing Telegram webhook to: {webhook_url}")
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                info_resp = await client.get(f"https://api.telegram.org/bot{settings.clean_bot_token}/getWebhookInfo")
-                current_url = ""
-                if info_resp.status_code == 200:
-                    current_url = info_resp.json().get("result", {}).get("url", "")
+    telegram_polling_task: Optional[asyncio.Task] = None
 
-                if current_url != webhook_url:
-                    logger.info(f"Registering Telegram webhook: {webhook_url} (previous: '{current_url}')...")
-                    set_resp = await client.post(
-                        f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
-                        json={
-                            "url": webhook_url,
-                            "allowed_updates": ["inline_query", "message"]
-                        }
+    # Telegram Update Delivery Strategy:
+    # On Selectel (and anywhere inbound webhooks suffer TCP timeouts/DPI drops),
+    # long-polling provides guaranteed zero-latency (<150ms) update delivery.
+    if settings.is_live_bot:
+        if settings.TELEGRAM_MODE == "polling":
+            logger.info("Switching Telegram bot to long-polling mode (guaranteed zero-latency)...")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    del_resp = await client.post(
+                        f"https://api.telegram.org/bot{settings.clean_bot_token}/deleteWebhook",
+                        json={"drop_pending_updates": False}
                     )
-                    data = set_resp.json()
-                    if data.get("ok"):
-                        logger.info(f"✅ Telegram webhook auto-registered: {webhook_url}")
+                    logger.info(f"Telegram webhook deleted for polling: {del_resp.json().get('description')}")
+            except Exception as e:
+                logger.error(f"Failed to delete Telegram webhook for polling: {e}")
+
+            async def telegram_polling_loop():
+                try:
+                    await asyncio.sleep(2)
+                except asyncio.CancelledError:
+                    return
+
+                token = settings.clean_bot_token
+                logger.info("🚀 Telegram long-polling loop started (instant update delivery)")
+                offset = 0
+
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    while True:
+                        try:
+                            resp = await client.get(
+                                f"https://api.telegram.org/bot{token}/getUpdates",
+                                params={
+                                    "offset": offset,
+                                    "limit": 20,
+                                    "timeout": 20,
+                                    "allowed_updates": ["message", "inline_query"]
+                                }
+                            )
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                updates = data.get("result", [])
+                                for update in updates:
+                                    up_id = update.get("update_id")
+                                    if up_id is not None:
+                                        offset = max(offset, up_id + 1)
+
+                                    try:
+                                        async with AsyncSessionLocal() as session:
+                                            from app.api.v1.telegram import dispatch_telegram_update
+                                            await dispatch_telegram_update(
+                                                update=update,
+                                                session=session,
+                                                http_client=client,
+                                                bot_token=token
+                                            )
+                                    except Exception as up_err:
+                                        logger.error(f"Error dispatching Telegram update {up_id}: {up_err}", exc_info=True)
+                            elif resp.status_code == 409:
+                                logger.warning("Telegram polling conflict (409), ensuring webhook is deleted...")
+                                await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
+                                await asyncio.sleep(2)
+                            else:
+                                logger.warning(f"Telegram getUpdates returned {resp.status_code}: {resp.text}")
+                                await asyncio.sleep(2)
+                        except asyncio.CancelledError:
+                            logger.info("Telegram long-polling loop cancelled during shutdown")
+                            break
+                        except Exception as e:
+                            logger.warning(f"Telegram polling network warning: {e}")
+                            await asyncio.sleep(1)
+
+            telegram_polling_task = asyncio.create_task(telegram_polling_loop())
+
+        elif settings.effective_public_host:
+            webhook_url = f"{settings.effective_public_host}/api/v1/telegram/webhook"
+            logger.info(f"Checking/syncing Telegram webhook to: {webhook_url}")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    info_resp = await client.get(f"https://api.telegram.org/bot{settings.clean_bot_token}/getWebhookInfo")
+                    current_url = ""
+                    if info_resp.status_code == 200:
+                        current_url = info_resp.json().get("result", {}).get("url", "")
+
+                    if current_url != webhook_url:
+                        logger.info(f"Registering Telegram webhook: {webhook_url} (previous: '{current_url}')...")
+                        set_resp = await client.post(
+                            f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
+                            json={
+                                "url": webhook_url,
+                                "allowed_updates": ["inline_query", "message"]
+                            }
+                        )
+                        data = set_resp.json()
+                        if data.get("ok"):
+                            logger.info(f"✅ Telegram webhook auto-registered: {webhook_url}")
+                        else:
+                            logger.warning(f"⚠️ Telegram setWebhook response: {data.get('description')}")
                     else:
-                        logger.warning(f"⚠️ Telegram setWebhook response: {data.get('description')}")
-                else:
-                    logger.info(f"✅ Telegram webhook already configured: {webhook_url}")
-        except Exception as e:
-            logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
+                        logger.info(f"✅ Telegram webhook already configured: {webhook_url}")
+            except Exception as e:
+                logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
 
     # Start periodic reminder runner in background (initial run at +5s, then every 15 minutes)
     async def reminder_loop():
@@ -101,6 +175,13 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown: Cancel background tasks and close connections
+    if telegram_polling_task:
+        telegram_polling_task.cancel()
+        try:
+            await telegram_polling_task
+        except asyncio.CancelledError:
+            pass
+
     reminder_task.cancel()
     try:
         await reminder_task

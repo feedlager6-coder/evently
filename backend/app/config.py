@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_USERNAME: str = "Ivently_bot"
     TELEGRAM_MINI_APP_URL: str = "https://t.me/Ivently_bot/app"
     TELEGRAM_MINI_APP_SHORT_NAME: Optional[str] = "app"
+    TELEGRAM_MODE: str = "polling"  # "polling" (instant delivery, immune to inbound drops) or "webhook"
 
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
@@ -86,6 +87,7 @@ class Settings(BaseSettings):
         "TELEGRAM_BOT_USERNAME",
         "TELEGRAM_MINI_APP_URL",
         "TELEGRAM_MINI_APP_SHORT_NAME",
+        "TELEGRAM_MODE",
         "ADMIN_USER_IDS",
         "SECRET_KEY",
         "PUBLIC_HOST",

@@ -23,6 +23,7 @@ import { EventDetailsModal } from './components/EventDetailsModal';
 import { CreateEventModal } from './components/CreateEventModal';
 import { OrganizerTab } from './components/OrganizerTab';
 import { OrganizerWorkspace } from './components/OrganizerWorkspace';
+import type { WorkspaceTab } from './components/OrganizerWorkspace';
 import { AdminTab } from './components/AdminTab';
 import { Navigation } from './components/Navigation';
 import { OrganizationModal } from './components/OrganizationModal';
@@ -39,6 +40,10 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
   const [isCityModalOpen, setIsCityModalOpen] = useState<boolean>(() => {
     try {
+      const param = telegram.getStartParam();
+      if (param && param.trim().startsWith('event_')) {
+        return false;
+      }
       const saved = localStorage.getItem('evently_selected_city_id');
       return !saved;
     } catch {
@@ -86,6 +91,10 @@ export const App: React.FC = () => {
 
   // Organizer workspace & creation state
   const [isOrganizerWorkspaceOpen, setIsOrganizerWorkspaceOpen] = useState(false);
+  const [workspaceInitialTab, setWorkspaceInitialTab] = useState<WorkspaceTab>('overview');
+  const [workspaceBroadcastEventId, setWorkspaceBroadcastEventId] = useState<string | null>(null);
+  const [workspaceBroadcastOrgId, setWorkspaceBroadcastOrgId] = useState<string | null>(null);
+  const [workspaceOpenProModal, setWorkspaceOpenProModal] = useState<boolean>(false);
   const [paymentReturnOrderId, setPaymentReturnOrderId] = useState<string | null>(null);
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
   const [organizerEvents, setOrganizerEvents] = useState<EventSummary[]>([]);
@@ -163,6 +172,7 @@ export const App: React.FC = () => {
         });
       }
 
+      setIsCityModalOpen(false);
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
       telegram.consumeStartParam(`event_${eventId}`);
@@ -182,6 +192,7 @@ export const App: React.FC = () => {
     if (!clean) return;
 
     if (clean.startsWith('event_')) {
+      setIsCityModalOpen(false);
       const paramRest = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
       let eventId = paramRest;
       let broadcastToken: string | null = null;
@@ -223,6 +234,16 @@ export const App: React.FC = () => {
     }
 
   }, [openEventById, openOrgById]);
+
+  const handleOpenBroadcastComposerFromEvent = useCallback((eventId: string, orgId?: string) => {
+    setIsDetailsOpen(false);
+    setCurrentTab('organizer');
+    setWorkspaceInitialTab('broadcasts');
+    setWorkspaceBroadcastEventId(eventId);
+    setWorkspaceBroadcastOrgId(orgId || null);
+    setWorkspaceOpenProModal(false);
+    setIsOrganizerWorkspaceOpen(true);
+  }, []);
 
   // 1. Initial Load: Metadata & Telegram initialization
   useEffect(() => {
@@ -311,8 +332,10 @@ export const App: React.FC = () => {
           setIsCityModalOpen(false);
         } else {
           setSelectedCityId('');
-          // Do not force city modal if user is actively viewing an event or workspace
-          setIsCityModalOpen(!Boolean(isDetailsOpen || selectedEventDetails));
+          // Do not force city modal if user came from a deep link or is actively viewing an event or workspace
+          const currentParam = telegram.getStartParam();
+          const hasEventDeepLink = Boolean(currentParam && currentParam.trim().startsWith('event_'));
+          setIsCityModalOpen(!Boolean(hasEventDeepLink || isDetailsOpen || selectedEventDetails));
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -899,8 +922,15 @@ export const App: React.FC = () => {
             <OrganizerWorkspace
               isAdmin={isAdmin}
               paymentReturnOrderId={paymentReturnOrderId}
+              initialTab={workspaceInitialTab}
+              initialBroadcastEventId={workspaceBroadcastEventId}
+              initialBroadcastOrgId={workspaceBroadcastOrgId}
+              initialOpenProModal={workspaceOpenProModal}
               onBack={() => {
                 setPaymentReturnOrderId(null);
+                setWorkspaceBroadcastEventId(null);
+                setWorkspaceBroadcastOrgId(null);
+                setWorkspaceOpenProModal(false);
                 setIsOrganizerWorkspaceOpen(false);
               }}
               organizations={myOrganizations}
@@ -938,6 +968,7 @@ export const App: React.FC = () => {
               organizations={myOrganizations}
               myCreatedEvents={organizerEvents}
               onOpenOrganizerWorkspace={() => setIsOrganizerWorkspaceOpen(true)}
+              onOpenBroadcastComposer={handleOpenBroadcastComposerFromEvent}
               onOpenCreateEvent={() => {
                 setPreselectedOrgForEventCreate(undefined);
                 setIsCreateEventModalOpen(true);
@@ -1008,6 +1039,7 @@ export const App: React.FC = () => {
           setCompanyEvent(ev);
           setIsCompanyModalOpen(true);
         }}
+        onOpenBroadcastComposer={handleOpenBroadcastComposerFromEvent}
       />
 
       {/* Event Company Discovery Modal */}

@@ -33,6 +33,7 @@ interface OrganizerTabProps {
   onEventClick: (event: EventSummary) => void;
   onOrgClick: (orgId: string) => void;
   onExplore: () => void;
+  onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
 }
 
 export const OrganizerTab: React.FC<OrganizerTabProps> = ({
@@ -50,6 +51,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onEventClick,
   onOrgClick,
   onExplore,
+  onOpenBroadcastComposer,
 }) => {
   const [activeTab, setActiveTab] = useState<PersonalHubTab>('attending');
 
@@ -347,9 +349,12 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                     {/* Contextual Pro Trigger Banner for author */}
                     {isUpcoming && interestCount > 0 && (
                       <div
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           telegram.hapticImpact('light');
-                          if (isOrganizer) {
+                          if (onOpenBroadcastComposer) {
+                            onOpenBroadcastComposer(event.id, event.organization_id);
+                          } else if (isOrganizer) {
                             onOpenOrganizerWorkspace();
                           } else {
                             onOpenCreateOrg();
@@ -364,13 +369,17 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                               <strong className="text-purple-300 font-semibold">{interestCount}</strong> {interestCount === 1 ? 'человек хочет' : 'человек хотят'} пойти
                             </span>
                             <div className="text-[11px] text-gray-400 truncate">
-                              Аудитория собрана • Отправить рассылку в Pro
+                              Напишите им, чтобы напомнить о событии или предложить скидку
                             </div>
                           </div>
                         </div>
-                        <span className="text-purple-400 font-semibold text-[11px] shrink-0 flex items-center gap-0.5">
-                          В кабинет →
-                        </span>
+                        <button
+                          type="button"
+                          className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-purple-500/30 transition-all flex items-center gap-1"
+                        >
+                          <span>Написать им</span>
+                          <span className="text-xs">→</span>
+                        </button>
                       </div>
                     )}
                   </div>
