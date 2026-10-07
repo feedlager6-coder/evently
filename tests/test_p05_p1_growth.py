@@ -351,3 +351,35 @@ async def test_free_vs_pro_broadcast_quota_and_operational_isolation(test_sessio
     assert ent_pro.plan == "pro"
     assert ent_pro.limits.broadcasts_remaining == 20
     assert ent_pro.capabilities["broadcasts_extended"].status == CapabilityStatus.AVAILABLE
+
+
+@pytest.mark.asyncio
+async def test_user_hub_endpoint(client, test_session):
+    """
+    P0.7: Verify /api/v1/users/me/hub returns consolidated personal hub data
+    (attending, interested, subscriptions, created_events, organizations)
+    in a single request.
+    """
+    user = (await test_session.execute(select(User))).scalars().first()
+    assert user is not None
+
+    headers = {"Authorization": f"tma user_id={user.telegram_id}"}
+    with patch("app.api.deps.parse_and_validate_init_data") as mock_validate:
+        from app.services.auth_service import TelegramInitDataParsed, TelegramUserPayload
+        mock_validate.return_value = TelegramInitDataParsed(
+            user=TelegramUserPayload(id=user.telegram_id, username=user.username, first_name=user.first_name),
+            auth_date=1234567890,
+            hash="test_hash"
+        )
+        resp = await client.get("/api/v1/users/me/hub", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "attending" in data
+        assert "interested" in data
+        assert "subscriptions" in data
+        assert "created_events" in data
+        assert "organizations" in data
+        assert isinstance(data["attending"], list)
+        assert isinstance(data["interested"], list)
+        assert isinstance(data["created_events"], list)
+

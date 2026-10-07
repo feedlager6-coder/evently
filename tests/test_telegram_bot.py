@@ -234,3 +234,26 @@ async def test_telegram_info_diagnostics_endpoint(client):
     assert "bot_username" in data
     assert "effective_public_host" in data
     assert "expected_webhook_url" in data
+
+
+@pytest.mark.asyncio
+async def test_inline_query_direct_event_lookup(test_session):
+    from sqlalchemy import select
+    from app.models.event import Event, EventStatus
+    event = (await test_session.execute(select(Event).where(Event.status == EventStatus.PUBLISHED.value).limit(1))).scalar_one_or_none()
+    assert event is not None
+
+    query_payload = {
+        "id": "query_direct_event",
+        "query": f"event_{event.id}",
+        "from": {"id": 123456789, "first_name": "Friend"}
+    }
+    resp = await handle_inline_query(test_session, query_payload)
+    assert resp["inline_query_id"] == "query_direct_event"
+    assert len(resp["results"]) == 1
+    item = resp["results"][0]
+    assert item["id"] == f"event_{event.id}"
+    assert event.title in item["title"]
+    assert "🧭 Открыть в Mini App" in str(item["reply_markup"])
+    assert f"startapp=event_{event.id}" in str(item["reply_markup"])
+

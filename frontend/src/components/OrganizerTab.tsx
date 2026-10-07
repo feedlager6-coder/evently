@@ -58,6 +58,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   const now = new Date();
   const activeAttending = attendingEvents.filter((e) => new Date(e.start_at) >= now);
   const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
+  const upcomingCreatedEvents = myCreatedEvents.filter((e) => new Date(e.start_at) >= now);
+  const pastCreatedEvents = myCreatedEvents.filter((e) => new Date(e.start_at) < now);
 
   const pastEventsMap = new Map<string, EventSummary>();
   attendingEvents
@@ -70,13 +72,14 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         pastEventsMap.set(e.id, { ...e, current_user_interested: true });
       }
     });
-  myCreatedEvents
-    .filter((e) => new Date(e.start_at) < now)
-    .forEach((e) => {
-      if (!pastEventsMap.has(e.id)) {
-        pastEventsMap.set(e.id, { ...e });
-      }
-    });
+  pastCreatedEvents.forEach((e) => {
+    const existing = pastEventsMap.get(e.id);
+    if (existing) {
+      pastEventsMap.set(e.id, { ...existing, is_creator: true });
+    } else {
+      pastEventsMap.set(e.id, { ...e, is_creator: true });
+    }
+  });
   const pastEvents = Array.from(pastEventsMap.values()).sort(
     (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
   );
@@ -210,7 +213,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 { value: 'attending', label: 'Я иду', count: activeAttending.length },
                 { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
                 ...(myCreatedEvents.length > 0
-                  ? [{ value: 'created', label: 'Созданные', count: myCreatedEvents.length }]
+                  ? [{ value: 'created', label: 'Созданные', count: upcomingCreatedEvents.length }]
                   : []),
               ]}
               value={activeTab}
@@ -309,34 +312,63 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       {/* TAB: CREATED EVENTS (Personal Creations) */}
       {activeTab === 'created' && (
         <div className="space-y-3">
-          {myCreatedEvents.length === 0 ? (
-            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                📅
+          {upcomingCreatedEvents.length === 0 ? (
+            pastCreatedEvents.length > 0 ? (
+              <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                  ⏳
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold text-white">Все созданные события завершились</div>
+                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                    Они сохранены в архиве вкладки «Прошедшие» ({pastCreatedEvents.length})
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                  <button
+                    onClick={() => handleTabChange('history')}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 btn-press"
+                  >
+                    Смотреть в прошедших ({pastCreatedEvents.length})
+                  </button>
+                  {onOpenCreateEvent && (
+                    <button
+                      onClick={onOpenCreateEvent}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
+                    >
+                      Создать новое
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Нет созданных событий</div>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Здесь отображаются мероприятия, опубликованные вами
-                </p>
+            ) : (
+              <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                  📅
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold text-white">Нет созданных событий</div>
+                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                    Здесь отображаются актуальные мероприятия, опубликованные вами
+                  </p>
+                </div>
+                {onOpenCreateEvent && (
+                  <button
+                    onClick={onOpenCreateEvent}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
+                  >
+                    Создать событие
+                  </button>
+                )}
               </div>
-              {onOpenCreateEvent && (
-                <button
-                  onClick={onOpenCreateEvent}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
-                >
-                  Создать событие
-                </button>
-              )}
-            </div>
+            )
           ) : (
             <div className="space-y-4">
               <div className="text-[11px] text-gray-400 px-1">
-                Мероприятия, опубликованные вами
+                Предстоящие мероприятия, опубликованные вами
               </div>
-              {myCreatedEvents.map((event) => {
+              {upcomingCreatedEvents.map((event) => {
                 const interestCount = event.interest_count || 0;
-                const isUpcoming = new Date(event.start_at) >= now;
 
                 return (
                   <div key={event.id} className="space-y-2">
@@ -347,7 +379,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                       />
                     </div>
                     {/* Contextual Pro Trigger Banner for author */}
-                    {isUpcoming && interestCount > 0 && (
+                    {interestCount > 0 && (
                       <div
                         onClick={(e) => {
                           e.stopPropagation();

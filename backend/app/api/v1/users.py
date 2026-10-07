@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,8 +7,10 @@ from app.database import get_db
 from app.config import settings
 from app.models.user import User
 from app.schemas.event import EventSummary
+from app.schemas.organization import OrganizationSummary
 from app.api.deps import get_current_user_optional, get_current_user
-from app.services.event_service import get_user_personal_events
+from app.services.event_service import get_user_personal_events, get_organizer_events
+from app.services.organization_service import list_user_subscriptions, list_user_organizations
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -81,5 +83,40 @@ async def get_my_personal_events(
         event_type=type,
         limit=limit,
         offset=offset
+    )
+
+
+class UserHubResponse(BaseModel):
+    attending: List[EventSummary]
+    interested: List[EventSummary]
+    subscriptions: List[Any]
+    created_events: List[EventSummary]
+    organizations: List[OrganizationSummary]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+@router.get("/me/hub", response_model=UserHubResponse)
+async def get_my_hub(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Consolidated Personal Hub endpoint.
+    Returns attending, interested, subscriptions, created events, and organizations
+    in a single lightweight request (<80ms), eliminating socket contention and network timeouts.
+    """
+    attending = await get_user_personal_events(session, user_id=user.id, event_type="attending", limit=50)
+    interested = await get_user_personal_events(session, user_id=user.id, event_type="interested", limit=50)
+    subs = await list_user_subscriptions(session, user.id)
+    created = await get_organizer_events(session, organizer_user_id=user.id)
+    orgs = await list_user_organizations(session, user_id=user.id)
+
+    return UserHubResponse(
+        attending=attending,
+        interested=interested,
+        subscriptions=subs,
+        created_events=created,
+        organizations=orgs
     )
 

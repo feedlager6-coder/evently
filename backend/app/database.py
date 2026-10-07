@@ -11,15 +11,21 @@ Base = declarative_base()
 
 # Configure engine with SQLite WAL and foreign keys if SQLite, or asyncpg for PostgreSQL
 db_url = settings.async_database_url
-connect_args = {}
+engine_kwargs = {
+    "echo": False,
+    "future": True,
+}
 if "sqlite" in db_url:
-    connect_args = {"check_same_thread": False}
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 20
 
 engine = create_async_engine(
     db_url,
-    echo=False,
-    connect_args=connect_args,
-    future=True
+    **engine_kwargs
 )
 
 

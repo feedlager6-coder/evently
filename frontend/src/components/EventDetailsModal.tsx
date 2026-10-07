@@ -123,11 +123,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
     const shareMessage = `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:\n${shareUrl}`;
 
-    // 1. If running inside Telegram, use native Telegram share picker with formatted text & bottom link
+    // 1. If running inside Telegram Mini App, use native Telegram chat chooser.
+    // This opens the native Telegram contact picker directly inside the app,
+    // completely preventing any redirect to Safari or web.telegram.org.
     if (telegram.isAvailable()) {
-      const tgShareUrl = `https://t.me/share/url?text=${encodeURIComponent(shareMessage)}`;
-      telegram.openTelegramLink(tgShareUrl);
-      return;
+      const switched = telegram.switchInlineQuery(`event_${event.id}`, ['users', 'groups', 'channels']);
+      if (switched) {
+        return;
+      }
     }
 
     // 2. Web Share API fallback
@@ -488,7 +491,9 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   <span>Мероприятие завершено</span>
                 </div>
                 <div className="text-xs">
-                  {event.is_attending ? (
+                  {(event as any).is_creator ? (
+                    <span className="text-purple-300 font-medium">✓ Вы организатор этого события</span>
+                  ) : event.is_attending ? (
                     <span className="text-emerald-400 font-medium">✓ Вы были участником этого события</span>
                   ) : event.current_user_interested ? (
                     <span className="text-indigo-300 font-medium">✓ Вы сохраняли это событие в избранное</span>

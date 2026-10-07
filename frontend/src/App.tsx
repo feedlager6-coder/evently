@@ -433,53 +433,48 @@ export const App: React.FC = () => {
     };
   }, [processStartParam, isLoadingEvents, loadFeedEvents]);
 
-  // 3. Fetch Personal Hub Events & Subscriptions
-  const loadPersonalEvents = useCallback(async () => {
-    try {
+  const hasLoadedHubRef = useRef(false);
+
+  // 3. Consolidated Personal Hub & Organizer Loader (Single fast HTTP request with SWR)
+  const loadPersonalHub = useCallback(async (silent = false) => {
+    if (!silent && !hasLoadedHubRef.current) {
       setIsLoadingAttending(true);
       setIsLoadingInterested(true);
       setIsLoadingUserSubscriptions(true);
-      const [att, inter, subs] = await Promise.all([
-        api.getMyPersonalEvents('attending').catch(() => []),
-        api.getMyPersonalEvents('interested').catch(() => []),
-        api.getMySubscriptions().catch(() => [])
-      ]);
-      setAttendingEvents(att);
-      setInterestedEvents(inter);
-      setUserSubscriptions(subs);
+      setIsLoadingOrganizer(true);
+      setIsLoadingMyOrganizations(true);
+    }
+    try {
+      const hub = await api.getMyHub();
+      setAttendingEvents(hub.attending || []);
+      setInterestedEvents(hub.interested || []);
+      setUserSubscriptions(hub.subscriptions || []);
+      setOrganizerEvents(hub.created || []);
+      setMyOrganizations(hub.organizations || []);
+      hasLoadedHubRef.current = true;
     } catch (err) {
-      console.error('Error loading personal events:', err);
+      console.error('Failed to load user hub data:', err);
+      // SWR fallback: keep existing state intact, never pop blocking alerts on tab switch
     } finally {
       setIsLoadingAttending(false);
       setIsLoadingInterested(false);
       setIsLoadingUserSubscriptions(false);
-    }
-  }, []);
-
-  // 4. Fetch Organizer Events & Organizations
-  const loadOrganizerEvents = useCallback(async () => {
-    try {
-      setIsLoadingOrganizer(true);
-      const data = await api.getOrganizerEvents();
-      setOrganizerEvents(data);
-    } catch (err) {
-      console.error('Error loading organizer events:', err);
-    } finally {
       setIsLoadingOrganizer(false);
-    }
-  }, []);
-
-  const loadMyOrganizations = useCallback(async () => {
-    try {
-      setIsLoadingMyOrganizations(true);
-      const data = await api.getMyOrganizations();
-      setMyOrganizations(data);
-    } catch (err) {
-      console.error('Error loading my organizations:', err);
-    } finally {
       setIsLoadingMyOrganizations(false);
     }
   }, []);
+
+  const loadPersonalEvents = useCallback(async () => {
+    await loadPersonalHub(true);
+  }, [loadPersonalHub]);
+
+  const loadOrganizerEvents = useCallback(async () => {
+    await loadPersonalHub(true);
+  }, [loadPersonalHub]);
+
+  const loadMyOrganizations = useCallback(async () => {
+    await loadPersonalHub(true);
+  }, [loadPersonalHub]);
 
   // 5. Fetch Admin Events
   const loadAdminEvents = useCallback(async () => {
@@ -497,13 +492,11 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (currentTab === 'my_events' || currentTab === 'organizer') {
-      loadPersonalEvents();
-      loadOrganizerEvents();
-      loadMyOrganizations();
+      loadPersonalHub(hasLoadedHubRef.current);
     } else if (currentTab === 'admin') {
       loadAdminEvents();
     }
-  }, [currentTab, loadPersonalEvents, loadOrganizerEvents, loadMyOrganizations, loadAdminEvents]);
+  }, [currentTab, loadPersonalHub, loadAdminEvents]);
 
   // BackButton support for Organizer Workspace and modals
   useEffect(() => {
@@ -951,9 +944,7 @@ export const App: React.FC = () => {
               onOrgClick={(org) => openOrgById(org.id)}
               onEventClick={(ev) => openEventById(ev.id, 'organizer')}
               onOrgDeleted={() => {
-                loadMyOrganizations();
-                loadOrganizerEvents();
-                loadPersonalEvents();
+                loadPersonalHub(true);
                 loadFeedEvents();
               }}
             />

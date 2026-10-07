@@ -52,6 +52,15 @@ export interface EventSummary {
   broadcast_rsvp_count?: number;
   rejection_reason?: string;
   created_at: string;
+  is_creator?: boolean;
+}
+
+export interface UserHubData {
+  attending: EventSummary[];
+  interested: EventSummary[];
+  subscriptions: UserSubscriptionItem[];
+  created: EventSummary[];
+  organizations: OrganizationSummary[];
 }
 
 export type TrackingSource = 'discovery' | 'deep_link' | 'personal' | 'organizer' | 'inline' | 'broadcast' | 'unknown';

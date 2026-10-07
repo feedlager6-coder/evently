@@ -129,6 +129,61 @@ async def handle_inline_query(
     user = inline_query.get("from", {})
     user_id = user.get("id")
 
+    # Fast-path: Direct event lookup by ID (e.g. from Mini App 'Позвать друга' switchInlineQuery)
+    target_event_id: Optional[str] = None
+    cleaned_lower = query_text.strip().lower()
+    if cleaned_lower.startswith("event_"):
+        target_event_id = query_text.strip()[6:].strip()
+    elif cleaned_lower.startswith("event "):
+        target_event_id = query_text.strip()[6:].strip()
+
+    if target_event_id:
+        try:
+            from app.services.event_service import get_event_details
+            event_details = await get_event_details(session, target_event_id)
+            if event_details:
+                price_str = "Бесплатно" if event_details.is_free else f"{event_details.price_amount} {event_details.price_currency or 'RUB'}"
+                date_str = event_details.start_at.strftime("%d.%m.%Y в %H:%M")
+                thumb = resolve_absolute_image_url(event_details.cover_image_url)
+                venue_label = event_details.venue_name or (event_details.city_name or "Локация в приложении")
+                deep_link = settings.get_event_deep_link(event_details.id)
+                msg_text = (
+                    f"Пойдём вместе на «<b>{html.escape(event_details.title)}</b>»!\n\n"
+                    f"🗓 {date_str}\n"
+                    f"📍 {html.escape(venue_label)} ({html.escape(event_details.city_name or '')})\n"
+                    f"💰 {price_str}\n\n"
+                    f"Посмотреть событие в Ivently:\n"
+                    f"{deep_link}"
+                )
+                return {
+                    "inline_query_id": query_id,
+                    "results": [
+                        {
+                            "type": "article",
+                            "id": f"event_{event_details.id}",
+                            "title": f"🎟 {event_details.title}",
+                            "description": f"{event_details.city_name or ''} · {date_str} · {price_str}",
+                            "thumbnail_url": thumb,
+                            "thumb_url": thumb,
+                            "input_message_content": {
+                                "message_text": msg_text,
+                                "parse_mode": "HTML"
+                            },
+                            "reply_markup": {
+                                "inline_keyboard": [
+                                    [
+                                        {"text": "🧭 Открыть в Mini App", "url": deep_link}
+                                    ]
+                                ]
+                            }
+                        }
+                    ],
+                    "cache_time": 10,
+                    "is_personal": True
+                }
+        except Exception as e:
+            logger.warning(f"Error fetching specific event for inline query '{target_event_id}': {e}")
+
     # 1. Parse structured city/category/date
     parsed = parse_query(query_text, default_city_id=None)
     target_city_id = parsed.city_id

@@ -342,6 +342,23 @@ export const telegram = {
     window.open(url, '_blank');
   },
 
+  switchInlineQuery(query: string, chooseChatTypes?: ('users' | 'bots' | 'groups' | 'channels')[]): boolean {
+    try {
+      const wa = window.Telegram?.WebApp as any;
+      if (wa && typeof wa.switchInlineQuery === 'function') {
+        if (chooseChatTypes && chooseChatTypes.length > 0) {
+          wa.switchInlineQuery(query, chooseChatTypes);
+        } else {
+          wa.switchInlineQuery(query);
+        }
+        return true;
+      }
+    } catch (e) {
+      console.warn('Telegram.WebApp.switchInlineQuery warning:', e);
+    }
+    return false;
+  },
+
   async requestWriteAccess(): Promise<boolean> {
     try {
       const wa = (window.Telegram?.WebApp as any);

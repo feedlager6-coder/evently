@@ -34,6 +34,7 @@ import type {
   PaymentConfigResponse,
   PaymentOrder,
   CreatePaymentOrderRequest,
+  UserHubData,
 } from '../types';
 import { telegram } from './telegram';
 
@@ -56,45 +57,61 @@ export async function fetchWithTimeout(
   options: RequestInit = {},
   timeoutMs: number = 10000
 ): Promise<Response> {
-  const controller = new AbortController();
-  const { signal: callerSignal, ...restOptions } = options;
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const maxAttempts = isGet ? 2 : 1;
 
-  let isTimedOut = false;
-  const timeoutId = setTimeout(() => {
-    isTimedOut = true;
-    controller.abort();
-  }, timeoutMs);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const { signal: callerSignal, ...restOptions } = options;
 
-  if (callerSignal) {
-    if (callerSignal.aborted) {
+    if (callerSignal?.aborted) {
+      throw new Error('Запрос был отменен.');
+    }
+
+    let isTimedOut = false;
+    const timeoutId = setTimeout(() => {
+      isTimedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    const abortHandler = () => {
       clearTimeout(timeoutId);
       controller.abort();
-    } else {
-      callerSignal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timeoutId);
-          controller.abort();
-        },
-        { once: true }
-      );
+    };
+
+    if (callerSignal) {
+      callerSignal.addEventListener('abort', abortHandler, { once: true });
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...restOptions,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (err: any) {
+      if (callerSignal?.aborted) {
+        throw err;
+      }
+      const isAbortOrNetwork = isTimedOut || err?.name === 'AbortError' || err?.name === 'TypeError';
+      if (attempt < maxAttempts && isAbortOrNetwork) {
+        // Transparent retry for GET on network timeout or broken keep-alive socket (e.g. after WebApp suspend)
+        await new Promise((r) => setTimeout(r, 250));
+        continue;
+      }
+      if (isTimedOut || (err && err.name === 'AbortError' && !callerSignal?.aborted)) {
+        throw new Error('Превышено время ожидания ответа сервера (таймаут сети). Пожалуйста, попробуйте снова.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+      if (callerSignal) {
+        callerSignal.removeEventListener('abort', abortHandler);
+      }
     }
   }
 
-  try {
-    const response = await fetch(url, {
-      ...restOptions,
-      signal: controller.signal,
-    });
-    return response;
-  } catch (err: any) {
-    if (isTimedOut || (err && err.name === 'AbortError' && !callerSignal?.aborted)) {
-      throw new Error('Превышено время ожидания ответа сервера (таймаут сети). Пожалуйста, попробуйте снова.');
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  throw new Error('Превышено время ожидания ответа сервера (таймаут сети). Пожалуйста, попробуйте снова.');
 }
 
 export function extractErrorMessage(errData: any, fallback: string): string {
@@ -788,6 +805,25 @@ export const api = {
     if (!res.ok) {
       if (res.status === 401) return [];
       throw new Error('Не удалось загрузить ваши события');
+    }
+    return res.json();
+  },
+
+  async getMyHub(): Promise<UserHubData> {
+    const res = await fetchWithTimeout(`${API_BASE}/users/me/hub`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        return {
+          attending: [],
+          interested: [],
+          subscriptions: [],
+          created: [],
+          organizations: [],
+        };
+      }
+      throw new Error('Не удалось загрузить данные личного кабинета');
     }
     return res.json();
   },

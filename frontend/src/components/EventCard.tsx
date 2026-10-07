@@ -28,7 +28,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className="group relative rounded-[20px] overflow-hidden bg-[#131722] border border-white/8 hover:border-indigo-500/40 card-press cursor-pointer shadow-lg hover:shadow-indigo-500/10"
+      className={`group relative rounded-[20px] overflow-hidden bg-[#131722] border border-white/8 hover:border-indigo-500/40 card-press cursor-pointer shadow-lg hover:shadow-indigo-500/10 ${
+        isPast ? 'opacity-85 hover:opacity-100' : ''
+      }`}
     >
       {/* Cover Image Container */}
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-900">
@@ -47,8 +49,8 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
               {event.category_name}
             </span>
             {isPast && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/65 backdrop-blur-md text-gray-300 border border-white/10 shadow-sm">
-                Прошло
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 backdrop-blur-md text-gray-300 border border-white/10 shadow-sm">
+                Завершено
               </span>
             )}
             {isCancelled && (
@@ -59,7 +61,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
           </div>
           <span
             className={`px-2.5 py-1 rounded-full text-[11px] font-bold backdrop-blur-md border shadow-sm ${
-              event.is_free
+              isPast
+                ? 'bg-white/10 border-white/10 text-gray-300'
+                : event.is_free
                 ? 'bg-emerald-500/85 border-emerald-400/40 text-white'
                 : 'bg-indigo-600/85 border-indigo-400/40 text-white'
             }`}
@@ -69,15 +73,21 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
         </div>
 
         {/* Attending or Interested badge */}
-        {event.is_attending ? (
-          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-lg animate-scale-pop">
-            <Check className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Вы идёте</span>
-          </div>
-        ) : event.current_user_interested ? (
-          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-600/90 text-white shadow-lg shadow-purple-600/20 backdrop-blur-sm animate-scale-pop">
-            <Heart className="w-3 h-3 fill-white" />
-            <span>Хочу пойти</span>
+        {!isPast ? (
+          event.is_attending ? (
+            <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-lg animate-scale-pop">
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Вы идёте</span>
+            </div>
+          ) : event.current_user_interested ? (
+            <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-600/90 text-white shadow-lg shadow-purple-600/20 backdrop-blur-sm animate-scale-pop">
+              <Heart className="w-3 h-3 fill-white" />
+              <span>Хочу пойти</span>
+            </div>
+          ) : null
+        ) : (event.is_attending || event.current_user_interested || event.is_creator) ? (
+          <div className="absolute bottom-2.5 right-2.5 flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-black/75 text-gray-300 border border-white/10 backdrop-blur-sm">
+            <span>{event.is_creator ? 'Создано вами' : event.is_attending ? 'Вы были' : 'Было в закладках'}</span>
           </div>
         ) : null}
       </div>
