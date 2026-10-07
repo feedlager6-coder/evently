@@ -118,6 +118,12 @@ async def set_company_profile(
             detail=f"Событие '{event_id}' не найдено или не опубликовано"
         )
 
+    if is_active and event.start_at < utc_now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Мероприятие уже завершено. Поиск компании недоступен."
+        )
+
     # 2. Check event participation rule
     if is_active:
         has_interest = (await session.execute(
@@ -386,6 +392,12 @@ async def create_company_request(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Событие '{event_id}' не найдено или не опубликовано"
+        )
+
+    if event.start_at < utc_now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Мероприятие уже завершено. Отправка запросов недоступна."
         )
 
     # 4. Check sender has active profile

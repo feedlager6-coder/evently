@@ -622,3 +622,53 @@ async def send_telegram_notification(
         logger.warning(f"Failed to deliver telegram notification to {chat_id}: {e}")
         return False
 
+
+async def notify_event_reminder(
+    event: Event,
+    user: User,
+    local_time_str: str,
+    session: AsyncSession,
+    http_client: Optional[httpx.AsyncClient] = None
+) -> bool:
+    """
+    Sends a personal same-day reminder to an attendee or interested user.
+    Uses native web_app button to open the event in Mini App.
+    """
+    if not user.telegram_id:
+        return False
+
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name)
+
+    message_text = (
+        f"🔔 <b>Напоминание о событии</b>\n\n"
+        f"🧭 <b>{safe_title}</b>\n\n"
+        f"📅 Сегодня в {local_time_str}\n"
+        f"📍 {safe_venue}"
+    )
+
+    reply_markup = build_event_notification_reply_markup(event.id)
+    image_url = resolve_event_cover_url(event.cover_image_url)
+    bot_token = settings.clean_bot_token
+
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated event reminder to user {user.id} (tg {user.telegram_id}) for event {event.id}.")
+        return True
+
+    async def _send(client: httpx.AsyncClient) -> bool:
+        return await send_telegram_event_message(
+            client=client,
+            bot_token=bot_token,
+            chat_id=user.telegram_id,
+            text=message_text,
+            reply_markup=reply_markup,
+            image_url=image_url,
+            raw_image_url=event.cover_image_url
+        )
+
+    if http_client:
+        return await _send(http_client)
+    else:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await _send(client)
+

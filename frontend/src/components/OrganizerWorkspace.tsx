@@ -361,19 +361,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     events,
   ]);
 
-  const handleOpenComposer = () => {
+  const handleOpenComposer = (targetEventId?: string | React.MouseEvent, targetOrgId?: string) => {
     telegram.hapticImpact('light');
     if (entitlements?.plan !== 'pro') {
       setIsProModalOpen(true);
       return;
     }
-    const defaultOrgId = composerOrgId || (organizations[0]?.id ?? '');
-    if (organizations.length > 0 && !composerOrgId) {
+    const cleanEventId = typeof targetEventId === 'string' ? targetEventId : undefined;
+    const defaultOrgId = targetOrgId || composerOrgId || (organizations[0]?.id ?? '');
+    if (defaultOrgId) {
       setComposerOrgId(defaultOrgId);
     }
-    const orgEvents = events.filter((e) => e.organization_id === defaultOrgId);
-    if (orgEvents.length > 0 && !composerEventId) {
-      setComposerEventId(orgEvents[0].id);
+    if (cleanEventId) {
+      setComposerEventId(cleanEventId);
+      setComposerTargetType('event_interest');
+    } else {
+      const orgEvents = events.filter((e) => e.organization_id === defaultOrgId);
+      if (orgEvents.length > 0 && !composerEventId) {
+        setComposerEventId(orgEvents[0].id);
+      }
     }
     setPreviewError(null);
     setIsComposerOpen(true);
@@ -513,9 +519,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           items={[
             { value: 'overview', label: 'Обзор' },
             { value: 'events', label: 'Мероприятия', count: events.length },
-            { value: 'organizations', label: 'Места', count: organizations.length },
-            { value: 'audience', label: 'Аудитория' },
             { value: 'broadcasts', label: 'Рассылки' },
+            { value: 'audience', label: 'Аудитория' },
+            { value: 'organizations', label: 'Места', count: organizations.length },
           ]}
           value={activeTab}
           onChange={(val) => handleTabChange(val as WorkspaceTab)}
@@ -1180,6 +1186,28 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           <span className="text-gray-400">интерес •</span>
                           <span className="font-semibold text-emerald-300">{ev.broadcast_rsvp_count ?? 0}</span>
                           <span className="text-gray-400">идут</span>
+                        </div>
+                      )}
+
+                      {ev.status === 'published' && (ev.interest_count || 0) > 0 && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (entitlements?.plan === 'pro') {
+                              handleTabChange('broadcasts');
+                              handleOpenComposer(ev.id, ev.organization_id);
+                            } else {
+                              setIsProModalOpen(true);
+                            }
+                          }}
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 text-[11px] text-purple-300 transition-all btn-press"
+                        >
+                          <span className="truncate">
+                            💬 <strong>{ev.interest_count}</strong> {ev.interest_count === 1 ? 'человек хочет' : 'человек хотят'} пойти. Отправить предложение?
+                          </span>
+                          <span className="text-[10px] font-bold text-purple-400 shrink-0 ml-1.5 underline">
+                            {entitlements?.plan === 'pro' ? 'Рассылка →' : 'Тариф Pro →'}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -2463,11 +2491,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-400 font-bold">✓</span>
-                      <span>Анонсы событий и новости организации с кнопками перехода</span>
+                      <span><strong>Расширенная аналитика рассылок</strong> (доставка, переходы, отклики «Хочу пойти» и «Я иду»)</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-400 font-bold">✓</span>
-                      <span>Расширенная аналитика кликов и конверсий</span>
+                      <span><strong>Таргетинг по аудитории</strong> (подписчики площадки или гости с интересом к событию)</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-emerald-400 font-bold">✓</span>

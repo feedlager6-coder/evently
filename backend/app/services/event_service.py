@@ -34,6 +34,10 @@ class EventForbiddenError(Exception):
     pass
 
 
+class EventPastError(Exception):
+    pass
+
+
 def resolve_city_timezone(city_tz_str: str):
     """
     Safely resolves timezone with fallback for systems without tzdata installed.
@@ -414,6 +418,10 @@ async def add_event_rsvp(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.start_at < utc_now():
+        raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
+    if event.status == EventStatus.CANCELLED.value:
+        raise EventValidationError("Мероприятие отменено. Изменение участия недоступно.")
 
     # Confirmed attendance supersedes interest: remove interest if exists
     del_int_stmt = delete(EventInterest).where(
@@ -468,6 +476,8 @@ async def remove_event_rsvp(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.start_at < utc_now():
+        raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
 
     # Delete attendance if exists
     del_stmt = delete(EventAttendee).where(
@@ -504,6 +514,10 @@ async def add_event_interest(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.start_at < utc_now():
+        raise EventPastError("Мероприятие уже завершено. Отметка интереса недоступна.")
+    if event.status == EventStatus.CANCELLED.value:
+        raise EventValidationError("Мероприятие отменено. Отметка интереса недоступна.")
 
     # If currently attending, remove attendance (downgrade to interested)
     del_att_stmt = delete(EventAttendee).where(
@@ -557,6 +571,8 @@ async def remove_event_interest(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.start_at < utc_now():
+        raise EventPastError("Мероприятие уже завершено. Изменение интереса недоступно.")
 
     # Delete interest if exists
     del_stmt = delete(EventInterest).where(

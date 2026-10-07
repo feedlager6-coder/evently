@@ -179,3 +179,18 @@ async def admin_set_organization_plan(
     )
     return await EntitlementService.get_entitlements(session, org_id, org_name=org.name)
 
+
+@router.post("/reminders/process")
+async def admin_process_reminders(
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Manually triggers processing of due event reminders.
+    Safe, idempotent, and daytime-aware.
+    """
+    from app.services.reminder_service import process_due_reminders
+    report = await process_due_reminders(session)
+    return {"status": "ok", "report": report}
+
+

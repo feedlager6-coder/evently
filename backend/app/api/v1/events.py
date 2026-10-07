@@ -23,7 +23,8 @@ from app.services.event_service import (
     record_event_view,
     EventNotFoundError,
     EventValidationError,
-    EventForbiddenError
+    EventForbiddenError,
+    EventPastError
 )
 
 from app.services.storage_service import storage_service, ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE, validate_image_bytes
@@ -151,6 +152,8 @@ async def rsvp_event(
         )
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (EventPastError, EventValidationError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/{event_id}/rsvp", response_model=RSVPResponse)
@@ -173,6 +176,8 @@ async def cancel_rsvp_event(
         )
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (EventPastError, EventValidationError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{event_id}/interest", response_model=EventInterestResponse)
@@ -198,6 +203,8 @@ async def express_event_interest(
         )
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (EventPastError, EventValidationError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.delete("/{event_id}/interest", response_model=EventInterestResponse)
@@ -222,6 +229,8 @@ async def remove_event_interest_endpoint(
         )
     except EventNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (EventPastError, EventValidationError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)

@@ -68,6 +68,13 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         pastEventsMap.set(e.id, { ...e, current_user_interested: true });
       }
     });
+  myCreatedEvents
+    .filter((e) => new Date(e.start_at) < now)
+    .forEach((e) => {
+      if (!pastEventsMap.has(e.id)) {
+        pastEventsMap.set(e.id, { ...e });
+      }
+    });
   const pastEvents = Array.from(pastEventsMap.values()).sort(
     (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
   );

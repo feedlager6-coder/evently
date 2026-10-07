@@ -99,6 +99,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   if (!isOpen || !event) return null;
 
   const eventDate = new Date(event.start_at);
+  const isPast = eventDate.getTime() < Date.now();
   const formattedFullDate = eventDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
     day: 'numeric',
@@ -116,14 +117,21 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
-    const shareTitle = `${event.title} — Ivently`;
     const shareText = `🧭 ${event.title}\n📅 ${formattedFullDate}\n📍 ${event.venue_name}${event.city_name ? ` (${event.city_name})` : ''}\n\nСмотрите в Ivently:`;
 
+    // 1. If running inside Telegram, use native Telegram share picker
+    if (telegram.isAvailable()) {
+      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+      telegram.openTelegramLink(tgShareUrl);
+      return;
+    }
+
+    // 2. Web Share API fallback
     let shared = false;
     if (navigator.share) {
       try {
         await navigator.share({
-          title: shareTitle,
+          title: `${event.title} — Ivently`,
           text: shareText,
           url: shareUrl,
         });
@@ -135,6 +143,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       }
     }
 
+    // 3. Clipboard copy fallback
     if (!shared) {
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -379,110 +388,162 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             )}
           </div>
 
+          {/* Native Telegram Sharing: «Позвать друга» */}
+          {!isPast && (
+            <button
+              type="button"
+              onClick={handleShare}
+              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-indigo-300 hover:text-white font-medium flex items-center justify-center space-x-2 transition-all btn-press"
+            >
+              <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Позвать друга в Telegram 👥</span>
+            </button>
+          )}
+
           {/* Social Discovery: «Найти компанию» entry card */}
-          <div
-            onClick={() => {
-              telegram.hapticImpact('light');
-              onOpenCompanyModal?.(event);
-            }}
-            className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/30 to-purple-950/30 border border-indigo-500/20 hover:border-indigo-500/40 transition-all cursor-pointer group shadow-sm"
-          >
-            <div className="flex items-center space-x-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0 text-indigo-400 group-hover:scale-105 transition-transform">
-                <Users className="w-5 h-5 text-indigo-400" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-white group-hover:text-indigo-200 transition-colors flex items-center space-x-1.5">
-                  <span>Найти компанию</span>
-                  {isCompanyOptedIn && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Ваша анкета активна" />
-                  )}
+          {isPast ? (
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 opacity-60">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-gray-500">
+                  <Users className="w-5 h-5 text-gray-400" />
                 </div>
-                <div className="text-[11px] text-gray-400 truncate mt-0.5">
-                  {companyMembersCount > 0
-                    ? `${companyMembersCount} ${getCompanyMembersWord(companyMembersCount)}`
-                    : 'Познакомьтесь с теми, кто тоже идёт'}
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-gray-300">Поиск компании</div>
+                  <div className="text-[11px] text-gray-500 truncate mt-0.5">Мероприятие завершено • поиск закрыт</div>
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
-              <span>{isCompanyOptedIn ? 'Моя анкета' : 'Открыть'}</span>
-              <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+          ) : (
+            <div
+              onClick={() => {
+                telegram.hapticImpact('light');
+                onOpenCompanyModal?.(event);
+              }}
+              className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/30 to-purple-950/30 border border-indigo-500/20 hover:border-indigo-500/40 transition-all cursor-pointer group shadow-sm"
+            >
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0 text-indigo-400 group-hover:scale-105 transition-transform">
+                  <Users className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white group-hover:text-indigo-200 transition-colors flex items-center space-x-1.5">
+                    <span>Найти компанию</span>
+                    {isCompanyOptedIn && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Ваша анкета активна" />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-400 truncate mt-0.5">
+                    {companyMembersCount > 0
+                      ? `${companyMembersCount} ${getCompanyMembersWord(companyMembersCount)}`
+                      : 'Познакомьтесь с теми, кто тоже идёт'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
+                <span>{isCompanyOptedIn ? 'Моя анкета' : 'Открыть'}</span>
+                <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Sticky Bottom Action Bar */}
         <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3 space-y-2">
-          {/* Primary CTA: «Я иду» */}
-          <button
-            onClick={handleRsvpClick}
-            disabled={isRsvpLoading || isInterestLoading}
-            title={event.is_attending ? 'Нажмите, чтобы отменить участие' : 'Подтвердить участие'}
-            className={`w-full h-12 px-6 rounded-2xl font-semibold text-sm flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
-              event.is_attending || rsvpAnimationPhase === 'animating'
-                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 shadow-sm'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/25 shadow-lg'
-            } disabled:opacity-70`}
-          >
-            <GoingAnimation
-              state={
-                rsvpAnimationPhase === 'animating'
-                  ? 'animating'
-                  : isRsvpLoading
-                  ? 'loading'
-                  : event.is_attending
-                  ? 'success'
-                  : 'idle'
-              }
-              onAnimationEnd={() => setRsvpAnimationPhase('idle')}
-              size={18}
-            />
-            <span>
-              {isRsvpLoading && rsvpAnimationPhase === 'loading'
-                ? 'Обновление...'
-                : 'Я иду'}
-            </span>
-          </button>
-
-          {/* Secondary Action: «Хочу пойти» */}
-          {onToggleInterest && (
-            <button
-              onClick={() => {
-                if (isInterestLoading || isRsvpLoading) return;
-                telegram.hapticImpact('light');
-                onToggleInterest(event.id, Boolean(event.current_user_interested));
-              }}
-              disabled={isInterestLoading || isRsvpLoading}
-              title={event.current_user_interested ? 'Нажмите, чтобы отменить интерес' : 'Хочу пойти'}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
-                event.current_user_interested
-                  ? 'bg-purple-500/15 border border-purple-500/35 text-purple-200 hover:bg-purple-500/25'
-                  : 'bg-[#181C2B] border border-white/8 text-gray-300 hover:text-white hover:border-white/20'
-              } disabled:opacity-60`}
-            >
-              <Heart
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  event.current_user_interested
-                    ? 'fill-purple-400 text-purple-400 scale-110'
-                    : 'text-gray-400'
-                }`}
-              />
-              <span>
-                {isInterestLoading
-                  ? 'Обновление...'
-                  : 'Хочу пойти'}
-              </span>
-              {event.interest_count > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
-                  event.current_user_interested
-                    ? 'bg-purple-500/25 text-purple-200'
-                    : 'bg-white/10 text-gray-400'
-                }`}>
-                  {event.interest_count}
+          {isPast ? (
+            <div className="py-1">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <div className="text-white font-semibold">Мероприятие завершено</div>
+                  <div className="text-[11px] text-gray-400">Событие находится в архиве</div>
+                </div>
+                {event.is_attending ? (
+                  <span className="text-emerald-400 font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[11px]">
+                    ✓ Вы были участником
+                  </span>
+                ) : event.current_user_interested ? (
+                  <span className="text-purple-300 font-semibold px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-[11px]">
+                    ✓ Вы сохраняли событие
+                  </span>
+                ) : (
+                  <span className="text-gray-400 font-medium px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[11px]">
+                    Архив
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Primary CTA: «Я иду» */}
+              <button
+                onClick={handleRsvpClick}
+                disabled={isRsvpLoading || isInterestLoading}
+                title={event.is_attending ? 'Нажмите, чтобы отменить участие' : 'Подтвердить участие'}
+                className={`w-full h-12 px-6 rounded-2xl font-semibold text-sm flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
+                  event.is_attending || rsvpAnimationPhase === 'animating'
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 shadow-sm'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/25 shadow-lg'
+                } disabled:opacity-70`}
+              >
+                <GoingAnimation
+                  state={
+                    rsvpAnimationPhase === 'animating'
+                      ? 'animating'
+                      : isRsvpLoading
+                      ? 'loading'
+                      : event.is_attending
+                      ? 'success'
+                      : 'idle'
+                  }
+                  onAnimationEnd={() => setRsvpAnimationPhase('idle')}
+                  size={18}
+                />
+                <span>
+                  {isRsvpLoading && rsvpAnimationPhase === 'loading'
+                    ? 'Обновление...'
+                    : 'Я иду'}
                 </span>
+              </button>
+
+              {/* Secondary Action: «Хочу пойти» */}
+              {onToggleInterest && (
+                <button
+                  onClick={() => {
+                    if (isInterestLoading || isRsvpLoading) return;
+                    telegram.hapticImpact('light');
+                    onToggleInterest(event.id, Boolean(event.current_user_interested));
+                  }}
+                  disabled={isInterestLoading || isRsvpLoading}
+                  title={event.current_user_interested ? 'Нажмите, чтобы отменить интерес' : 'Хочу пойти'}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
+                    event.current_user_interested
+                      ? 'bg-purple-500/15 border border-purple-500/35 text-purple-200 hover:bg-purple-500/25'
+                      : 'bg-[#181C2B] border border-white/8 text-gray-300 hover:text-white hover:border-white/20'
+                  } disabled:opacity-60`}
+                >
+                  <Heart
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      event.current_user_interested
+                        ? 'fill-purple-400 text-purple-400 scale-110'
+                        : 'text-gray-400'
+                    }`}
+                  />
+                  <span>
+                    {isInterestLoading
+                      ? 'Обновление...'
+                      : 'Хочу пойти'}
+                  </span>
+                  {event.interest_count > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
+                      event.current_user_interested
+                        ? 'bg-purple-500/25 text-purple-200'
+                        : 'bg-white/10 text-gray-400'
+                    }`}>
+                      {event.interest_count}
+                    </span>
+                  )}
+                </button>
               )}
-            </button>
+            </>
           )}
 
           {/* Organizer Edit Action */}

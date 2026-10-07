@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -72,9 +73,30 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
 
+    # Start periodic reminder runner in background (checks every 15 minutes)
+    async def reminder_loop():
+        while True:
+            try:
+                await asyncio.sleep(900)
+                async with AsyncSessionLocal() as session:
+                    from app.services.reminder_service import process_due_reminders
+                    await process_due_reminders(session)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in periodic reminder runner: {e}")
+
+    reminder_task = asyncio.create_task(reminder_loop())
+
     yield
 
-    # Shutdown: Close connections
+    # Shutdown: Cancel background tasks and close connections
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
+
     logger.info("Shutting down Evently backend...")
     await close_db()
 

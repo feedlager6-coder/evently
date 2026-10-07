@@ -27,6 +27,7 @@ from app.models.payment import (
     PaymentOperationType,
     WebhookProcessingStatus,
 )
+from app.models.reminder import EventReminder
 
 __all__ = [
     "City",
@@ -61,4 +62,5 @@ __all__ = [
     "ReceiptStatus",
     "PaymentOperationType",
     "WebhookProcessingStatus",
+    "EventReminder",
 ]
