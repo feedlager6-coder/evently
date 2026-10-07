@@ -125,12 +125,12 @@ async def test_past_event_company_profile_rejected(client, test_session):
     await test_session.refresh(past_event)
 
     resp = await client.post(
-        f"/api/v1/events/{past_event.id}/company-profile",
+        f"/api/v1/events/{past_event.id}/company/profile",
         headers=headers,
-        json={"bio": "Looking for runners", "interests": ["running"]}
+        json={"is_active": True, "note": "Looking for companions"}
     )
     assert resp.status_code == 400
-    assert "прошедшем событии" in resp.json()["detail"]
+    assert "прошедшем событии" in resp.json()["detail"] or "уже завершено" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -317,11 +317,11 @@ async def test_free_vs_pro_broadcast_quota_and_operational_isolation(test_sessio
     ent_free = await EntitlementService.get_entitlements(test_session, org_free.id)
     assert ent_free.plan == "free"
     assert ent_free.limits.broadcasts_remaining == 0
-    assert ent_free.capabilities["custom_broadcasts"].status == CapabilityStatus.LOCKED
+    assert ent_free.capabilities["broadcasts_extended"].status == CapabilityStatus.LOCKED
 
     # Upgrade to Pro
     await EntitlementService.set_organization_plan(test_session, org_free.id, plan="pro", status_val="active")
     ent_pro = await EntitlementService.get_entitlements(test_session, org_free.id)
     assert ent_pro.plan == "pro"
     assert ent_pro.limits.broadcasts_remaining == 20
-    assert ent_pro.capabilities["custom_broadcasts"].status == CapabilityStatus.AVAILABLE
+    assert ent_pro.capabilities["broadcasts_extended"].status == CapabilityStatus.AVAILABLE

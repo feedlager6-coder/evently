@@ -38,6 +38,14 @@ class EventPastError(Exception):
     pass
 
 
+def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def resolve_city_timezone(city_tz_str: str):
     """
     Safely resolves timezone with fallback for systems without tzdata installed.
@@ -418,7 +426,7 @@ async def add_event_rsvp(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if event.start_at < utc_now():
+    if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
     if event.status == EventStatus.CANCELLED.value:
         raise EventValidationError("Мероприятие отменено. Изменение участия недоступно.")
@@ -476,7 +484,7 @@ async def remove_event_rsvp(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if event.start_at < utc_now():
+    if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
 
     # Delete attendance if exists
@@ -514,7 +522,7 @@ async def add_event_interest(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if event.start_at < utc_now():
+    if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Отметка интереса недоступна.")
     if event.status == EventStatus.CANCELLED.value:
         raise EventValidationError("Мероприятие отменено. Отметка интереса недоступна.")
@@ -571,7 +579,7 @@ async def remove_event_interest(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if event.start_at < utc_now():
+    if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Изменение интереса недоступно.")
 
     # Delete interest if exists
