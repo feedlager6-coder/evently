@@ -189,13 +189,19 @@ async def test_reminder_service_same_day_idempotency(test_session):
     test_session.add_all([u1, u2, u3, u4])
     await test_session.commit()
 
-    # Event starting in 3 hours today
+    # Event starting soon today (guaranteed same calendar date in city timezone)
+    from app.services.event_service import resolve_city_timezone
+    city_tz = resolve_city_timezone(city.timezone)
+    local_now = now.astimezone(city_tz)
+    offset_minutes = 10 if local_now.minute < 50 else 2
+    active_start = now + timedelta(minutes=offset_minutes)
+
     active_event = Event(
         title="Today's Festival",
         description="Fun festival today",
         city_id=city.id,
         category_id=category.id,
-        start_at=now + timedelta(hours=3),
+        start_at=active_start,
         venue_name="Main Square",
         address="Square 1",
         organizer_user_id=org_user.id,
@@ -207,7 +213,7 @@ async def test_reminder_service_same_day_idempotency(test_session):
         description="Cancelled",
         city_id=city.id,
         category_id=category.id,
-        start_at=now + timedelta(hours=4),
+        start_at=active_start + timedelta(minutes=2),
         venue_name="Theatre",
         address="Theatre Lane 2",
         organizer_user_id=org_user.id,
