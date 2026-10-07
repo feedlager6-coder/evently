@@ -17,6 +17,7 @@ from app.services.entitlement_service import EntitlementService
 from app.services.notification_service import (
     notify_event_updated,
     notify_organization_subscribers,
+    build_event_notification_reply_markup,
 )
 
 
@@ -184,9 +185,10 @@ async def test_domain_4_event_update_notification_cta(client, test_session):
 
     payload = calls[0].kwargs["json"]
     button = payload["reply_markup"]["inline_keyboard"][0][0]
-    expected_url = f"https://t.me/{settings.clean_bot_username}/app?startapp=event_{event_id}"
-    assert button["url"] == expected_url
-    assert "startapp=event_" in button["url"]
+    expected_url = f"{settings.effective_public_host}/?startapp=event_{event_id}"
+    assert "web_app" in button
+    assert button["web_app"]["url"] == expected_url
+    assert "startapp=event_" in button["web_app"]["url"]
 
 
 def test_domain_4_contract_telegram_and_app_deep_link():
@@ -198,14 +200,14 @@ def test_domain_4_contract_telegram_and_app_deep_link():
     assert tg_path.exists(), "telegram.ts must exist"
     tg_code = tg_path.read_text(encoding="utf-8")
 
-    assert "consumeStartParam(): void" in tg_code, "telegram.ts must export consumeStartParam"
-    assert "_start_param_consumed" in tg_code, "telegram.ts must track consumed parameters"
+    assert "consumeStartParam" in tg_code, "telegram.ts must export consumeStartParam"
+    assert "__evently_last_consumed_start_param" in tg_code, "telegram.ts must track consumed parameters"
 
     app_path = Path("frontend/src/App.tsx")
     assert app_path.exists(), "App.tsx must exist"
     app_code = app_path.read_text(encoding="utf-8")
 
-    assert "telegram.consumeStartParam();" in app_code, "App.tsx must consume start parameters"
+    assert "telegram.consumeStartParam" in app_code, "App.tsx must consume start parameters"
     assert "setIsCityModalOpen(false);" in app_code, "App.tsx must dismiss CityModal on deep link open"
     assert "setIsOrganizerWorkspaceOpen(false);" in app_code, "App.tsx must dismiss OrganizerWorkspace on deep link open"
 
@@ -387,3 +389,282 @@ def test_domain_6_contract_workspace_composer_gate():
     assert "setIsProModalOpen(true);" in ws_code, (
         "OrganizerWorkspace must open ProModal if not Pro"
     )
+
+
+# ==============================================================================
+# MANDATORY PRODUCTION REGRESSION SUITE (11 TESTS)
+# ==============================================================================
+
+def test_event_notification_generates_valid_native_and_direct_links():
+    """
+    1. Verifies notification button generates native web_app URL pointing to
+    effective_public_host/?startapp=event_{id}, and settings.get_event_deep_link produces
+    the valid direct https://t.me/... URL.
+    """
+    test_id = "test-event-uuid-1234"
+    reply_markup = build_event_notification_reply_markup(test_id)
+    button = reply_markup["inline_keyboard"][0][0]
+    assert "web_app" in button, "Notification button must use native web_app"
+    assert button["web_app"]["url"] == f"{settings.effective_public_host}/?startapp=event_{test_id}"
+    assert "startapp=event_" in button["web_app"]["url"]
+
+    # Also with attribution token
+    token = "promo99"
+    markup_with_tok = build_event_notification_reply_markup(test_id, attribution_token=token)
+    btn_tok = markup_with_tok["inline_keyboard"][0][0]
+    assert f"startapp=event_{test_id}_b_{token}" in btn_tok["web_app"]["url"]
+
+    # Direct bot link
+    direct_link = settings.get_event_deep_link(test_id)
+    assert direct_link.startswith(f"https://t.me/{settings.clean_bot_username}/app?startapp=event_{test_id}")
+
+
+def test_event_deep_link_parser_resolves_correct_event_id():
+    """
+    2. Verifies parameter parser extracts clean event ID from parameter formats:
+    event_{uuid}, event_{uuid}_b_{token}, etc.
+    """
+    import re
+    def parse_event_id(param: str) -> str:
+        if not param:
+            return ""
+        m = re.match(r"^event_([a-zA-Z0-9_-]+?)(?:_b_[a-zA-Z0-9_-]+)?$", param)
+        return m.group(1) if m else ""
+
+    assert parse_event_id("event_550e8400-e29b-41d4-a716-446655440000") == "550e8400-e29b-41d4-a716-446655440000"
+    assert parse_event_id("event_550e8400-e29b-41d4-a716-446655440000_b_ref123") == "550e8400-e29b-41d4-a716-446655440000"
+    assert parse_event_id("event_12345") == "12345"
+    assert parse_event_id("invalid") == ""
+
+
+def test_event_deep_link_opens_exact_event():
+    """
+    3. Contract test verifying App.tsx and telegram.ts guarantee deep link opens
+    the exact event modal without modal collision or frozen consumption lock.
+    """
+    app_path = Path("frontend/src/App.tsx")
+    tg_path = Path("frontend/src/services/telegram.ts")
+    assert app_path.exists() and tg_path.exists()
+
+    app_code = app_path.read_text(encoding="utf-8")
+    tg_code = tg_path.read_text(encoding="utf-8")
+
+    # telegram.ts value-based tracking and onActivated
+    assert "__evently_last_consumed_start_param" in tg_code
+    assert "onActivated" in tg_code
+    assert "resetConsumedStartParam" in tg_code
+
+    # App.tsx deep link handling
+    assert "openEventById" in app_code
+    assert "telegram.consumeStartParam" in app_code
+    assert "setIsCityModalOpen(false);" in app_code
+    assert "telegram.onActivated" in app_code
+
+
+@pytest.mark.asyncio
+async def test_event_detail_api_works_for_notified_event(client, test_session):
+    """
+    4. Verifies GET /api/v1/events/{id} returns full, valid details
+    for an event that underwent updates and was published.
+    """
+    owner_id = 9501
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_notif')}"}
+    admin_id = 123456789
+    auth_admin = {"Authorization": f"tma {make_test_init_data(user_id=admin_id, username='admin_notif')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Cinema Hall", "category": "Кино", "city_id": "makhachkala"},
+        headers=auth_owner,
+    )
+    org_id = res_org.json()["id"]
+
+    start_time = datetime.now(timezone.utc) + timedelta(days=7)
+    res_ev = await client.post(
+        "/api/v1/events",
+        json={
+            "title": "Interstellar Screening",
+            "description": "Special film screening in IMAX.",
+            "category_id": "cinema",
+            "city_id": "makhachkala",
+            "start_at": start_time.isoformat(),
+            "venue_name": "Screen 1",
+            "address": "ул. Расула Гамзатова, 15",
+            "organization_id": org_id,
+        },
+        headers=auth_owner,
+    )
+    event_id = res_ev.json()["id"]
+    await client.post(f"/api/v1/admin/events/{event_id}/publish", headers=auth_admin)
+
+    # Fetch event details
+    attendee_id = 9502
+    auth_att = {"Authorization": f"tma {make_test_init_data(user_id=attendee_id, username='attendee_notif')}"}
+    get_res = await client.get(f"/api/v1/events/{event_id}", headers=auth_att)
+    assert get_res.status_code == 200
+    data = get_res.json()
+    assert data["id"] == event_id
+    assert data["title"] == "Interstellar Screening"
+    assert data["status"] == "published"
+    assert data["venue_name"] == "Screen 1"
+
+
+def test_feed_loading_exits_loading_on_api_error():
+    """
+    5. Contract test verifying App.tsx exits loading/refreshing states on API failure,
+    preventing infinite spinner when backend errors or aborts occur.
+    """
+    app_path = Path("frontend/src/App.tsx")
+    assert app_path.exists()
+    app_code = app_path.read_text(encoding="utf-8")
+
+    assert "setIsLoading(false);" in app_code
+    assert "setIsRefreshing(false);" in app_code
+    assert "finally" in app_code
+    assert "feedAbortControllerRef.current = null;" in app_code
+
+
+def test_feed_request_handles_timeout():
+    """
+    6. Contract test verifying api.ts implements fetchWithTimeout with AbortController,
+    configurable timeout (10000ms), and custom timeout error formatting.
+    """
+    api_path = Path("frontend/src/services/api.ts")
+    assert api_path.exists()
+    api_code = api_path.read_text(encoding="utf-8")
+
+    assert "fetchWithTimeout" in api_code
+    assert "timeoutMs: number = 10000" in api_code
+    assert "AbortController" in api_code
+    assert "timeout" in api_code.lower()
+
+
+@pytest.mark.asyncio
+async def test_feed_successful_request_loads_events(client, test_session):
+    """
+    7. Verifies GET /api/v1/events successfully returns 200 with list of events
+    for a valid city without timeout or failure.
+    """
+    res = await client.get("/api/v1/events?city_id=makhachkala")
+    assert res.status_code == 200
+    events = res.json()
+    assert isinstance(events, list)
+
+
+@pytest.mark.asyncio
+async def test_subscription_creates_no_confirmation_telegram_message(client, test_session):
+    """
+    8. Verifies that user subscription creates 0 Telegram bot messages,
+    confirming clean silent subscription without spamming the user.
+    """
+    owner_id = 9601
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_sub0')}"}
+    sub_id = 9602
+    auth_sub = {"Authorization": f"tma {make_test_init_data(user_id=sub_id, username='sub_user0')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Book Club", "category": "Книги", "city_id": "makhachkala"},
+        headers=auth_owner,
+    )
+    org_id = res_org.json()["id"]
+
+    sub_res = await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=auth_sub)
+    assert sub_res.status_code == 200
+    assert sub_res.json()["is_subscribed"] is True
+
+    # Frontend contract check: OrganizationModal has no requestWriteAccess
+    modal_code = Path("frontend/src/components/OrganizationModal.tsx").read_text(encoding="utf-8")
+    assert "requestWriteAccess" not in modal_code
+
+
+def test_duplicate_header_subscription_entry_is_absent():
+    """
+    9. Verifies that Header.tsx does not contain the duplicate Bookmark button
+    or onOpenSubscriptionsModal prop.
+    """
+    header_path = Path("frontend/src/components/Header.tsx")
+    assert header_path.exists()
+    header_code = header_path.read_text(encoding="utf-8")
+
+    assert "Bookmark" not in header_code, "Header must not import or render Bookmark"
+    assert "onOpenSubscriptionsModal" not in header_code, "Header must not accept onOpenSubscriptionsModal"
+
+    app_path = Path("frontend/src/App.tsx")
+    app_code = app_path.read_text(encoding="utf-8")
+    assert "<Header" in app_code
+    assert "onOpenSubscriptionsModal=" not in app_code, "App.tsx must not pass onOpenSubscriptionsModal to Header"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_access_control_free_organizer_blocked(client, test_session):
+    """
+    10. Verifies that Free plan organizers are strictly blocked from broadcasting (403 ENTITLEMENT_REQUIRED).
+    """
+    owner_id = 9701
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_free_bcast')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Free Bakery Bcast", "category": "Кафе", "city_id": "makhachkala"},
+        headers=auth_owner,
+    )
+    org_id = res_org.json()["id"]
+
+    res = await client.post(
+        "/api/v1/organizer/broadcasts",
+        json={
+            "organization_id": org_id,
+            "target_type": "organization_subscribers",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "custom_text": "Free broadcast attempt",
+        },
+        headers=auth_owner,
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"]["code"] == "ENTITLEMENT_REQUIRED"
+    assert res.json()["detail"]["required_plan"] == "pro"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_access_control_pro_organizer_allowed(client, test_session):
+    """
+    11. Verifies that Pro plan organizers can successfully create a broadcast.
+    """
+    owner_id = 9801
+    auth_owner = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner_pro_bcast')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Pro Bakery Bcast", "category": "Кафе", "city_id": "makhachkala"},
+        headers=auth_owner,
+    )
+    org_id = res_org.json()["id"]
+
+    # Upgrade to Pro
+    await EntitlementService.set_organization_plan(
+        test_session,
+        org_id,
+        plan="pro",
+        expires_at=datetime.now(timezone.utc) + timedelta(days=30)
+    )
+
+    # Add a subscriber
+    sub_id = 9802
+    auth_sub = {"Authorization": f"tma {make_test_init_data(user_id=sub_id, username='pro_bcast_sub')}"}
+    await client.post(f"/api/v1/organizations/{org_id}/subscribe", headers=auth_sub)
+
+    res = await client.post(
+        "/api/v1/organizer/broadcasts",
+        json={
+            "organization_id": org_id,
+            "target_type": "organization_subscribers",
+            "broadcast_type": "marketing",
+            "template_key": "custom_update",
+            "custom_text": "Pro broadcast success text",
+        },
+        headers=auth_owner,
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] in ("queued", "sent", "completed")

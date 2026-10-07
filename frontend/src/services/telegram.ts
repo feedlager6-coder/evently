@@ -43,6 +43,8 @@ declare global {
         close: () => void;
         openTelegramLink: (url: string) => void;
         openLink: (url: string) => void;
+        onEvent?: (eventType: string, eventHandler: () => void) => void;
+        offEvent?: (eventType: string, eventHandler: () => void) => void;
       };
     };
   }
@@ -73,36 +75,10 @@ export const telegram = {
   },
 
   getStartParam(): string | null {
-    // 1. Check window.location.hash (Primary for Telegram Mobile Webview & dynamic resumes)
-    // Telegram loads and updates webviews with URL fragment:
-    // #tgWebAppData=...&tgWebAppStartParam=event_123&tgWebAppVersion=...
-    // or #/tgWebAppStartParam=... or #startapp=event_123
-    if (typeof window !== 'undefined' && window.location.hash) {
-      try {
-        const cleanHash = window.location.hash.replace(/^#[!/?]*/, '');
-        const hashParams = new URLSearchParams(cleanHash);
+    let candidate: string | null = null;
 
-        const startFromHash =
-          hashParams.get('tgWebAppStartParam') ||
-          hashParams.get('startapp') ||
-          hashParams.get('start_param');
-        if (startFromHash && startFromHash.trim()) {
-          return startFromHash.trim();
-        }
-
-        // Check if start_param is encoded inside tgWebAppData parameter within hash
-        const rawAppData = hashParams.get('tgWebAppData');
-        if (rawAppData) {
-          const appDataParams = new URLSearchParams(rawAppData);
-          const p = appDataParams.get('start_param') || appDataParams.get('tgWebAppStartParam') || appDataParams.get('startapp');
-          if (p && p.trim()) return p.trim();
-        }
-      } catch {
-        // ignore parsing errors
-      }
-    }
-
-    // 2. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
+    // 1. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
+    // Primary for native web_app buttons that launch Mini App directly with URL query params
     if (typeof window !== 'undefined' && window.location.search) {
       try {
         const cleanSearch = window.location.search.replace(/^\/[?]/, '?');
@@ -112,12 +88,40 @@ export const telegram = {
           urlParams.get('startapp') ||
           urlParams.get('start_param');
         if (startAppParam && startAppParam.trim()) {
-          return startAppParam.trim();
+          candidate = startAppParam.trim();
+        } else {
+          const eventIdParam = urlParams.get('event_id');
+          if (eventIdParam && eventIdParam.trim()) {
+            candidate = `event_${eventIdParam.trim()}`;
+          }
+        }
+      } catch {
+        // ignore parsing errors
+      }
+    }
+
+    // 2. Check window.location.hash (Primary for Telegram direct link launch and dynamic resumes)
+    if (!candidate && typeof window !== 'undefined' && window.location.hash) {
+      try {
+        const cleanHash = window.location.hash.replace(/^#[!/?]*/, '');
+        const hashParams = new URLSearchParams(cleanHash);
+
+        const startFromHash =
+          hashParams.get('tgWebAppStartParam') ||
+          hashParams.get('startapp') ||
+          hashParams.get('start_param');
+        if (startFromHash && startFromHash.trim()) {
+          candidate = startFromHash.trim();
         }
 
-        const eventIdParam = urlParams.get('event_id');
-        if (eventIdParam && eventIdParam.trim()) {
-          return `event_${eventIdParam.trim()}`;
+        // Check if start_param is encoded inside tgWebAppData parameter within hash
+        if (!candidate) {
+          const rawAppData = hashParams.get('tgWebAppData');
+          if (rawAppData) {
+            const appDataParams = new URLSearchParams(rawAppData);
+            const p = appDataParams.get('start_param') || appDataParams.get('tgWebAppStartParam') || appDataParams.get('startapp');
+            if (p && p.trim()) candidate = p.trim();
+          }
         }
       } catch {
         // ignore parsing errors
@@ -125,59 +129,71 @@ export const telegram = {
     }
 
     // 3. Direct Regex fallback on entire window.location.href (guards against non-standard WebView encoding)
-    if (typeof window !== 'undefined' && window.location.href) {
+    if (!candidate && typeof window !== 'undefined' && window.location.href) {
       try {
         const match = /(?:tgWebAppStartParam|startapp|start_param)=([^&#?]+)/i.exec(window.location.href);
         if (match && match[1]) {
           const decoded = decodeURIComponent(match[1]).trim();
-          if (decoded) return decoded;
+          if (decoded) candidate = decoded;
         }
       } catch {
         // ignore regex/decoding errors
       }
     }
 
-    // 4. Check Telegram's native initDataUnsafe.start_param (initial cold boot only, if not consumed)
-    const isConsumed = Boolean((window.Telegram?.WebApp?.initDataUnsafe as any)?._start_param_consumed);
-    if (!isConsumed) {
+    // 4. Check Telegram's native initDataUnsafe.start_param (updated dynamically by Telegram on resume/launch)
+    if (!candidate && typeof window !== 'undefined') {
       const tgParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
       if (tgParam && typeof tgParam === 'string' && tgParam.trim()) {
-        return tgParam.trim();
+        candidate = tgParam.trim();
       }
 
       // Check window.Telegram?.WebApp?.initParams
-      try {
-        const rawInitParams = (window.Telegram?.WebApp as any)?.initParams;
-        if (rawInitParams) {
-          const initParams = new URLSearchParams(typeof rawInitParams === 'string' ? rawInitParams : '');
-          const p = initParams.get('start_param') || initParams.get('tgWebAppStartParam') || initParams.get('startapp');
-          if (p && p.trim()) return p.trim();
+      if (!candidate) {
+        try {
+          const rawInitParams = (window.Telegram?.WebApp as any)?.initParams;
+          if (rawInitParams) {
+            const initParams = new URLSearchParams(typeof rawInitParams === 'string' ? rawInitParams : '');
+            const p = initParams.get('start_param') || initParams.get('tgWebAppStartParam') || initParams.get('startapp');
+            if (p && p.trim()) candidate = p.trim();
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
 
       // Check window.Telegram?.WebApp?.initData raw query string
-      if (window.Telegram?.WebApp?.initData) {
+      if (!candidate && window.Telegram?.WebApp?.initData) {
         try {
           const initDataParams = new URLSearchParams(window.Telegram.WebApp.initData);
           const p = initDataParams.get('start_param') || initDataParams.get('tgWebAppStartParam') || initDataParams.get('startapp');
-          if (p && p.trim()) return p.trim();
+          if (p && p.trim()) candidate = p.trim();
         } catch {
           // ignore parsing errors
         }
       }
     }
 
-    return null;
+    if (!candidate) return null;
+
+    // VALUE-BASED CONSUMPTION GUARD:
+    // If the candidate was already consumed and processed, return null to avoid duplicate actions.
+    // If Telegram sends a new candidate (or different param), return candidate immediately.
+    const lastConsumed = (typeof window !== 'undefined') ? (window as any).__evently_last_consumed_start_param : null;
+    if (lastConsumed && lastConsumed === candidate) {
+      return null;
+    }
+
+    return candidate;
   },
 
-  consumeStartParam(): void {
+  consumeStartParam(paramToConsume?: string): void {
     try {
       if (typeof window !== 'undefined') {
-        // Mark native initDataUnsafe start_param as consumed
-        if (window.Telegram?.WebApp?.initDataUnsafe) {
-          (window.Telegram.WebApp.initDataUnsafe as any)._start_param_consumed = true;
+        // Record value-based consumption marker
+        const resolved = paramToConsume || (window.Telegram?.WebApp?.initDataUnsafe?.start_param) || null;
+        if (resolved) {
+          (window as any).__evently_last_consumed_start_param = resolved;
         }
 
         // Clean live parameters from URL fragment without full page reload
@@ -216,6 +232,30 @@ export const telegram = {
     } catch {
       // ignore state replacement errors
     }
+  },
+
+  resetConsumedStartParam(): void {
+    if (typeof window !== 'undefined') {
+      (window as any).__evently_last_consumed_start_param = null;
+    }
+  },
+
+  onActivated(callback: () => void): () => void {
+    try {
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.onEvent) {
+        window.Telegram.WebApp.onEvent('activated', callback);
+        return () => {
+          try {
+            window.Telegram?.WebApp?.offEvent?.('activated', callback);
+          } catch {
+            // ignore
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return () => {};
   },
 
   ready() {

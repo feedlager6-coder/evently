@@ -165,7 +165,7 @@ export const App: React.FC = () => {
 
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
-      telegram.consumeStartParam();
+      telegram.consumeStartParam(`event_${eventId}`);
 
       // Fire-and-forget background view tracking with attribution support
       api.trackEventView(eventId, source, broadcastToken);
@@ -311,7 +311,8 @@ export const App: React.FC = () => {
           setIsCityModalOpen(false);
         } else {
           setSelectedCityId('');
-          setIsCityModalOpen(true);
+          // Do not force city modal if user is actively viewing an event or workspace
+          setIsCityModalOpen(!Boolean(isDetailsOpen || selectedEventDetails));
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -398,12 +399,14 @@ export const App: React.FC = () => {
     window.addEventListener('popstate', handleUrlChange);
     document.addEventListener('visibilitychange', handleUrlChange);
     window.addEventListener('focus', handleUrlChange);
+    const unbindActivated = telegram.onActivated(handleUrlChange);
 
     return () => {
       window.removeEventListener('hashchange', handleUrlChange);
       window.removeEventListener('popstate', handleUrlChange);
       document.removeEventListener('visibilitychange', handleUrlChange);
       window.removeEventListener('focus', handleUrlChange);
+      unbindActivated();
     };
   }, [processStartParam, isLoadingEvents, loadFeedEvents]);
 
@@ -718,7 +721,6 @@ export const App: React.FC = () => {
       <Header
         currentCity={currentCity}
         onOpenCityModal={() => setIsCityModalOpen(true)}
-        onOpenSubscriptionsModal={() => setIsSubscriptionsModalOpen(true)}
         user={user}
         isAdmin={isAdmin}
       />

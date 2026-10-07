@@ -139,7 +139,10 @@ if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
 
     @app.get("/", include_in_schema=False)
     async def serve_root():
-        return FileResponse(FRONTEND_DIST_DIR / "index.html")
+        return FileResponse(
+            FRONTEND_DIST_DIR / "index.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
@@ -155,5 +158,8 @@ if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
         file_path = FRONTEND_DIST_DIR / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(FRONTEND_DIST_DIR / "index.html")
+        return FileResponse(
+            FRONTEND_DIST_DIR / "index.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
 

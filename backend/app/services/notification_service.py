@@ -207,6 +207,28 @@ async def notify_organization_subscribers(
         return await _dispatch_notifications(sess, event_id, http_client)
 
 
+def build_event_notification_reply_markup(event_id: str, attribution_token: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Builds official Telegram Mini App inline keyboard for direct private chat messages.
+    Uses 'web_app' button targeting public host with ?startapp= parameter for immediate
+    in-app loading without external browser redirect hoops.
+    """
+    param = f"event_{event_id}"
+    if attribution_token:
+        param = f"event_{event_id}_b_{attribution_token}"
+    web_app_url = f"{settings.effective_public_host}/?startapp={param}"
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "Открыть событие 🧭",
+                    "web_app": {"url": web_app_url}
+                }
+            ]
+        ]
+    }
+
+
 async def _dispatch_notifications(
     session: AsyncSession,
     event_id: str,
@@ -254,7 +276,6 @@ async def _dispatch_notifications(
 
     # Prepare message content
     date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
-    deep_link = settings.get_event_deep_link(event.id)
     safe_org_name = html.escape(org.name)
     safe_title = html.escape(event.title)
     safe_venue = html.escape(event.venue_name)
@@ -269,17 +290,7 @@ async def _dispatch_notifications(
     if safe_city:
         message_text += f" ({safe_city})"
 
-    reply_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "Открыть событие 🧭",
-                    "url": deep_link,
-                    "style": "primary"
-                }
-            ]
-        ]
-    }
+    reply_markup = build_event_notification_reply_markup(event.id)
 
     image_url = resolve_event_cover_url(event.cover_image_url)
 
@@ -383,18 +394,7 @@ async def notify_event_updated(
         f"📍 {safe_venue}"
     )
 
-    deep_link = settings.get_event_deep_link(event.id)
-    reply_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "Открыть событие 🧭",
-                    "url": deep_link,
-                    "style": "primary"
-                }
-            ]
-        ]
-    }
+    reply_markup = build_event_notification_reply_markup(event.id)
 
     image_url = resolve_event_cover_url(event.cover_image_url)
     bot_token = settings.clean_bot_token
@@ -543,17 +543,7 @@ async def notify_company_request(
         f"👋 <b>{safe_sender}</b> хочет пойти с вами на событие!\n\n"
         f"🧭 <b>{safe_title}</b>"
     )
-    reply_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "Открыть событие 🧭",
-                    "url": deep_link,
-                    "style": "primary"
-                }
-            ]
-        ]
-    }
+    reply_markup = build_event_notification_reply_markup(event_id)
 
     if not settings.is_live_bot and http_client is None:
         logger.info(f"[Test/Dev Mode] Simulated company request notification to telegram_id {receiver_telegram_id}. Deep link: {deep_link}")
