@@ -363,6 +363,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
   const handleOpenComposer = () => {
     telegram.hapticImpact('light');
+    if (entitlements?.plan !== 'pro') {
+      setIsProModalOpen(true);
+      return;
+    }
     const defaultOrgId = composerOrgId || (organizations[0]?.id ?? '');
     if (organizations.length > 0 && !composerOrgId) {
       setComposerOrgId(defaultOrgId);
@@ -643,12 +647,16 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   {organizations.length > 0 && (
                     <button
                       onClick={() => {
-                        handleTabChange('broadcasts');
-                        handleOpenComposer();
+                        if (entitlements?.plan === 'pro') {
+                          handleTabChange('broadcasts');
+                          handleOpenComposer();
+                        } else {
+                          setIsProModalOpen(true);
+                        }
                       }}
                       className="text-[11px] text-sky-400 hover:text-sky-300 font-medium btn-press"
                     >
-                      + Создать первую рассылку →
+                      {entitlements?.plan === 'pro' ? '+ Создать первую рассылку →' : 'Узнать о рассылках в тарифе Pro →'}
                     </button>
                   )}
                 </div>

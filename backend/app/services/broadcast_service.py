@@ -367,7 +367,21 @@ async def create_broadcast(
             detail="Для аудитории с интересом к событию шаблон 'custom_update' (новости организации) недопустим. Рассылка должна быть связана с событием."
         )
 
-    # Enforce Pro entitlement for manual broadcasts
+    # 1. Verify organization ownership and existence first
+    org_res = await session.execute(
+        select(Organization).where(
+            Organization.id == req.organization_id,
+            Organization.status != OrganizationStatus.DELETED.value
+        )
+    )
+    org = org_res.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Организация не найдена")
+
+    if org.owner_user_id != organizer_user_id:
+        raise HTTPException(status_code=403, detail="У вас нет прав для управления этой организацией")
+
+    # 2. Enforce Pro entitlement for manual broadcasts
     from app.services.entitlement_service import EntitlementService
     await EntitlementService.require_entitlement(session, req.organization_id, "broadcasts_extended")
     await EntitlementService.enforce_broadcast_capacity(session, req.organization_id, broadcast_type=broadcast_type_val)

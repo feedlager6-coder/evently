@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { 
   City, 
   Category, 
@@ -118,8 +118,12 @@ export const App: React.FC = () => {
 
   // Helper to open Organization details
   const openOrgById = useCallback((orgId: string) => {
+    setIsCityModalOpen(false);
+    setIsOrganizerWorkspaceOpen(false);
+    setIsCreateEventModalOpen(false);
     setSelectedOrgId(orgId);
     setIsOrgModalOpen(true);
+    telegram.consumeStartParam();
   }, []);
 
   // Helper to handle Venue click in Discovery
@@ -137,8 +141,32 @@ export const App: React.FC = () => {
   const openEventById = useCallback(async (eventId: string, source: TrackingSource = 'unknown', broadcastToken?: string | null) => {
     try {
       const details = await api.getEventDetails(eventId);
+
+      // Dismiss conflicting full-screen modals to avoid covering the event
+      setIsCityModalOpen(false);
+      setIsOrganizerWorkspaceOpen(false);
+      setIsOrgModalOpen(false);
+      setIsCreateEventModalOpen(false);
+
+      // If user has no city selected, sync selected city to this event's city
+      if (details.city_id) {
+        setSelectedCityId((currentCity) => {
+          if (!currentCity) {
+            try {
+              localStorage.setItem('evently_selected_city_id', details.city_id);
+            } catch {
+              // ignore storage errors
+            }
+            return details.city_id;
+          }
+          return currentCity;
+        });
+      }
+
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
+      telegram.consumeStartParam();
+
       // Fire-and-forget background view tracking with attribution support
       api.trackEventView(eventId, source, broadcastToken);
     } catch (err: any) {
@@ -182,12 +210,16 @@ export const App: React.FC = () => {
     } else if (clean.startsWith('payment_')) {
       const orderId = clean.slice(8).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
       if (orderId) {
+        setIsCityModalOpen(false);
         setPaymentReturnOrderId(orderId);
         setCurrentTab('organizer');
         setIsOrganizerWorkspaceOpen(true);
+        telegram.consumeStartParam();
       }
     } else if (clean === 'create') {
+      setIsCityModalOpen(false);
       setIsCreateEventModalOpen(true);
+      telegram.consumeStartParam();
     }
 
   }, [openEventById, openOrgById]);
@@ -294,12 +326,71 @@ export const App: React.FC = () => {
     };
   }, [processStartParam]);
 
+  const feedAbortControllerRef = useRef<AbortController | null>(null);
+  const feedRequestIdRef = useRef<number>(0);
+  const feedLoadingStartedAtRef = useRef<number>(0);
+
+  // 2. Fetch Discovery Feed Events
+  const loadFeedEvents = useCallback(async () => {
+    if (feedAbortControllerRef.current) {
+      feedAbortControllerRef.current.abort();
+    }
+    const currentController = new AbortController();
+    feedAbortControllerRef.current = currentController;
+    const currentRequestId = ++feedRequestIdRef.current;
+    feedLoadingStartedAtRef.current = Date.now();
+
+    if (!selectedCityId) {
+      setEvents([]);
+      setIsLoadingEvents(false);
+      setFeedError(null);
+      return;
+    }
+    try {
+      setIsLoadingEvents(true);
+      setFeedError(null);
+      const res = await api.getEvents(
+        selectedCityId,
+        selectedCategoryId,
+        dateFilter,
+        currentController.signal
+      );
+      if (currentRequestId === feedRequestIdRef.current) {
+        setEvents(res.events);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError' || currentController.signal.aborted) {
+        return; // gracefully ignore cancelled request
+      }
+      if (currentRequestId === feedRequestIdRef.current) {
+        setFeedError(err.message || 'Ошибка загрузки событий');
+      }
+    } finally {
+      if (currentRequestId === feedRequestIdRef.current) {
+        setIsLoadingEvents(false);
+      }
+    }
+  }, [selectedCityId, selectedCategoryId, dateFilter]);
+
+  useEffect(() => {
+    loadFeedEvents();
+  }, [loadFeedEvents]);
+
   // 1.1 Listen for URL, hash, visibility, and focus changes while app is running
   useEffect(() => {
     const handleUrlChange = () => {
       const param = telegram.getStartParam();
       if (param) {
         processStartParam(param);
+      }
+
+      // Recovery watchdog: If WebApp resumed and feed loading has been stuck for >5s, recover & reload
+      if (document.visibilityState === 'visible') {
+        const loadingDuration = Date.now() - feedLoadingStartedAtRef.current;
+        if (isLoadingEvents && loadingDuration > 5000) {
+          console.warn('Recovering from stuck feed loading state after WebApp resume');
+          loadFeedEvents();
+        }
       }
     };
 
@@ -314,31 +405,7 @@ export const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleUrlChange);
       window.removeEventListener('focus', handleUrlChange);
     };
-  }, [processStartParam]);
-
-  // 2. Fetch Discovery Feed Events
-  const loadFeedEvents = useCallback(async () => {
-    if (!selectedCityId) {
-      setEvents([]);
-      setIsLoadingEvents(false);
-      setFeedError(null);
-      return;
-    }
-    try {
-      setIsLoadingEvents(true);
-      setFeedError(null);
-      const res = await api.getEvents(selectedCityId, selectedCategoryId, dateFilter);
-      setEvents(res.events);
-    } catch (err: any) {
-      setFeedError(err.message || 'Ошибка загрузки событий');
-    } finally {
-      setIsLoadingEvents(false);
-    }
-  }, [selectedCityId, selectedCategoryId, dateFilter]);
-
-  useEffect(() => {
-    loadFeedEvents();
-  }, [loadFeedEvents]);
+  }, [processStartParam, isLoadingEvents, loadFeedEvents]);
 
   // 3. Fetch Personal Hub Events & Subscriptions
   const loadPersonalEvents = useCallback(async () => {

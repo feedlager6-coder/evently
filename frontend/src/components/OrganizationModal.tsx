@@ -124,10 +124,6 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
           followers_count: res.followers_count
         } : null);
         telegram.hapticSuccess();
-        if (!localStorage.getItem('evently_write_access_prompted')) {
-          localStorage.setItem('evently_write_access_prompted', 'true');
-          telegram.requestWriteAccess().catch(() => {});
-        }
       }
       onSubscriptionChanged?.();
     } catch (err: any) {

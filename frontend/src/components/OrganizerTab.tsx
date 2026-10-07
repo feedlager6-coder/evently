@@ -194,8 +194,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         </div>
       ) : (
         <>
-          {/* Segmented Tabs Switcher */}
-          <div className="w-full overflow-hidden">
+          {/* Responsive 2-Row Segmented Tabs (Zero horizontal page overflow) */}
+          <div className="w-full space-y-1.5 select-none">
             <AnimatedSegmentedControl
               items={[
                 { value: 'attending', label: 'Я иду', count: activeAttending.length },
@@ -203,6 +203,14 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 ...(myCreatedEvents.length > 0
                   ? [{ value: 'created', label: 'Созданные', count: myCreatedEvents.length }]
                   : []),
+              ]}
+              value={activeTab}
+              onChange={(val) => handleTabChange(val as PersonalHubTab)}
+              size="sm"
+              equalWidth={false}
+            />
+            <AnimatedSegmentedControl
+              items={[
                 { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
                 { value: 'history', label: 'Прошедшие', count: pastEvents.length },
               ]}

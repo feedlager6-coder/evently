@@ -73,42 +73,12 @@ export const telegram = {
   },
 
   getStartParam(): string | null {
-    // 1. Check Telegram's native initDataUnsafe.start_param
-    const tgParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    if (tgParam && typeof tgParam === 'string' && tgParam.trim()) {
-      return tgParam.trim();
-    }
-
-    // 2. Check window.Telegram?.WebApp?.initParams (used by certain Telegram client versions)
-    try {
-      const rawInitParams = (window.Telegram?.WebApp as any)?.initParams;
-      if (rawInitParams) {
-        const initParams = new URLSearchParams(typeof rawInitParams === 'string' ? rawInitParams : '');
-        const p = initParams.get('start_param') || initParams.get('tgWebAppStartParam') || initParams.get('startapp');
-        if (p && p.trim()) return p.trim();
-      }
-    } catch {
-      // ignore
-    }
-
-    // 3. Check window.Telegram?.WebApp?.initData raw query string
-    if (window.Telegram?.WebApp?.initData) {
-      try {
-        const initDataParams = new URLSearchParams(window.Telegram.WebApp.initData);
-        const p = initDataParams.get('start_param') || initDataParams.get('tgWebAppStartParam') || initDataParams.get('startapp');
-        if (p && p.trim()) return p.trim();
-      } catch {
-        // ignore parsing errors
-      }
-    }
-
-    // 4. Check window.location.hash (Standard for Telegram Mobile Webview)
-    // Telegram loads webviews with URL fragment:
+    // 1. Check window.location.hash (Primary for Telegram Mobile Webview & dynamic resumes)
+    // Telegram loads and updates webviews with URL fragment:
     // #tgWebAppData=...&tgWebAppStartParam=event_123&tgWebAppVersion=...
     // or #/tgWebAppStartParam=... or #startapp=event_123
     if (typeof window !== 'undefined' && window.location.hash) {
       try {
-        // Clean leading hash symbols and slashes: #, #/, #!/, #?
         const cleanHash = window.location.hash.replace(/^#[!/?]*/, '');
         const hashParams = new URLSearchParams(cleanHash);
 
@@ -132,7 +102,7 @@ export const telegram = {
       }
     }
 
-    // 5. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
+    // 2. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
     if (typeof window !== 'undefined' && window.location.search) {
       try {
         const cleanSearch = window.location.search.replace(/^\/[?]/, '?');
@@ -154,7 +124,7 @@ export const telegram = {
       }
     }
 
-    // 6. Direct Regex fallback on entire window.location.href (guards against non-standard WebView encoding)
+    // 3. Direct Regex fallback on entire window.location.href (guards against non-standard WebView encoding)
     if (typeof window !== 'undefined' && window.location.href) {
       try {
         const match = /(?:tgWebAppStartParam|startapp|start_param)=([^&#?]+)/i.exec(window.location.href);
@@ -167,7 +137,85 @@ export const telegram = {
       }
     }
 
+    // 4. Check Telegram's native initDataUnsafe.start_param (initial cold boot only, if not consumed)
+    const isConsumed = Boolean((window.Telegram?.WebApp?.initDataUnsafe as any)?._start_param_consumed);
+    if (!isConsumed) {
+      const tgParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+      if (tgParam && typeof tgParam === 'string' && tgParam.trim()) {
+        return tgParam.trim();
+      }
+
+      // Check window.Telegram?.WebApp?.initParams
+      try {
+        const rawInitParams = (window.Telegram?.WebApp as any)?.initParams;
+        if (rawInitParams) {
+          const initParams = new URLSearchParams(typeof rawInitParams === 'string' ? rawInitParams : '');
+          const p = initParams.get('start_param') || initParams.get('tgWebAppStartParam') || initParams.get('startapp');
+          if (p && p.trim()) return p.trim();
+        }
+      } catch {
+        // ignore
+      }
+
+      // Check window.Telegram?.WebApp?.initData raw query string
+      if (window.Telegram?.WebApp?.initData) {
+        try {
+          const initDataParams = new URLSearchParams(window.Telegram.WebApp.initData);
+          const p = initDataParams.get('start_param') || initDataParams.get('tgWebAppStartParam') || initDataParams.get('startapp');
+          if (p && p.trim()) return p.trim();
+        } catch {
+          // ignore parsing errors
+        }
+      }
+    }
+
     return null;
+  },
+
+  consumeStartParam(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        // Mark native initDataUnsafe start_param as consumed
+        if (window.Telegram?.WebApp?.initDataUnsafe) {
+          (window.Telegram.WebApp.initDataUnsafe as any)._start_param_consumed = true;
+        }
+
+        // Clean live parameters from URL fragment without full page reload
+        if (window.location.hash) {
+          const cleanHash = window.location.hash.replace(/^#[!/?]*/, '');
+          const hashParams = new URLSearchParams(cleanHash);
+          let changed = false;
+          ['tgWebAppStartParam', 'startapp', 'start_param', 'event_id'].forEach((k) => {
+            if (hashParams.has(k)) {
+              hashParams.delete(k);
+              changed = true;
+            }
+          });
+          if (changed) {
+            const newHash = hashParams.toString() ? `#${hashParams.toString()}` : '';
+            window.history.replaceState(null, '', window.location.pathname + window.location.search + newHash);
+          }
+        }
+
+        // Clean live parameters from URL search query if present
+        if (window.location.search) {
+          const searchParams = new URLSearchParams(window.location.search);
+          let changed = false;
+          ['tgWebAppStartParam', 'startapp', 'start_param', 'event_id'].forEach((k) => {
+            if (searchParams.has(k)) {
+              searchParams.delete(k);
+              changed = true;
+            }
+          });
+          if (changed) {
+            const newSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
+            window.history.replaceState(null, '', window.location.pathname + newSearch + window.location.hash);
+          }
+        }
+      }
+    } catch {
+      // ignore state replacement errors
+    }
   },
 
   ready() {

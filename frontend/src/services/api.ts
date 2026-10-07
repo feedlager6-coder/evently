@@ -51,6 +51,52 @@ function getAuthHeaders(isJson: boolean = true): HeadersInit {
   return headers;
 }
 
+export async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = 10000
+): Promise<Response> {
+  const controller = new AbortController();
+  const { signal: callerSignal, ...restOptions } = options;
+
+  let isTimedOut = false;
+  const timeoutId = setTimeout(() => {
+    isTimedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(timeoutId);
+      controller.abort();
+    } else {
+      callerSignal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timeoutId);
+          controller.abort();
+        },
+        { once: true }
+      );
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...restOptions,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (err: any) {
+    if (isTimedOut || (err && err.name === 'AbortError' && !callerSignal?.aborted)) {
+      throw new Error('Превышено время ожидания ответа сервера (таймаут сети). Пожалуйста, попробуйте снова.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export function extractErrorMessage(errData: any, fallback: string): string {
   if (!errData) return fallback;
   if (typeof errData === 'string') return errData;
@@ -173,7 +219,7 @@ export const api = {
 
   async getAppMeta(): Promise<{ app_name: string; bot_username: string; mini_app_url: string }> {
     try {
-      const res = await fetch(`${API_BASE}/meta`);
+      const res = await fetchWithTimeout(`${API_BASE}/meta`);
       if (res.ok) {
         const data = await res.json();
         if (data.bot_username) {
@@ -198,7 +244,7 @@ export const api = {
         params.append('q', search.trim());
       }
       const queryStr = params.toString() ? `?${params.toString()}` : '';
-      const res = await fetch(`${API_BASE}/cities${queryStr}`);
+      const res = await fetchWithTimeout(`${API_BASE}/cities${queryStr}`);
       if (!res.ok) throw new Error('Failed to fetch cities');
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -226,7 +272,7 @@ export const api = {
 
   async getNearestCity(latitude: number, longitude: number): Promise<City> {
     try {
-      const res = await fetch(`${API_BASE}/cities/nearest?latitude=${latitude}&longitude=${longitude}`);
+      const res = await fetchWithTimeout(`${API_BASE}/cities/nearest?latitude=${latitude}&longitude=${longitude}`);
       if (res.ok) {
         return await res.json();
       }
@@ -249,7 +295,7 @@ export const api = {
 
   async setDefaultCity(cityId: string): Promise<City | null> {
     try {
-      const res = await fetch(`${API_BASE}/cities/default?city_id=${encodeURIComponent(cityId)}`, {
+      const res = await fetchWithTimeout(`${API_BASE}/cities/default?city_id=${encodeURIComponent(cityId)}`, {
         method: 'POST',
         headers: getAuthHeaders(),
       });
@@ -263,7 +309,7 @@ export const api = {
   },
 
   async getCategories(): Promise<Category[]> {
-    const res = await fetch(`${API_BASE}/categories`);
+    const res = await fetchWithTimeout(`${API_BASE}/categories`);
     if (!res.ok) throw new Error('Failed to fetch categories');
     return res.json();
   },
@@ -271,15 +317,17 @@ export const api = {
   async getEvents(
     cityId?: string,
     categoryId?: string,
-    dateFilter: DateFilterType = 'all'
+    dateFilter: DateFilterType = 'all',
+    signal?: AbortSignal
   ): Promise<{ events: EventSummary[]; total: number }> {
     const params = new URLSearchParams();
     if (cityId) params.append('city_id', cityId);
     if (categoryId) params.append('category_id', categoryId);
     if (dateFilter && dateFilter !== 'all') params.append('date_filter', dateFilter);
 
-    const res = await fetch(`${API_BASE}/events?${params.toString()}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events?${params.toString()}`, {
       headers: getAuthHeaders(),
+      signal,
     });
     if (!res.ok) throw new Error('Не удалось загрузить события');
     return res.json();
@@ -297,7 +345,7 @@ export const api = {
     if (categoryId) params.append('category_id', categoryId);
     params.append('limit', limit.toString());
 
-    const res = await fetch(`${API_BASE}/discovery/search?${params.toString()}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/discovery/search?${params.toString()}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -308,7 +356,7 @@ export const api = {
   },
 
   async getEventDetails(eventId: string): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/events/${eventId}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${eventId}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error(`Мероприятие не найдено: ${eventId}`);
@@ -316,7 +364,7 @@ export const api = {
   },
 
   async deleteEvent(eventId: string): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -334,7 +382,7 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch(`${API_BASE}/events/upload-cover`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/upload-cover`, {
       method: 'POST',
       headers: getAuthHeaders(false),
       body: formData,
@@ -351,7 +399,7 @@ export const api = {
     formData.append('file', file);
 
     try {
-      const res = await fetch(`${API_BASE}/organizations/upload-avatar`, {
+      const res = await fetchWithTimeout(`${API_BASE}/organizations/upload-avatar`, {
         method: 'POST',
         headers: getAuthHeaders(false),
         body: formData,
@@ -375,7 +423,7 @@ export const api = {
       params.append('q', cleanQ);
       if (cityId) params.append('city_id', cityId);
 
-      const res = await fetch(`${API_BASE}/locations/suggest?${params.toString()}`);
+      const res = await fetchWithTimeout(`${API_BASE}/locations/suggest?${params.toString()}`);
       if (res.ok) {
         const list = await res.json();
         if (Array.isArray(list) && list.length > 0) return list;
@@ -401,7 +449,7 @@ export const api = {
 
   async getCurrentUser(): Promise<UserProfile | null> {
     try {
-      const res = await fetch(`${API_BASE}/users/me`, {
+      const res = await fetchWithTimeout(`${API_BASE}/users/me`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) return null;
@@ -412,7 +460,7 @@ export const api = {
   },
 
   async addRsvp(eventId: string): Promise<{ is_attending: boolean; attendee_count: number }> {
-    const res = await fetch(`${API_BASE}/events/${eventId}/rsvp`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${eventId}/rsvp`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -424,7 +472,7 @@ export const api = {
   },
 
   async removeRsvp(eventId: string): Promise<{ is_attending: boolean; attendee_count: number }> {
-    const res = await fetch(`${API_BASE}/events/${eventId}/rsvp`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${eventId}/rsvp`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -436,7 +484,7 @@ export const api = {
   },
 
   async addInterest(eventId: string): Promise<EventInterestResponse> {
-    const res = await fetch(`${API_BASE}/events/${eventId}/interest`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${eventId}/interest`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -449,7 +497,7 @@ export const api = {
   },
 
   async removeInterest(eventId: string): Promise<EventInterestResponse> {
-    const res = await fetch(`${API_BASE}/events/${eventId}/interest`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${eventId}/interest`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -462,7 +510,7 @@ export const api = {
   },
 
   async createEvent(payload: EventCreatePayload): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/events`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -476,7 +524,7 @@ export const api = {
   },
 
   async updateEvent(eventId: string, payload: Partial<EventCreatePayload>): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -492,7 +540,7 @@ export const api = {
   },
 
   async getOrganizerEvents(): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/organizer/events`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/events`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -506,7 +554,7 @@ export const api = {
     const url = orgId
       ? `${API_BASE}/organizer/audience?org_id=${encodeURIComponent(orgId)}`
       : `${API_BASE}/organizer/audience`;
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -529,7 +577,7 @@ export const api = {
   },
 
   async getOrganizerInsights(): Promise<OrganizerInsightsResponse> {
-    const res = await fetch(`${API_BASE}/organizer/insights`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/insights`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -549,7 +597,7 @@ export const api = {
   },
 
   async getAdminEvents(status: EventStatus = 'pending'): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/admin/events?status=${status}&status_filter=${status}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events?status=${status}&status_filter=${status}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -561,7 +609,7 @@ export const api = {
   },
 
   async adminPublishEvent(eventId: string): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/admin/events/${eventId}/publish`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events/${eventId}/publish`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -570,7 +618,7 @@ export const api = {
   },
 
   async adminRejectEvent(eventId: string, reason: string): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/admin/events/${eventId}/reject`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events/${eventId}/reject`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ reason }),
@@ -580,7 +628,7 @@ export const api = {
   },
 
   async adminCancelEvent(eventId: string): Promise<EventResponse> {
-    const res = await fetch(`${API_BASE}/admin/events/${eventId}/cancel`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events/${eventId}/cancel`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -589,7 +637,7 @@ export const api = {
   },
 
   async adminGetOrganizations(): Promise<AdminOrganizationItem[]> {
-    const res = await fetch(`${API_BASE}/admin/organizations`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/organizations`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -604,7 +652,7 @@ export const api = {
     plan: 'free' | 'pro' | string,
     status: string = 'active'
   ): Promise<OrganizerEntitlementsResponse> {
-    const res = await fetch(`${API_BASE}/admin/organizations/${encodeURIComponent(orgId)}/plan`, {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/organizations/${encodeURIComponent(orgId)}/plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ plan, status }),
@@ -620,7 +668,7 @@ export const api = {
 
   // Organizations & Subscriptions
   async createOrganization(payload: OrganizationCreatePayload): Promise<OrganizationResponse> {
-    const res = await fetch(`${API_BASE}/organizations`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -634,7 +682,7 @@ export const api = {
   },
 
   async getOrganization(idOrSlug: string): Promise<OrganizationResponse> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(idOrSlug)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(idOrSlug)}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -645,7 +693,7 @@ export const api = {
   },
 
   async updateOrganization(orgId: string, payload: OrganizationUpdatePayload): Promise<OrganizationResponse> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -660,7 +708,7 @@ export const api = {
   },
 
   async deleteOrganization(orgId: string): Promise<{ ok: boolean; message: string; organization_id?: string; detached_events_count?: number }> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(orgId)}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -675,7 +723,7 @@ export const api = {
   },
 
   async getMyOrganizations(): Promise<OrganizationSummary[]> {
-    const res = await fetch(`${API_BASE}/organizations/me`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/me`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -687,7 +735,7 @@ export const api = {
   },
 
   async getOrganizationEvents(orgId: string): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/events`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/events`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -697,7 +745,7 @@ export const api = {
   },
 
   async subscribeOrganization(orgId: string): Promise<SubscriptionStatusResponse> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -710,7 +758,7 @@ export const api = {
   },
 
   async unsubscribeOrganization(orgId: string): Promise<SubscriptionStatusResponse> {
-    const res = await fetch(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizations/${encodeURIComponent(orgId)}/subscribe`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -723,7 +771,7 @@ export const api = {
   },
 
   async getMySubscriptions(): Promise<UserSubscriptionItem[]> {
-    const res = await fetch(`${API_BASE}/users/me/subscriptions`, {
+    const res = await fetchWithTimeout(`${API_BASE}/users/me/subscriptions`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -734,7 +782,7 @@ export const api = {
   },
 
   async getMyPersonalEvents(type: 'attending' | 'interested' = 'attending'): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/users/me/events?type=${encodeURIComponent(type)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/users/me/events?type=${encodeURIComponent(type)}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -754,7 +802,7 @@ export const api = {
       if (broadcastToken) {
         payload.broadcast_token = broadcastToken;
       }
-      const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/view`, {
+      const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/view`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload),
@@ -768,7 +816,7 @@ export const api = {
 
   // Event Company Discovery ("Найти компанию")
   async getCompanyStatus(eventId: string): Promise<CompanyStatusResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/status`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/status`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -778,7 +826,7 @@ export const api = {
   },
 
   async updateCompanyProfile(eventId: string, payload: { is_active?: boolean; note?: string }): Promise<CompanyStatusResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -791,7 +839,7 @@ export const api = {
   },
 
   async optOutCompany(eventId: string): Promise<CompanyStatusResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/profile`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -803,7 +851,7 @@ export const api = {
   },
 
   async getCompanyMembers(eventId: string): Promise<CompanyMemberItem[]> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/members`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/members`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -814,7 +862,7 @@ export const api = {
   },
 
   async sendCompanyRequest(eventId: string, targetProfileId: string): Promise<CompanyActionResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ target_profile_id: targetProfileId }),
@@ -827,7 +875,7 @@ export const api = {
   },
 
   async getCompanyRequests(eventId: string): Promise<CompanyRequestsResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -838,7 +886,7 @@ export const api = {
   },
 
   async acceptCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/accept`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/accept`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -850,7 +898,7 @@ export const api = {
   },
 
   async declineCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/decline`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}/decline`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -862,7 +910,7 @@ export const api = {
   },
 
   async cancelCompanyRequest(eventId: string, requestId: string): Promise<CompanyActionResponse> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/requests/${encodeURIComponent(requestId)}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -874,7 +922,7 @@ export const api = {
   },
 
   async getCompanyMatches(eventId: string): Promise<CompanyMatchItem[]> {
-    const res = await fetch(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/matches`, {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/company/matches`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -885,7 +933,7 @@ export const api = {
   },
 
   async previewBroadcast(payload: BroadcastCreateRequest): Promise<BroadcastPreviewResponse> {
-    const res = await fetch(`${API_BASE}/organizer/broadcasts/preview`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/broadcasts/preview`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -898,7 +946,7 @@ export const api = {
   },
 
   async createBroadcast(payload: BroadcastCreateRequest): Promise<BroadcastDetail> {
-    const res = await fetch(`${API_BASE}/organizer/broadcasts`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/broadcasts`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload),
@@ -911,7 +959,7 @@ export const api = {
   },
 
   async getOrganizerBroadcasts(): Promise<BroadcastItem[]> {
-    const res = await fetch(`${API_BASE}/organizer/broadcasts`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/broadcasts`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -922,7 +970,7 @@ export const api = {
   },
 
   async getBroadcastDetail(broadcastId: string): Promise<BroadcastDetail> {
-    const res = await fetch(`${API_BASE}/organizer/broadcasts/${encodeURIComponent(broadcastId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/broadcasts/${encodeURIComponent(broadcastId)}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -936,7 +984,7 @@ export const api = {
     const url = orgId
       ? `${API_BASE}/organizer/entitlements?org_id=${encodeURIComponent(orgId)}`
       : `${API_BASE}/organizer/entitlements`;
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -947,7 +995,7 @@ export const api = {
   },
 
   async getPaymentConfig(): Promise<PaymentConfigResponse> {
-    const res = await fetch(`${API_BASE}/meta/payment-config`);
+    const res = await fetchWithTimeout(`${API_BASE}/meta/payment-config`);
     if (!res.ok) {
       return { payments_enabled: false, pro_monthly_price_rub: 499, pro_days: 30 };
     }
@@ -955,7 +1003,7 @@ export const api = {
   },
 
   async createProPayment(payload: CreatePaymentOrderRequest): Promise<PaymentOrder> {
-    const res = await fetch(`${API_BASE}/organizer/payments/pro`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/payments/pro`, {
       method: 'POST',
       headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
@@ -968,7 +1016,7 @@ export const api = {
   },
 
   async getPaymentOrder(orderId: string): Promise<PaymentOrder> {
-    const res = await fetch(`${API_BASE}/organizer/payments/${encodeURIComponent(orderId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/payments/${encodeURIComponent(orderId)}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
@@ -979,7 +1027,7 @@ export const api = {
   },
 
   async getOrganizationPayments(orgId: string): Promise<PaymentOrder[]> {
-    const res = await fetch(`${API_BASE}/organizer/payments?org_id=${encodeURIComponent(orgId)}`, {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/payments?org_id=${encodeURIComponent(orgId)}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
