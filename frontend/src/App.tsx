@@ -208,6 +208,15 @@ export const App: React.FC = () => {
         eventId = parts[0];
         broadcastToken = parts[1] || null;
       }
+      while (eventId.startsWith('event_')) {
+        eventId = eventId.slice(6);
+      }
+      console.log('[Ivently TMA Debug]', {
+        version: (window.Telegram?.WebApp as any)?.version,
+        platform: (window.Telegram?.WebApp as any)?.platform,
+        start_param: rawParam,
+        event_id: eventId
+      });
       if (eventId) {
         if (broadcastToken) {
           try {
@@ -442,7 +451,7 @@ export const App: React.FC = () => {
     };
 
     const handleExternalActivation = () => handleUrlChange(true);
-    const handlePassiveResume = () => handleUrlChange(false);
+    const handlePassiveResume = () => handleUrlChange(!isDetailsOpenRef.current);
 
     window.addEventListener('hashchange', handleExternalActivation);
     window.addEventListener('popstate', handleExternalActivation);

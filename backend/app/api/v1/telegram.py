@@ -34,13 +34,18 @@ async def dispatch_telegram_update(
             inline_query = update["inline_query"]
             answer_payload = await handle_inline_query(session, inline_query)
             duration_ms = round((time.perf_counter() - t0) * 1000, 2)
-            logger.info(f"Handled inline_query {answer_payload.get('inline_query_id')} in {duration_ms}ms")
-            
+            results_count = len(answer_payload.get("results", []))
+            logger.info(f"Handled inline_query {answer_payload.get('inline_query_id')} in {duration_ms}ms with {results_count} results")
+
             if http_client and token:
-                await http_client.post(
+                resp = await http_client.post(
                     f"https://api.telegram.org/bot{token}/answerInlineQuery",
                     json=answer_payload
                 )
+                if resp.status_code != 200 or not resp.json().get("ok"):
+                    logger.warning(f"Telegram answerInlineQuery response error (status={resp.status_code}): {resp.text}")
+                else:
+                    logger.info(f"Telegram answerInlineQuery successfully sent for {answer_payload.get('inline_query_id')}")
 
             return {
                 "method": "answerInlineQuery",

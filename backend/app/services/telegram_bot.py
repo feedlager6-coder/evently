@@ -16,7 +16,7 @@ logger = logging.getLogger("evently.telegram")
 
 def resolve_absolute_image_url(url: Optional[str]) -> str:
     """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS URLs."""
-    fallback = "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400"
+    fallback = "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&h=500&auto=format&fit=crop&q=85"
     if not url or not url.strip():
         return fallback
     clean = url.strip()
@@ -28,33 +28,80 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
     return fallback
 
 
-def format_event_message(event: EventSummary) -> str:
-    """Formats event preview text for Telegram messages with HTML styling."""
-    price_amount = getattr(event, "price_amount", None)
-    is_free = getattr(event, "is_free", False) or (price_amount is not None and price_amount == 0)
+def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -> str:
+    """
+    Standardizes image URLs for Telegram inline previews and photo messages.
+    Prevents excessively tall vertical previews by enforcing controlled landscape aspect ratios (16:10)
+    for Unsplash assets, and 1:1 square for popup thumbnails.
+    """
+    resolved = resolve_absolute_image_url(url)
+    if "images.unsplash.com" in resolved:
+        base = resolved.split("?")[0]
+        if is_thumbnail:
+            return f"{base}?w=400&h=400&auto=format&fit=crop&q=80"
+        return f"{base}?w=800&h=500&auto=format&fit=crop&q=85"
+    return resolved
+
+
+def format_event_price_line(event: Any) -> Optional[str]:
+    """Formats event price strictly in Russian with ruble symbol (₽), strictly never RUB."""
+    raw_amount = getattr(event, "price_amount", None)
+    price_amount = raw_amount if isinstance(raw_amount, (int, float)) else None
+    is_free = bool(getattr(event, "is_free", False)) or (price_amount is not None and price_amount == 0)
     if is_free:
-        price_text = "🎟 Вход бесплатный"
+        return "🎟 Вход бесплатный"
     elif price_amount is not None and price_amount > 0:
         p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
-        price_text = f"🎟 Вход: {p_val} ₽"
-    else:
-        price_text = None
+        return f"🎟 Вход: {p_val} ₽"
+    return None
 
-    date_str = event.start_at.strftime("%d.%m.%Y в %H:%M") if event.start_at else "Дата уточняется"
-    safe_title = html.escape(event.title)
-    safe_venue = html.escape(event.venue_name or "Локация в приложении")
-    safe_city = html.escape(event.city_name or event.city_id or "")
-    venue_display = f"{safe_venue} ({safe_city})" if safe_city else safe_venue
+
+def format_event_date_str(event: Any) -> str:
+    """Formats event date in Russian format '%d.%m.%Y в %H:%M'."""
+    raw_start = getattr(event, "start_at", None)
+    if hasattr(raw_start, "strftime"):
+        return raw_start.strftime("%d.%m.%Y в %H:%M")
+    return "Дата уточняется"
+
+
+def format_event_venue_str(event: Any) -> str:
+    """Formats venue and city cleanly."""
+    raw_venue = getattr(event, "venue_name", None)
+    venue_str = str(raw_venue).strip() if isinstance(raw_venue, str) and raw_venue.strip() else "Локация в приложении"
+    raw_city = getattr(event, "city_name", None) or getattr(event, "city_id", None)
+    city_str = str(raw_city).strip() if isinstance(raw_city, str) and raw_city.strip() else ""
+    if city_str and city_str.lower() not in venue_str.lower():
+        return f"{venue_str}, {city_str}"
+    return venue_str
+
+
+def format_event_card_caption(event: Any) -> str:
+    """
+    Formats standardized event card caption for both Share V2 and Inline Search cards.
+    Output:
+    🎟 <b>{title}</b>
+
+    📅 {date_str}
+    📍 {venue_display}
+    {price_line}
+    """
+    raw_title = getattr(event, "title", "Мероприятие")
+    title_str = str(raw_title).strip() if isinstance(raw_title, str) and raw_title.strip() else "Мероприятие"
 
     parts = [
-        f"🧭 <b>{safe_title}</b>",
-        f"📅 {date_str}",
-        f"📍 {venue_display}",
+        f"🎟 <b>{html.escape(title_str)}</b>\n",
+        f"📅 {format_event_date_str(event)}",
+        f"📍 {html.escape(format_event_venue_str(event))}",
     ]
-    if price_text:
-        parts.append(price_text)
-    parts.append(f"👥 {event.attendee_count} человек(а) идут")
+    price_line = format_event_price_line(event)
+    if price_line:
+        parts.append(price_line)
     return "\n".join(parts)
+
+
+def format_event_message(event: EventSummary) -> str:
+    """Legacy alias redirecting to unified card caption."""
+    return format_event_card_caption(event)
 
 
 def build_mini_app_button(
@@ -65,9 +112,7 @@ def build_mini_app_button(
     """
     Builds compliant button for private bot messages.
     Supports official Telegram Bot API 'style' parameter ('primary', 'success', 'danger').
-    Priority 1: If effective_public_host is available (e.g. Railway HTTPS), use 'web_app' button.
-    This launches the native Telegram Mini App webview directly with initData,
-    without requiring a custom BotFather short name.
+    Priority 1: If effective_public_host is available (e.g. HTTPS), use 'web_app' button.
     Priority 2: If a t.me link is configured, use 'url'.
     """
     btn: Dict[str, Any] = {"text": text}
@@ -101,14 +146,15 @@ def build_mini_app_button(
 
 def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     """
-    Constructs compliant inline keyboard to open event directly inside Telegram Mini App.
-    In inline query results (sent in group chats/channels), only direct 'url' buttons are allowed.
+    Constructs compliant inline keyboard with official button 'Открыть событие 🧭'.
+    Uses direct 'url' button for Telegram inline compatibility across all chats.
     """
-    url = settings.get_event_deep_link(event_id)
+    clean_id = str(event_id).replace("event_", "").strip()
+    url = settings.get_event_deep_link(clean_id)
     return {
         "inline_keyboard": [
             [
-                {"text": "🧭 Открыть в Mini App", "url": url}
+                {"text": "Открыть событие 🧭", "url": url}
             ]
         ]
     }
@@ -158,6 +204,75 @@ async def check_public_image_validity(url: Optional[str]) -> bool:
     return False
 
 
+def build_event_inline_result(
+    event: Any,
+    deep_link: Optional[str] = None,
+    is_share: bool = False
+) -> Dict[str, Any]:
+    """
+    Builds a compliant InlineQueryResult (Photo with fallback to Article)
+    shared across Share V2 (savePreparedInlineMessage) and Inline Search (answerInlineQuery).
+    When photo is present, produces InlineQueryResultPhoto so Telegram sends the full media card with button into the chat.
+    """
+    raw_id = getattr(event, "id", "0")
+    clean_id = str(raw_id).replace("event_", "").strip()
+    result_id = f"share_{clean_id}" if is_share else f"event_{clean_id}"
+
+    if not deep_link:
+        deep_link = settings.get_event_deep_link(clean_id)
+
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {"text": "Открыть событие 🧭", "url": deep_link}
+            ]
+        ]
+    }
+
+    caption = format_event_card_caption(event)
+    raw_title = getattr(event, "title", "Мероприятие")
+    title_str = str(raw_title).strip() if isinstance(raw_title, str) else "Мероприятие"
+
+    venue_display = format_event_venue_str(event)
+    date_str = format_event_date_str(event)
+    price_line = format_event_price_line(event) or ""
+    desc_parts = [p for p in [venue_display, date_str, price_line] if p]
+    description = " · ".join(desc_parts)
+
+    raw_cover = getattr(event, "cover_image_url", None)
+    has_cover = bool(raw_cover and isinstance(raw_cover, str) and raw_cover.strip())
+
+    if has_cover:
+        photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
+        thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
+        return {
+            "type": "photo",
+            "id": result_id,
+            "photo_url": photo_url,
+            "thumbnail_url": thumb_url,
+            "title": f"🎟 {title_str}",
+            "description": description,
+            "caption": caption,
+            "parse_mode": "HTML",
+            "reply_markup": reply_markup
+        }
+    else:
+        fallback_thumb = resolve_absolute_image_url(None)
+        return {
+            "type": "article",
+            "id": result_id,
+            "title": f"🎟 {title_str}",
+            "description": description,
+            "thumbnail_url": fallback_thumb,
+            "thumb_url": fallback_thumb,
+            "input_message_content": {
+                "message_text": caption,
+                "parse_mode": "HTML"
+            },
+            "reply_markup": reply_markup
+        }
+
+
 async def save_prepared_inline_share_message(
     user_telegram_id: int,
     event: Any,
@@ -166,86 +281,17 @@ async def save_prepared_inline_share_message(
     """
     Creates a prepared inline message via Telegram Bot API savePreparedInlineMessage.
     Binds the message strictly to the authenticated user_telegram_id.
-    Uses InlineQueryResultPhoto if public image is valid, otherwise falls back to InlineQueryResultArticle.
+    Uses unified build_event_inline_result with is_share=True.
     Returns: {"prepared_message_id": id, "expiration_date": timestamp}
     """
     if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN.startswith("123456789:"):
+        clean_id = str(getattr(event, "id", "0")).replace("event_", "").strip()
         return {
-            "prepared_message_id": f"mock_prep_{getattr(event, 'id', '0')}",
+            "prepared_message_id": f"mock_prep_{clean_id}",
             "expiration_date": 1799999999
         }
 
-    # Format human-readable price line in Russian (strictly no RUB)
-    raw_amount = getattr(event, "price_amount", None)
-    price_amount = raw_amount if isinstance(raw_amount, (int, float)) else None
-    is_free = bool(getattr(event, "is_free", False)) or (price_amount is not None and price_amount == 0)
-    if is_free:
-        price_line = "🎟 Вход бесплатный"
-    elif price_amount is not None and price_amount > 0:
-        p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
-        price_line = f"🎟 Вход: {p_val} ₽"
-    else:
-        price_line = None
-
-    raw_start = getattr(event, "start_at", None)
-    date_str = raw_start.strftime("%d.%m.%Y в %H:%M") if hasattr(raw_start, "strftime") else "Дата уточняется"
-
-    raw_venue = getattr(event, "venue_name", None)
-    venue_str = str(raw_venue) if isinstance(raw_venue, str) and raw_venue.strip() else "Локация в приложении"
-
-    raw_city = getattr(event, "city_name", None)
-    city_name = str(raw_city) if isinstance(raw_city, str) and raw_city.strip() else ""
-    venue_display = f"{venue_str}, {city_name}" if city_name else venue_str
-
-    raw_title = getattr(event, "title", "")
-    title_str = str(raw_title) if isinstance(raw_title, str) else "Мероприятие"
-
-    caption_parts = [
-        f"🎟 <b>{html.escape(title_str)}</b>\n",
-        f"🗓 {date_str}",
-        f"📍 {html.escape(venue_display)}",
-    ]
-    if price_line:
-        caption_parts.append(price_line)
-    caption_text = "\n".join(caption_parts)
-
-    inline_keyboard = {
-        "inline_keyboard": [
-            [
-                {"text": "Открыть событие 🧭", "url": deep_link}
-            ]
-        ]
-    }
-
-    cover_url = getattr(event, "cover_image_url", None)
-    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url and isinstance(cover_url, str) and cover_url.strip() else None
-
-    result_id = f"share_{getattr(event, 'id', '0')}"
-    if resolved_cover and (resolved_cover.startswith("http://") or resolved_cover.startswith("https://")):
-        inline_result: Dict[str, Any] = {
-            "type": "photo",
-            "id": result_id,
-            "photo_url": resolved_cover,
-            "thumbnail_url": resolved_cover,
-            "caption": caption_text,
-            "parse_mode": "HTML",
-            "reply_markup": inline_keyboard,
-        }
-    else:
-        desc_parts = [p for p in [city_name, date_str, price_line] if p and isinstance(p, str)]
-        inline_result = {
-            "type": "article",
-            "id": result_id,
-            "title": f"🎟 {title_str}",
-            "description": " · ".join(desc_parts),
-            "thumbnail_url": resolve_absolute_image_url(None),
-            "thumb_url": resolve_absolute_image_url(None),
-            "input_message_content": {
-                "message_text": caption_text,
-                "parse_mode": "HTML",
-            },
-            "reply_markup": inline_keyboard,
-        }
+    inline_result = build_event_inline_result(event=event, deep_link=deep_link, is_share=True)
 
     payload = {
         "user_id": int(user_telegram_id),
@@ -256,7 +302,7 @@ async def save_prepared_inline_share_message(
         "allow_channel_chats": False
     }
 
-    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/savePreparedInlineMessage"
+    url = f"https://api.telegram.org/bot{settings.clean_bot_token}/savePreparedInlineMessage"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, json=payload)
@@ -302,58 +348,10 @@ async def handle_inline_query(
             from app.services.event_service import get_event_details
             event_details = await get_event_details(session, target_event_id)
             if event_details:
-                price_amount = getattr(event_details, "price_amount", None)
-                is_free = getattr(event_details, "is_free", False) or (price_amount is not None and price_amount == 0)
-                if is_free:
-                    price_line = "🎟 Вход бесплатный"
-                elif price_amount is not None and price_amount > 0:
-                    p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
-                    price_line = f"🎟 Вход: {p_val} ₽"
-                else:
-                    price_line = None
-
-                date_str = event_details.start_at.strftime("%d.%m.%Y в %H:%M") if event_details.start_at else "Дата уточняется"
-                thumb = resolve_absolute_image_url(event_details.cover_image_url)
-                venue_label = event_details.venue_name or (event_details.city_name or "Локация в приложении")
-                deep_link = settings.get_event_deep_link(event_details.id)
-
-                msg_parts = [
-                    f"Пойдём вместе на «<b>{html.escape(event_details.title)}</b>»!\n",
-                    f"🗓 {date_str}",
-                    f"📍 {html.escape(venue_label)} ({html.escape(event_details.city_name or '')})",
-                ]
-                if price_line:
-                    msg_parts.append(price_line)
-                msg_parts.extend([
-                    "",
-                    "Посмотреть событие в Ivently:",
-                    f"{deep_link}"
-                ])
-                msg_text = "\n".join(msg_parts)
-
-                desc_parts = [p for p in [event_details.city_name or '', date_str, price_line] if p]
                 return {
                     "inline_query_id": query_id,
                     "results": [
-                        {
-                            "type": "article",
-                            "id": f"event_{event_details.id}",
-                            "title": f"🎟 {event_details.title}",
-                            "description": " · ".join(desc_parts),
-                            "thumbnail_url": thumb,
-                            "thumb_url": thumb,
-                            "input_message_content": {
-                                "message_text": msg_text,
-                                "parse_mode": "HTML"
-                            },
-                            "reply_markup": {
-                                "inline_keyboard": [
-                                    [
-                                        {"text": "🧭 Открыть в Mini App", "url": deep_link}
-                                    ]
-                                ]
-                            }
-                        }
+                        build_event_inline_result(event_details, is_share=False)
                     ],
                     "cache_time": 10,
                     "is_personal": True
@@ -405,22 +403,7 @@ async def handle_inline_query(
 
     if events:
         for ev in events:
-            price_str = "Бесплатно" if ev.is_free else f"{ev.price_amount} {ev.price_currency}"
-            date_str = ev.start_at.strftime("%d.%m %H:%M")
-            thumb = resolve_absolute_image_url(ev.cover_image_url)
-            results.append({
-                "type": "article",
-                "id": f"event_{ev.id}",
-                "title": ev.title,
-                "description": f"{ev.city_name} · {date_str} · {price_str}",
-                "thumbnail_url": thumb,
-                "thumb_url": thumb,
-                "input_message_content": {
-                    "message_text": format_event_message(ev),
-                    "parse_mode": "HTML"
-                },
-                "reply_markup": build_event_inline_keyboard(ev.id)
-            })
+            results.append(build_event_inline_result(ev, is_share=False))
 
     # Also search matching organizations if query is present
     if query_text:

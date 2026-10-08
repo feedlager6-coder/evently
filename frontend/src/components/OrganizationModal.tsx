@@ -424,9 +424,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                               hour: '2-digit',
                               minute: '2-digit',
                             });
-                            const priceLabel = ev.is_free
+                            const priceAmount = ev.price_amount;
+                            const isFree = Boolean(ev.is_free) || (priceAmount !== null && priceAmount !== undefined && Number(priceAmount) === 0);
+                            const priceLabel = isFree
                               ? 'Бесплатно'
-                              : `${ev.price_amount} ${ev.price_currency || 'RUB'}`;
+                              : priceAmount !== null && priceAmount !== undefined
+                                ? `${Number(priceAmount) % 1 === 0 ? Number(priceAmount) : priceAmount} ₽`
+                                : 'Вход свободный';
 
                             return (
                               <div
@@ -499,9 +503,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                                 hour: '2-digit',
                                 minute: '2-digit',
                               });
-                              const priceLabel = ev.is_free
+                              const priceAmount = ev.price_amount;
+                              const isFree = Boolean(ev.is_free) || (priceAmount !== null && priceAmount !== undefined && Number(priceAmount) === 0);
+                              const priceLabel = isFree
                                 ? 'Бесплатно'
-                                : `${ev.price_amount} ${ev.price_currency || 'RUB'}`;
+                                : priceAmount !== null && priceAmount !== undefined
+                                  ? `${Number(priceAmount) % 1 === 0 ? Number(priceAmount) : priceAmount} ₽`
+                                  : 'Вход свободный';
 
                               return (
                                 <div

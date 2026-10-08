@@ -18,9 +18,13 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
     minute: '2-digit',
   });
 
-  const priceLabel = event.is_free
+  const priceAmount = event.price_amount;
+  const isFree = Boolean(event.is_free) || (priceAmount !== null && priceAmount !== undefined && Number(priceAmount) === 0);
+  const priceLabel = isFree
     ? 'Бесплатно'
-    : `${event.price_amount} ${event.price_currency || 'RUB'}`;
+    : priceAmount !== null && priceAmount !== undefined
+      ? `${Number(priceAmount) % 1 === 0 ? Number(priceAmount) : priceAmount} ₽`
+      : 'Вход свободный';
 
   const isPast = eventDate < new Date();
   const isCancelled = event.status === 'cancelled';

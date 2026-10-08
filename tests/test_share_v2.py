@@ -12,8 +12,11 @@ from app.models.category import Category
 from app.models.user import User
 from app.services.telegram_bot import (
     save_prepared_inline_share_message,
-    check_public_image_validity
+    check_public_image_validity,
+    handle_inline_query,
+    build_event_inline_result
 )
+from app.services.event_service import get_event_details
 
 
 @pytest.fixture
@@ -572,3 +575,123 @@ async def test_18_price_formatting_unknown_price_omitted():
     assert "Вход" not in text
     assert "RUB" not in text
     assert "💰" not in text
+
+
+@pytest.mark.asyncio
+async def test_19_inline_search_returns_photo_result(test_session):
+    """19. Inline search (@Ivently_bot query) returns InlineQueryResultPhoto when event has cover image."""
+    city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
+    event = Event(
+        title="Rock Festival 2026",
+        description="Epic music festival",
+        city_id=city.id,
+        category_id=category.id,
+        start_at=datetime.now(timezone.utc) + timedelta(days=7),
+        venue_name="Stadium Arena",
+        address="ул. Спортивная, 1",
+        price_amount=1500.0,
+        price_currency="RUB",
+        cover_image_url="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800",
+        organizer_user_id=org_user.id,
+        status=EventStatus.PUBLISHED.value
+    )
+    test_session.add(event)
+    await test_session.commit()
+    await test_session.refresh(event)
+
+    query_payload = {
+        "id": "query_test_19",
+        "query": "Rock Festival",
+        "from": {"id": 12345678}
+    }
+    answer = await handle_inline_query(test_session, query_payload)
+    results = answer.get("results", [])
+    assert len(results) >= 1
+    target = next((r for r in results if r["id"] == f"event_{event.id}"), None)
+    assert target is not None
+    assert target["type"] == "photo"
+    assert "photo_url" in target
+    assert "thumbnail_url" in target
+    assert "caption" in target
+    assert "🎟 <b>Rock Festival 2026</b>" in target["caption"]
+    assert "🎟 Вход: 1500 ₽" in target["caption"]
+    assert "RUB" not in target["caption"]
+    button = target["reply_markup"]["inline_keyboard"][0][0]
+    assert button["text"] == "Открыть событие 🧭"
+    assert f"startapp=event_{event.id}" in button["url"]
+
+
+@pytest.mark.asyncio
+async def test_20_inline_search_fastpath_returns_photo_result(test_session):
+    """20. Fast-path lookup by event_<id> returns InlineQueryResultPhoto with unified button."""
+    city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
+    event = Event(
+        title="Modern Theater Show",
+        description="Drama spectacle",
+        city_id=city.id,
+        category_id=category.id,
+        start_at=datetime.now(timezone.utc) + timedelta(days=3),
+        venue_name="Drama Hall",
+        address="ул. Театральная, 5",
+        is_free=True,
+        price_amount=0,
+        cover_image_url="https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800",
+        organizer_user_id=org_user.id,
+        status=EventStatus.PUBLISHED.value
+    )
+    test_session.add(event)
+    await test_session.commit()
+    await test_session.refresh(event)
+
+    query_payload = {
+        "id": "query_test_20",
+        "query": f"event_{event.id}",
+        "from": {"id": 12345678}
+    }
+    answer = await handle_inline_query(test_session, query_payload)
+    results = answer.get("results", [])
+    assert len(results) == 1
+    target = results[0]
+    assert target["type"] == "photo"
+    assert "photo_url" in target
+    assert "🎟 <b>Modern Theater Show</b>" in target["caption"]
+    assert "🎟 Вход бесплатный" in target["caption"]
+    assert "RUB" not in target["caption"]
+    button = target["reply_markup"]["inline_keyboard"][0][0]
+    assert button["text"] == "Открыть событие 🧭"
+    assert f"startapp=event_{event.id}" in button["url"]
+
+
+@pytest.mark.asyncio
+async def test_21_get_event_details_supports_event_prefix(test_session):
+    """21. get_event_details defensively resolves even if passed with 'event_' prefix."""
+    city = (await test_session.execute(select(City))).scalars().first()
+    category = (await test_session.execute(select(Category))).scalars().first()
+    org_user = (await test_session.execute(select(User))).scalars().first()
+
+    event = Event(
+        title="Prefix Support Event",
+        description="Testing defensive prefix stripping",
+        city_id=city.id,
+        category_id=category.id,
+        start_at=datetime.now(timezone.utc) + timedelta(days=2),
+        venue_name="Venue 1",
+        address="ул. Мира, 1",
+        organizer_user_id=org_user.id,
+        status=EventStatus.PUBLISHED.value
+    )
+    test_session.add(event)
+    await test_session.commit()
+    await test_session.refresh(event)
+
+    # Calling with 'event_' prefix should resolve successfully without 404
+    details = await get_event_details(test_session, f"event_{event.id}")
+    assert details.id == event.id
+    assert details.title == "Prefix Support Event"
+

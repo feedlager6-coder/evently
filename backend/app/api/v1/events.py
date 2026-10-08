@@ -335,9 +335,10 @@ async def prepare_event_share_endpoint(
         )
 
     from app.models.event import Event, EventStatus
-    from sqlalchemy import select
+    from sqlalchemy import select, or_
 
-    query = select(Event).where(Event.id == event_id)
+    clean_id = event_id[6:] if event_id.startswith("event_") else event_id
+    query = select(Event).where(or_(Event.id == event_id, Event.id == clean_id))
     res = await session.execute(query)
     event = res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:

@@ -279,6 +279,10 @@ async def get_event_details(
         .scalar_subquery()
     )
 
+    clean_id = str(event_id).strip()
+    if clean_id.startswith("event_"):
+        clean_id = clean_id[6:]
+
     query = (
         select(
             Event,
@@ -298,7 +302,7 @@ async def get_event_details(
         .join(City, Event.city_id == City.id)
         .outerjoin(User, Event.organizer_user_id == User.id)
         .outerjoin(Organization, Event.organization_id == Organization.id)
-        .where(Event.id == event_id)
+        .where(or_(Event.id == event_id, Event.id == clean_id))
     )
 
     res = await session.execute(query)
