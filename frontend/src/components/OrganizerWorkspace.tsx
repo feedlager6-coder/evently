@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type {
   EventSummary,
   OrganizationSummary,
@@ -399,15 +399,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   }, [initialOpenProModal]);
 
+  const prevInitialTabRef = useRef(initialTab);
   useEffect(() => {
-    if (initialTab) {
+    if (initialTab && initialTab !== prevInitialTabRef.current) {
+      prevInitialTabRef.current = initialTab;
       setActiveTab(initialTab);
     }
-    if (initialBroadcastEventId) {
+  }, [initialTab]);
+
+  const handledBroadcastEventRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (initialBroadcastEventId && handledBroadcastEventRef.current !== initialBroadcastEventId) {
+      if (entitlements === null) {
+        return;
+      }
+      handledBroadcastEventRef.current = initialBroadcastEventId;
       setActiveTab('broadcasts');
       handleOpenComposer(initialBroadcastEventId, initialBroadcastOrgId || undefined);
     }
-  }, [initialTab, initialBroadcastEventId, initialBroadcastOrgId, entitlements]);
+  }, [initialBroadcastEventId, initialBroadcastOrgId, entitlements]);
 
   const handleSendBroadcast = async () => {
     if (!previewData || previewData.eligible_recipients === 0 || isSubmittingBroadcast) return;
