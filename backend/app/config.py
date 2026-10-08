@@ -192,10 +192,13 @@ class Settings(BaseSettings):
         and Main Mini App (https://t.me/<username>?startapp=...).
         When attribution_token is provided, appends '_b_{attribution_token}'.
         """
+        clean_id = str(event_id).strip()
+        if clean_id.startswith("event_"):
+            clean_id = clean_id[6:]
         base = self.effective_mini_app_url.split("?")[0].rstrip("/")
         if attribution_token:
-            return f"{base}?startapp=event_{event_id}_b_{attribution_token}"
-        return f"{base}?startapp=event_{event_id}"
+            return f"{base}?startapp=event_{clean_id}_b_{attribution_token}"
+        return f"{base}?startapp=event_{clean_id}"
 
     def get_organization_deep_link(self, org_id: str) -> str:
         """

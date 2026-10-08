@@ -74,6 +74,12 @@ export const App: React.FC = () => {
   // Active Event Details modal
   const [selectedEventDetails, setSelectedEventDetails] = useState<EventResponse | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const isDetailsOpenRef = useRef(false);
+  useEffect(() => {
+    isDetailsOpenRef.current = isDetailsOpen;
+  }, [isDetailsOpen]);
+
+  const isDeepLinkActiveRef = useRef<boolean>(false);
   const [isRsvpLoading, setIsRsvpLoading] = useState(false);
   const [isInterestLoading, setIsInterestLoading] = useState(false);
 
@@ -175,7 +181,6 @@ export const App: React.FC = () => {
       setIsCityModalOpen(false);
       setSelectedEventDetails(details);
       setIsDetailsOpen(true);
-      telegram.consumeStartParam(`event_${eventId}`);
 
       // Fire-and-forget background view tracking with attribution support
       api.trackEventView(eventId, source, broadcastToken);
@@ -192,7 +197,9 @@ export const App: React.FC = () => {
     if (!clean) return;
 
     if (clean.startsWith('event_')) {
+      isDeepLinkActiveRef.current = true;
       setIsCityModalOpen(false);
+      telegram.consumeStartParam(clean);
       const paramRest = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
       let eventId = paramRest;
       let broadcastToken: string | null = null;
@@ -270,16 +277,25 @@ export const App: React.FC = () => {
     // Process deep link IMMEDIATELY on mount without waiting for metadata
     const initialParam = telegram.getStartParam();
     if (initialParam) {
+      if (initialParam.trim().startsWith('event_')) {
+        isDeepLinkActiveRef.current = true;
+      }
       processStartParam(initialParam);
     } else {
       // Async retries in case Telegram WebApp SDK finishes initialization after initial render
       t1 = setTimeout(() => {
         const p = telegram.getStartParam();
-        if (p) processStartParam(p);
+        if (p) {
+          if (p.trim().startsWith('event_')) isDeepLinkActiveRef.current = true;
+          processStartParam(p);
+        }
       }, 150);
       t2 = setTimeout(() => {
         const p = telegram.getStartParam();
-        if (p) processStartParam(p);
+        if (p) {
+          if (p.trim().startsWith('event_')) isDeepLinkActiveRef.current = true;
+          processStartParam(p);
+        }
       }, 500);
     }
 
@@ -334,8 +350,12 @@ export const App: React.FC = () => {
           setSelectedCityId('');
           // Do not force city modal if user came from a deep link or is actively viewing an event or workspace
           const currentParam = telegram.getStartParam();
-          const hasEventDeepLink = Boolean(currentParam && currentParam.trim().startsWith('event_'));
-          setIsCityModalOpen(!Boolean(hasEventDeepLink || isDetailsOpen || selectedEventDetails));
+          const hasEventDeepLink = Boolean(
+            isDeepLinkActiveRef.current ||
+            (currentParam && currentParam.trim().startsWith('event_')) ||
+            isDetailsOpenRef.current
+          );
+          setIsCityModalOpen(!hasEventDeepLink);
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -402,8 +422,11 @@ export const App: React.FC = () => {
 
   // 1.1 Listen for URL, hash, visibility, and focus changes while app is running
   useEffect(() => {
-    const handleUrlChange = () => {
-      const param = telegram.getStartParam();
+    const handleUrlChange = (force = false) => {
+      if (force) {
+        telegram.resetConsumedStartParam();
+      }
+      const param = telegram.getStartParam(force);
       if (param) {
         processStartParam(param);
       }
@@ -418,17 +441,20 @@ export const App: React.FC = () => {
       }
     };
 
-    window.addEventListener('hashchange', handleUrlChange);
-    window.addEventListener('popstate', handleUrlChange);
-    document.addEventListener('visibilitychange', handleUrlChange);
-    window.addEventListener('focus', handleUrlChange);
-    const unbindActivated = telegram.onActivated(handleUrlChange);
+    const handleExternalActivation = () => handleUrlChange(true);
+    const handlePassiveResume = () => handleUrlChange(false);
+
+    window.addEventListener('hashchange', handleExternalActivation);
+    window.addEventListener('popstate', handleExternalActivation);
+    document.addEventListener('visibilitychange', handlePassiveResume);
+    window.addEventListener('focus', handlePassiveResume);
+    const unbindActivated = telegram.onActivated(handleExternalActivation);
 
     return () => {
-      window.removeEventListener('hashchange', handleUrlChange);
-      window.removeEventListener('popstate', handleUrlChange);
-      document.removeEventListener('visibilitychange', handleUrlChange);
-      window.removeEventListener('focus', handleUrlChange);
+      window.removeEventListener('hashchange', handleExternalActivation);
+      window.removeEventListener('popstate', handleExternalActivation);
+      document.removeEventListener('visibilitychange', handlePassiveResume);
+      window.removeEventListener('focus', handlePassiveResume);
       unbindActivated();
     };
   }, [processStartParam, isLoadingEvents, loadFeedEvents]);
@@ -1011,7 +1037,11 @@ export const App: React.FC = () => {
       <EventDetailsModal
         isOpen={isDetailsOpen}
         event={selectedEventDetails}
-        onClose={() => setIsDetailsOpen(false)}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          telegram.resetConsumedStartParam();
+          isDeepLinkActiveRef.current = false;
+        }}
         onToggleRsvp={handleToggleRsvp}
         isRsvpLoading={isRsvpLoading}
         onToggleInterest={handleToggleInterest}

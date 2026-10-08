@@ -454,3 +454,121 @@ async def test_15_telegram_bot_token_not_leaked_into_logs(caplog):
     for record in caplog.records:
         assert secret_token not in record.message
         assert secret_token not in str(record.args)
+
+
+@pytest.mark.asyncio
+async def test_16_price_formatting_free_event():
+    """16. Free event formats price as '🎟 Вход бесплатный' and never displays 'RUB'."""
+    mock_token = "987654321:CUSTOM_TEST_TOKEN"
+    captured_payload = {}
+
+    class MockResponse:
+        def json(self):
+            return {"ok": True, "result": {"id": "prep_free", "expiration_date": 1799999999}}
+
+    async def mock_post(url, json=None, **kwargs):
+        nonlocal captured_payload
+        captured_payload = json
+        return MockResponse()
+
+    event = MagicMock()
+    event.id = "evt_free"
+    event.title = "Free Workshop"
+    event.is_free = True
+    event.price_amount = 0
+    event.price_currency = "RUB"
+    event.start_at = datetime(2026, 10, 20, 15, 0, tzinfo=timezone.utc)
+    event.venue_name = "Library"
+    event.city_name = "Москва"
+    event.cover_image_url = "https://cdn.ivently.ru/events/free.jpg"
+
+    with patch.object(settings, "TELEGRAM_BOT_TOKEN", mock_token):
+        with patch("httpx.AsyncClient.post", side_effect=mock_post):
+            await save_prepared_inline_share_message(
+                12345,
+                event,
+                "https://t.me/Ivently_bot/app?startapp=event_evt_free"
+            )
+
+    caption = captured_payload["result"]["caption"]
+    assert "🎟 Вход бесплатный" in caption
+    assert "RUB" not in caption
+
+
+@pytest.mark.asyncio
+async def test_17_price_formatting_paid_event():
+    """17. Paid event formats price as '🎟 Вход: 500 ₽' using ruble symbol and never 'RUB'."""
+    mock_token = "987654321:CUSTOM_TEST_TOKEN"
+    captured_payload = {}
+
+    class MockResponse:
+        def json(self):
+            return {"ok": True, "result": {"id": "prep_paid", "expiration_date": 1799999999}}
+
+    async def mock_post(url, json=None, **kwargs):
+        nonlocal captured_payload
+        captured_payload = json
+        return MockResponse()
+
+    event = MagicMock()
+    event.id = "evt_paid"
+    event.title = "Concert"
+    event.is_free = False
+    event.price_amount = 500.0
+    event.price_currency = "RUB"
+    event.start_at = datetime(2026, 10, 20, 19, 0, tzinfo=timezone.utc)
+    event.venue_name = "Club"
+    event.city_name = "Санкт-Петербург"
+    event.cover_image_url = "https://cdn.ivently.ru/events/paid.jpg"
+
+    with patch.object(settings, "TELEGRAM_BOT_TOKEN", mock_token):
+        with patch("httpx.AsyncClient.post", side_effect=mock_post):
+            await save_prepared_inline_share_message(
+                12345,
+                event,
+                "https://t.me/Ivently_bot/app?startapp=event_evt_paid"
+            )
+
+    caption = captured_payload["result"]["caption"]
+    assert "🎟 Вход: 500 ₽" in caption
+    assert "RUB" not in caption
+
+
+@pytest.mark.asyncio
+async def test_18_price_formatting_unknown_price_omitted():
+    """18. When price_amount is None and not free, price line is omitted entirely."""
+    mock_token = "987654321:CUSTOM_TEST_TOKEN"
+    captured_payload = {}
+
+    class MockResponse:
+        def json(self):
+            return {"ok": True, "result": {"id": "prep_none", "expiration_date": 1799999999}}
+
+    async def mock_post(url, json=None, **kwargs):
+        nonlocal captured_payload
+        captured_payload = json
+        return MockResponse()
+
+    event = MagicMock()
+    event.id = "evt_none"
+    event.title = "Private Gathering"
+    event.is_free = False
+    event.price_amount = None
+    event.price_currency = None
+    event.start_at = datetime(2026, 10, 20, 19, 0, tzinfo=timezone.utc)
+    event.venue_name = "Lounge"
+    event.city_name = "Москва"
+    event.cover_image_url = None
+
+    with patch.object(settings, "TELEGRAM_BOT_TOKEN", mock_token):
+        with patch("httpx.AsyncClient.post", side_effect=mock_post):
+            await save_prepared_inline_share_message(
+                12345,
+                event,
+                "https://t.me/Ivently_bot/app?startapp=event_evt_none"
+            )
+
+    text = captured_payload["result"]["input_message_content"]["message_text"]
+    assert "Вход" not in text
+    assert "RUB" not in text
+    assert "💰" not in text

@@ -74,7 +74,7 @@ export const telegram = {
     return null;
   },
 
-  getStartParam(): string | null {
+  getStartParam(force = false): string | null {
     let candidate: string | null = null;
 
     // 1. Check window.location.search (?startapp=... or ?tgWebAppStartParam=... or ?event_id=...)
@@ -178,10 +178,12 @@ export const telegram = {
 
     // VALUE-BASED CONSUMPTION GUARD:
     // If the candidate was already consumed and processed, return null to avoid duplicate actions.
-    // If Telegram sends a new candidate (or different param), return candidate immediately.
-    const lastConsumed = (typeof window !== 'undefined') ? (window as any).__evently_last_consumed_start_param : null;
-    if (lastConsumed && lastConsumed === candidate) {
-      return null;
+    // If force is true, bypass consumption check (e.g. on external Telegram link activation).
+    if (!force) {
+      const lastConsumed = (typeof window !== 'undefined') ? (window as any).__evently_last_consumed_start_param : null;
+      if (lastConsumed && lastConsumed === candidate) {
+        return null;
+      }
     }
 
     return candidate;
@@ -243,10 +245,14 @@ export const telegram = {
   onActivated(callback: () => void): () => void {
     try {
       if (typeof window !== 'undefined' && window.Telegram?.WebApp?.onEvent) {
-        window.Telegram.WebApp.onEvent('activated', callback);
+        const handler = () => {
+          telegram.resetConsumedStartParam();
+          callback();
+        };
+        window.Telegram.WebApp.onEvent('activated', handler);
         return () => {
           try {
-            window.Telegram?.WebApp?.offEvent?.('activated', callback);
+            window.Telegram?.WebApp?.offEvent?.('activated', handler);
           } catch {
             // ignore
           }

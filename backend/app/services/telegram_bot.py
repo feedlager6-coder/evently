@@ -30,19 +30,31 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
 
 def format_event_message(event: EventSummary) -> str:
     """Formats event preview text for Telegram messages with HTML styling."""
-    price_text = "Бесплатно" if event.is_free else f"{event.price_amount} {event.price_currency}"
-    date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
-    safe_title = html.escape(event.title)
-    safe_venue = html.escape(event.venue_name)
-    safe_city = html.escape(event.city_name or event.city_id or "")
+    price_amount = getattr(event, "price_amount", None)
+    is_free = getattr(event, "is_free", False) or (price_amount is not None and price_amount == 0)
+    if is_free:
+        price_text = "🎟 Вход бесплатный"
+    elif price_amount is not None and price_amount > 0:
+        p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
+        price_text = f"🎟 Вход: {p_val} ₽"
+    else:
+        price_text = None
 
-    return (
-        f"🧭 <b>{safe_title}</b>\n"
-        f"📅 {date_str}\n"
-        f"📍 {safe_venue} ({safe_city})\n"
-        f"💰 {price_text}\n"
-        f"👥 {event.attendee_count} человек(а) идут"
-    )
+    date_str = event.start_at.strftime("%d.%m.%Y в %H:%M") if event.start_at else "Дата уточняется"
+    safe_title = html.escape(event.title)
+    safe_venue = html.escape(event.venue_name or "Локация в приложении")
+    safe_city = html.escape(event.city_name or event.city_id or "")
+    venue_display = f"{safe_venue} ({safe_city})" if safe_city else safe_venue
+
+    parts = [
+        f"🧭 <b>{safe_title}</b>",
+        f"📅 {date_str}",
+        f"📍 {venue_display}",
+    ]
+    if price_text:
+        parts.append(price_text)
+    parts.append(f"👥 {event.attendee_count} человек(а) идут")
+    return "\n".join(parts)
 
 
 def build_mini_app_button(
@@ -163,19 +175,31 @@ async def save_prepared_inline_share_message(
             "expiration_date": 1799999999
         }
 
-    price_str = "Бесплатно" if getattr(event, "is_free", False) else f"{getattr(event, 'price_amount', 0)} {getattr(event, 'price_currency', None) or 'RUB'}"
+    # Format human-readable price line in Russian (strictly no RUB)
+    price_amount = getattr(event, "price_amount", None)
+    is_free = getattr(event, "is_free", False) or (price_amount is not None and price_amount == 0)
+    if is_free:
+        price_line = "🎟 Вход бесплатный"
+    elif price_amount is not None and price_amount > 0:
+        p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
+        price_line = f"🎟 Вход: {p_val} ₽"
+    else:
+        price_line = None
+
     start_at = getattr(event, "start_at", None)
     date_str = start_at.strftime("%d.%m.%Y в %H:%M") if start_at else "Дата уточняется"
     venue_str = getattr(event, "venue_name", None) or "Локация в приложении"
     city_name = getattr(event, "city_name", None) or ""
     venue_display = f"{venue_str}, {city_name}" if city_name else venue_str
 
-    caption_text = (
-        f"🎟 <b>{html.escape(getattr(event, 'title', ''))}</b>\n\n"
-        f"🗓 {date_str}\n"
-        f"📍 {html.escape(venue_display)}\n"
-        f"💰 {price_str}"
-    )
+    caption_parts = [
+        f"🎟 <b>{html.escape(getattr(event, 'title', ''))}</b>\n",
+        f"🗓 {date_str}",
+        f"📍 {html.escape(venue_display)}",
+    ]
+    if price_line:
+        caption_parts.append(price_line)
+    caption_text = "\n".join(caption_parts)
 
     inline_keyboard = {
         "inline_keyboard": [
@@ -186,11 +210,10 @@ async def save_prepared_inline_share_message(
     }
 
     cover_url = getattr(event, "cover_image_url", None)
-    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url else None
-    has_valid_photo = await check_public_image_validity(resolved_cover)
+    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url and str(cover_url).strip() else None
 
     result_id = f"share_{getattr(event, 'id', '0')}"
-    if has_valid_photo and resolved_cover:
+    if resolved_cover and (resolved_cover.startswith("http://") or resolved_cover.startswith("https://")):
         inline_result: Dict[str, Any] = {
             "type": "photo",
             "id": result_id,
@@ -198,21 +221,22 @@ async def save_prepared_inline_share_message(
             "thumbnail_url": resolved_cover,
             "caption": caption_text,
             "parse_mode": "HTML",
-            "reply_markup": inline_keyboard
+            "reply_markup": inline_keyboard,
         }
     else:
+        desc_parts = [p for p in [city_name, date_str, price_line] if p]
         inline_result = {
             "type": "article",
             "id": result_id,
             "title": f"🎟 {getattr(event, 'title', '')}",
-            "description": f"{city_name} · {date_str} · {price_str}",
+            "description": " · ".join(desc_parts),
             "thumbnail_url": resolve_absolute_image_url(None),
             "thumb_url": resolve_absolute_image_url(None),
             "input_message_content": {
                 "message_text": caption_text,
-                "parse_mode": "HTML"
+                "parse_mode": "HTML",
             },
-            "reply_markup": inline_keyboard
+            "reply_markup": inline_keyboard,
         }
 
     payload = {
@@ -270,19 +294,36 @@ async def handle_inline_query(
             from app.services.event_service import get_event_details
             event_details = await get_event_details(session, target_event_id)
             if event_details:
-                price_str = "Бесплатно" if event_details.is_free else f"{event_details.price_amount} {event_details.price_currency or 'RUB'}"
-                date_str = event_details.start_at.strftime("%d.%m.%Y в %H:%M")
+                price_amount = getattr(event_details, "price_amount", None)
+                is_free = getattr(event_details, "is_free", False) or (price_amount is not None and price_amount == 0)
+                if is_free:
+                    price_line = "🎟 Вход бесплатный"
+                elif price_amount is not None and price_amount > 0:
+                    p_val = int(price_amount) if float(price_amount).is_integer() else price_amount
+                    price_line = f"🎟 Вход: {p_val} ₽"
+                else:
+                    price_line = None
+
+                date_str = event_details.start_at.strftime("%d.%m.%Y в %H:%M") if event_details.start_at else "Дата уточняется"
                 thumb = resolve_absolute_image_url(event_details.cover_image_url)
                 venue_label = event_details.venue_name or (event_details.city_name or "Локация в приложении")
                 deep_link = settings.get_event_deep_link(event_details.id)
-                msg_text = (
-                    f"Пойдём вместе на «<b>{html.escape(event_details.title)}</b>»!\n\n"
-                    f"🗓 {date_str}\n"
-                    f"📍 {html.escape(venue_label)} ({html.escape(event_details.city_name or '')})\n"
-                    f"💰 {price_str}\n\n"
-                    f"Посмотреть событие в Ivently:\n"
+
+                msg_parts = [
+                    f"Пойдём вместе на «<b>{html.escape(event_details.title)}</b>»!\n",
+                    f"🗓 {date_str}",
+                    f"📍 {html.escape(venue_label)} ({html.escape(event_details.city_name or '')})",
+                ]
+                if price_line:
+                    msg_parts.append(price_line)
+                msg_parts.extend([
+                    "",
+                    "Посмотреть событие в Ivently:",
                     f"{deep_link}"
-                )
+                ])
+                msg_text = "\n".join(msg_parts)
+
+                desc_parts = [p for p in [event_details.city_name or '', date_str, price_line] if p]
                 return {
                     "inline_query_id": query_id,
                     "results": [
@@ -290,7 +331,7 @@ async def handle_inline_query(
                             "type": "article",
                             "id": f"event_{event_details.id}",
                             "title": f"🎟 {event_details.title}",
-                            "description": f"{event_details.city_name or ''} · {date_str} · {price_str}",
+                            "description": " · ".join(desc_parts),
                             "thumbnail_url": thumb,
                             "thumb_url": thumb,
                             "input_message_content": {
