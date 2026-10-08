@@ -1,5 +1,6 @@
 import html
 import logging
+import httpx
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -114,6 +115,133 @@ def build_catalog_inline_keyboard() -> Dict[str, Any]:
             ]
         ]
     }
+
+
+async def check_public_image_validity(url: Optional[str]) -> bool:
+    """
+    Checks if an image URL is publicly reachable over HTTPS with a valid image Content-Type.
+    Uses non-blocking HEAD request with short timeout (1.5s).
+    Does NOT download or transcode images.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    clean = url.strip()
+    if not clean.startswith("https://"):
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=1.5, follow_redirects=True) as client:
+            resp = await client.head(clean)
+            if resp.status_code == 200:
+                ct = resp.headers.get("content-type", "").lower()
+                if "image/jpeg" in ct or "image/jpg" in ct or "image/png" in ct:
+                    return True
+            elif resp.status_code == 405:
+                range_resp = await client.get(clean, headers={"Range": "bytes=0-512"})
+                if range_resp.status_code in (200, 206):
+                    ct = range_resp.headers.get("content-type", "").lower()
+                    if "image/jpeg" in ct or "image/jpg" in ct or "image/png" in ct:
+                        return True
+    except Exception as e:
+        logger.debug(f"Image accessibility check failed for {clean}: {e}")
+    return False
+
+
+async def save_prepared_inline_share_message(
+    user_telegram_id: int,
+    event: Any,
+    deep_link: str
+) -> Dict[str, Any]:
+    """
+    Creates a prepared inline message via Telegram Bot API savePreparedInlineMessage.
+    Binds the message strictly to the authenticated user_telegram_id.
+    Uses InlineQueryResultPhoto if public image is valid, otherwise falls back to InlineQueryResultArticle.
+    Returns: {"prepared_message_id": id, "expiration_date": timestamp}
+    """
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN.startswith("123456789:"):
+        return {
+            "prepared_message_id": f"mock_prep_{getattr(event, 'id', '0')}",
+            "expiration_date": 1799999999
+        }
+
+    price_str = "Бесплатно" if getattr(event, "is_free", False) else f"{getattr(event, 'price_amount', 0)} {getattr(event, 'price_currency', None) or 'RUB'}"
+    start_at = getattr(event, "start_at", None)
+    date_str = start_at.strftime("%d.%m.%Y в %H:%M") if start_at else "Дата уточняется"
+    venue_str = getattr(event, "venue_name", None) or "Локация в приложении"
+    city_name = getattr(event, "city_name", None) or ""
+    venue_display = f"{venue_str}, {city_name}" if city_name else venue_str
+
+    caption_text = (
+        f"🎟 <b>{html.escape(getattr(event, 'title', ''))}</b>\n\n"
+        f"🗓 {date_str}\n"
+        f"📍 {html.escape(venue_display)}\n"
+        f"💰 {price_str}"
+    )
+
+    inline_keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "Открыть событие 🧭", "url": deep_link}
+            ]
+        ]
+    }
+
+    cover_url = getattr(event, "cover_image_url", None)
+    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url else None
+    has_valid_photo = await check_public_image_validity(resolved_cover)
+
+    result_id = f"share_{getattr(event, 'id', '0')}"
+    if has_valid_photo and resolved_cover:
+        inline_result: Dict[str, Any] = {
+            "type": "photo",
+            "id": result_id,
+            "photo_url": resolved_cover,
+            "thumbnail_url": resolved_cover,
+            "caption": caption_text,
+            "parse_mode": "HTML",
+            "reply_markup": inline_keyboard
+        }
+    else:
+        inline_result = {
+            "type": "article",
+            "id": result_id,
+            "title": f"🎟 {getattr(event, 'title', '')}",
+            "description": f"{city_name} · {date_str} · {price_str}",
+            "thumbnail_url": resolve_absolute_image_url(None),
+            "thumb_url": resolve_absolute_image_url(None),
+            "input_message_content": {
+                "message_text": caption_text,
+                "parse_mode": "HTML"
+            },
+            "reply_markup": inline_keyboard
+        }
+
+    payload = {
+        "user_id": int(user_telegram_id),
+        "result": inline_result,
+        "allow_user_chats": True,
+        "allow_bot_chats": False,
+        "allow_group_chats": True,
+        "allow_channel_chats": False
+    }
+
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/savePreparedInlineMessage"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json=payload)
+            data = resp.json()
+            if not data.get("ok"):
+                err_desc = data.get("description", "Unknown error from Telegram API")
+                logger.warning(f"savePreparedInlineMessage Telegram API error: {err_desc}")
+                raise RuntimeError(f"Telegram API error: {err_desc}")
+
+            result_obj = data.get("result", {})
+            return {
+                "prepared_message_id": result_obj.get("id"),
+                "expiration_date": result_obj.get("expiration_date")
+            }
+    except Exception as e:
+        logger.error(f"Failed to save prepared inline message for user {user_telegram_id}: {e}")
+        raise
 
 
 async def handle_inline_query(

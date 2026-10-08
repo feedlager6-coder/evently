@@ -4,11 +4,19 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.schemas.event import EventListResponse, EventResponse, EventCreate, EventUpdate, EventViewRequest, EventViewResponse
-from app.schemas.rsvp import RSVPResponse
-from app.schemas.interest import EventInterestResponse
+from app.schemas.event import (
+    EventListResponse,
+    EventResponse,
+    EventCreate,
+    EventUpdate,
+    EventViewRequest,
+    EventViewResponse,
+    EventPrepareShareResponse,
+)
+from app.services.telegram_bot import save_prepared_inline_share_message
 from app.api.deps import get_current_user, get_current_user_optional
 from app.services.event_service import (
     list_published_events,
@@ -302,5 +310,62 @@ async def update_event_endpoint(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{event_id}/prepare-share", response_model=EventPrepareShareResponse, status_code=status.HTTP_200_OK)
+async def prepare_event_share_endpoint(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Prepares an inline message via Telegram Bot API savePreparedInlineMessage.
+    Binds the prepared message strictly to user.telegram_id.
+    Validates:
+    - user has authenticated Telegram ID
+    - event exists and is not deleted
+    - event is published (public content only)
+    """
+    if not user.telegram_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Telegram ID пользователя не найден для подготовки сообщения"
+        )
+
+    from app.models.event import Event, EventStatus
+    from sqlalchemy import select
+
+    query = select(Event).where(Event.id == event_id)
+    res = await session.execute(query)
+    event = res.scalar_one_or_none()
+    if not event or event.status == EventStatus.DELETED.value:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Событие с ID '{event_id}' не найдено"
+        )
+
+    if event.status != EventStatus.PUBLISHED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Событие недоступно для публикации"
+        )
+
+    deep_link = settings.get_event_deep_link(event.id)
+    try:
+        prep_res = await save_prepared_inline_share_message(
+            user_telegram_id=user.telegram_id,
+            event=event,
+            deep_link=deep_link
+        )
+        return EventPrepareShareResponse(
+            prepared_message_id=prep_res["prepared_message_id"],
+            expiration_date=prep_res["expiration_date"]
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Не удалось подготовить сообщение в Telegram: {str(e)}"
+        )
+
 
 

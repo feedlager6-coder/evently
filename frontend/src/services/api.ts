@@ -380,6 +380,18 @@ export const api = {
     return res.json();
   },
 
+  async prepareEventShare(eventId: string): Promise<{ prepared_message_id: string; expiration_date: number }> {
+    const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}/prepare-share`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось подготовить ссылку для отправки'));
+    }
+    return res.json();
+  },
+
   async deleteEvent(eventId: string): Promise<{ ok: boolean; message: string }> {
     const res = await fetchWithTimeout(`${API_BASE}/events/${encodeURIComponent(eventId)}`, {
       method: 'DELETE',

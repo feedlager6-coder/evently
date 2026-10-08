@@ -127,3 +127,8 @@ class EventViewRequest(BaseModel):
 class EventViewResponse(BaseModel):
     recorded: bool
     views_count: int
+
+
+class EventPrepareShareResponse(BaseModel):
+    prepared_message_id: str
+    expiration_date: int

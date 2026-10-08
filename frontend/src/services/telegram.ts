@@ -342,6 +342,70 @@ export const telegram = {
     window.open(url, '_blank');
   },
 
+  canShareMessage(): boolean {
+    try {
+      const wa = window.Telegram?.WebApp as any;
+      return Boolean(
+        wa &&
+        typeof wa.isVersionAtLeast === 'function' &&
+        wa.isVersionAtLeast('8.0') &&
+        typeof wa.shareMessage === 'function'
+      );
+    } catch {
+      return false;
+    }
+  },
+
+  async sharePreparedMessage(preparedMessageId: string): Promise<boolean> {
+    try {
+      const wa = window.Telegram?.WebApp as any;
+      if (!this.canShareMessage() || !wa) {
+        return false;
+      }
+
+      return await new Promise<boolean>((resolve) => {
+        let isResolved = false;
+
+        const cleanupAndResolve = (result: boolean) => {
+          if (!isResolved) {
+            isResolved = true;
+            if (typeof wa.offEvent === 'function') {
+              wa.offEvent('shareMessageSent', onSent);
+              wa.offEvent('shareMessageFailed', onFailed);
+            }
+            resolve(result);
+          }
+        };
+
+        const onSent = () => {
+          cleanupAndResolve(true);
+        };
+
+        const onFailed = (eventData?: any) => {
+          console.log('Telegram shareMessage cancelled or failed:', eventData?.error);
+          cleanupAndResolve(false);
+        };
+
+        if (typeof wa.onEvent === 'function') {
+          wa.onEvent('shareMessageSent', onSent);
+          wa.onEvent('shareMessageFailed', onFailed);
+        }
+
+        try {
+          wa.shareMessage(preparedMessageId, (sent: boolean) => {
+            cleanupAndResolve(Boolean(sent));
+          });
+        } catch (callErr) {
+          console.warn('Telegram.WebApp.shareMessage invocation error:', callErr);
+          cleanupAndResolve(false);
+        }
+      });
+    } catch (err) {
+      console.warn('sharePreparedMessage top-level exception:', err);
+      return false;
+    }
+  },
+
   switchInlineQuery(query: string, chooseChatTypes?: ('users' | 'bots' | 'groups' | 'channels')[]): boolean {
     try {
       const wa = window.Telegram?.WebApp as any;

@@ -15,7 +15,8 @@ import {
   Heart,
   Edit,
   MessageCircle,
-  Send
+  Send,
+  Loader2
 } from 'lucide-react';
 import { formatFollowers } from './OrganizationModal';
 import { GoingAnimation } from './GoingAnimation';
@@ -82,6 +83,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [isSharePreparing, setIsSharePreparing] = useState(false);
   const [rsvpAnimationPhase, setRsvpAnimationPhase] = useState<GoingAnimationState>('idle');
   const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
   const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
@@ -117,23 +119,31 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     : `${event.price_amount} ${event.price_currency || 'RUB'}`;
 
   const handleShare = async () => {
+    if (isSharePreparing) return;
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
     const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
     const shareMessage = `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:\n${shareUrl}`;
 
-    // 1. If running inside Telegram Mini App, use native Telegram chat chooser.
-    // This opens the native Telegram contact picker directly inside the app,
-    // completely preventing any redirect to Safari or web.telegram.org.
-    if (telegram.isAvailable()) {
-      const switched = telegram.switchInlineQuery(`event_${event.id}`, ['users', 'groups', 'channels']);
-      if (switched) {
+    // 1. Primary mechanism: Telegram Mini Apps shareMessage (WebApp >= 8.0)
+    if (telegram.canShareMessage()) {
+      setIsSharePreparing(true);
+      try {
+        const prep = await api.prepareEventShare(event.id);
+        const sent = await telegram.sharePreparedMessage(prep.prepared_message_id);
+        if (sent) {
+          telegram.hapticSuccess();
+        }
         return;
+      } catch (prepErr) {
+        console.warn('prepareEventShare failed, falling back to Web Share / Clipboard:', prepErr);
+      } finally {
+        setIsSharePreparing(false);
       }
     }
 
-    // 2. Web Share API fallback
+    // 2. Web Share API fallback (external browsers / unsupported webviews)
     let shared = false;
     if (navigator.share) {
       try {
@@ -143,6 +153,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           url: shareUrl,
         });
         shared = true;
+        return;
       } catch (err: any) {
         if (err.name === 'AbortError') {
           return;
@@ -164,7 +175,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           document.body.removeChild(textArea);
         }
         setCopied(true);
-        setShareToast('Ссылка скопирована!');
+        setShareToast('Ссылка на событие скопирована!');
         telegram.hapticSuccess();
         setTimeout(() => {
           setCopied(false);
@@ -231,10 +242,15 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             </button>
             <button
               onClick={handleShare}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-black/80 transition-colors text-xs font-medium"
+              disabled={isSharePreparing}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-black/80 transition-colors text-xs font-medium disabled:opacity-60"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>{copied ? 'Скопировано!' : 'Поделиться'}</span>
+              {isSharePreparing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Share2 className="w-3.5 h-3.5" />
+              )}
+              <span>{isSharePreparing ? 'Подготовка...' : copied ? 'Скопировано!' : 'Поделиться'}</span>
             </button>
           </div>
 
@@ -400,10 +416,20 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             <button
               type="button"
               onClick={handleShare}
-              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-indigo-300 hover:text-white font-medium flex items-center justify-center space-x-2 transition-all btn-press"
+              disabled={isSharePreparing}
+              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-indigo-300 hover:text-white font-medium flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-60"
             >
-              <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Позвать друга в Telegram 👥</span>
+              {isSharePreparing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                  <span>Подготовка карточки...</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Позвать друга в Telegram 👥</span>
+                </>
+              )}
             </button>
           )}
 
