@@ -46,8 +46,9 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
 def format_event_price_line(event: Any) -> Optional[str]:
     """Formats event price strictly in Russian with ruble symbol (₽), strictly never RUB."""
     raw_amount = getattr(event, "price_amount", None)
-    price_amount = raw_amount if isinstance(raw_amount, (int, float)) else None
-    is_free = bool(getattr(event, "is_free", False)) or (price_amount is not None and price_amount == 0)
+    price_amount = raw_amount if isinstance(raw_amount, (int, float)) and not isinstance(raw_amount, bool) else None
+    raw_is_free = getattr(event, "is_free", None)
+    is_free = (raw_is_free is True) or (price_amount is not None and price_amount == 0)
     if is_free:
         return "🎟 Вход бесплатный"
     elif price_amount is not None and price_amount > 0:
@@ -59,8 +60,13 @@ def format_event_price_line(event: Any) -> Optional[str]:
 def format_event_date_str(event: Any) -> str:
     """Formats event date in Russian format '%d.%m.%Y в %H:%M'."""
     raw_start = getattr(event, "start_at", None)
-    if hasattr(raw_start, "strftime"):
-        return raw_start.strftime("%d.%m.%Y в %H:%M")
+    if hasattr(raw_start, "strftime") and callable(getattr(raw_start, "strftime")):
+        try:
+            res = raw_start.strftime("%d.%m.%Y в %H:%M")
+            if isinstance(res, str):
+                return res
+        except Exception:
+            pass
     return "Дата уточняется"
 
 
@@ -236,7 +242,11 @@ def build_event_inline_result(
     venue_display = format_event_venue_str(event)
     date_str = format_event_date_str(event)
     price_line = format_event_price_line(event) or ""
-    desc_parts = [p for p in [venue_display, date_str, price_line] if p]
+    desc_parts = [
+        str(p).strip()
+        for p in [venue_display, date_str, price_line]
+        if p and isinstance(p, str) and str(p).strip()
+    ]
     description = " · ".join(desc_parts)
 
     raw_cover = getattr(event, "cover_image_url", None)

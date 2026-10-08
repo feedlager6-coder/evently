@@ -639,7 +639,6 @@ async def test_20_inline_search_fastpath_returns_photo_result(test_session):
         start_at=datetime.now(timezone.utc) + timedelta(days=3),
         venue_name="Drama Hall",
         address="ул. Театральная, 5",
-        is_free=True,
         price_amount=0,
         cover_image_url="https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800",
         organizer_user_id=org_user.id,
