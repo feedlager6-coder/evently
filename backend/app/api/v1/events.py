@@ -16,6 +16,8 @@ from app.schemas.event import (
     EventViewResponse,
     EventPrepareShareResponse,
 )
+from app.schemas.rsvp import RSVPResponse
+from app.schemas.interest import EventInterestResponse
 from app.services.telegram_bot import save_prepared_inline_share_message
 from app.api.deps import get_current_user, get_current_user_optional
 from app.services.event_service import (
