@@ -176,8 +176,9 @@ async def save_prepared_inline_share_message(
         }
 
     # Format human-readable price line in Russian (strictly no RUB)
-    price_amount = getattr(event, "price_amount", None)
-    is_free = getattr(event, "is_free", False) or (price_amount is not None and price_amount == 0)
+    raw_amount = getattr(event, "price_amount", None)
+    price_amount = raw_amount if isinstance(raw_amount, (int, float)) else None
+    is_free = bool(getattr(event, "is_free", False)) or (price_amount is not None and price_amount == 0)
     if is_free:
         price_line = "🎟 Вход бесплатный"
     elif price_amount is not None and price_amount > 0:
@@ -186,14 +187,21 @@ async def save_prepared_inline_share_message(
     else:
         price_line = None
 
-    start_at = getattr(event, "start_at", None)
-    date_str = start_at.strftime("%d.%m.%Y в %H:%M") if start_at else "Дата уточняется"
-    venue_str = getattr(event, "venue_name", None) or "Локация в приложении"
-    city_name = getattr(event, "city_name", None) or ""
+    raw_start = getattr(event, "start_at", None)
+    date_str = raw_start.strftime("%d.%m.%Y в %H:%M") if hasattr(raw_start, "strftime") else "Дата уточняется"
+
+    raw_venue = getattr(event, "venue_name", None)
+    venue_str = str(raw_venue) if isinstance(raw_venue, str) and raw_venue.strip() else "Локация в приложении"
+
+    raw_city = getattr(event, "city_name", None)
+    city_name = str(raw_city) if isinstance(raw_city, str) and raw_city.strip() else ""
     venue_display = f"{venue_str}, {city_name}" if city_name else venue_str
 
+    raw_title = getattr(event, "title", "")
+    title_str = str(raw_title) if isinstance(raw_title, str) else "Мероприятие"
+
     caption_parts = [
-        f"🎟 <b>{html.escape(getattr(event, 'title', ''))}</b>\n",
+        f"🎟 <b>{html.escape(title_str)}</b>\n",
         f"🗓 {date_str}",
         f"📍 {html.escape(venue_display)}",
     ]
@@ -210,7 +218,7 @@ async def save_prepared_inline_share_message(
     }
 
     cover_url = getattr(event, "cover_image_url", None)
-    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url and str(cover_url).strip() else None
+    resolved_cover = resolve_absolute_image_url(cover_url) if cover_url and isinstance(cover_url, str) and cover_url.strip() else None
 
     result_id = f"share_{getattr(event, 'id', '0')}"
     if resolved_cover and (resolved_cover.startswith("http://") or resolved_cover.startswith("https://")):
@@ -224,11 +232,11 @@ async def save_prepared_inline_share_message(
             "reply_markup": inline_keyboard,
         }
     else:
-        desc_parts = [p for p in [city_name, date_str, price_line] if p]
+        desc_parts = [p for p in [city_name, date_str, price_line] if p and isinstance(p, str)]
         inline_result = {
             "type": "article",
             "id": result_id,
-            "title": f"🎟 {getattr(event, 'title', '')}",
+            "title": f"🎟 {title_str}",
             "description": " · ".join(desc_parts),
             "thumbnail_url": resolve_absolute_image_url(None),
             "thumb_url": resolve_absolute_image_url(None),
