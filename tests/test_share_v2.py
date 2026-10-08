@@ -37,6 +37,7 @@ async def test_01_prepare_share_published_event_200(client, test_session, auth_h
         category_id=category.id,
         start_at=datetime.now(timezone.utc) + timedelta(days=5),
         venue_name="Concert Hall",
+        address="ул. Пушкина, 10",
         organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
@@ -74,6 +75,7 @@ async def test_03_prepare_share_unpublished_pending_403(client, test_session, au
         category_id=category.id,
         start_at=datetime.now(timezone.utc) + timedelta(days=5),
         venue_name="Pending Hall",
+        address="ул. Пушкина, 10",
         organizer_user_id=org_user.id,
         status=EventStatus.PENDING.value
     )
@@ -100,6 +102,7 @@ async def test_04_prepare_share_deleted_event_404(client, test_session, auth_hea
         category_id=category.id,
         start_at=datetime.now(timezone.utc) + timedelta(days=5),
         venue_name="Deleted Hall",
+        address="ул. Пушкина, 10",
         organizer_user_id=org_user.id,
         status=EventStatus.DELETED.value
     )
@@ -398,6 +401,7 @@ async def test_14_telegram_bot_api_error_502(client, test_session, auth_headers)
         category_id=category.id,
         start_at=datetime.now(timezone.utc) + timedelta(days=5),
         venue_name="Concert Hall",
+        address="ул. Пушкина, 10",
         organizer_user_id=org_user.id,
         status=EventStatus.PUBLISHED.value
     )
