@@ -116,7 +116,7 @@ export function AnimatedSegmentedControl<T extends string>({
       data-element="segmented-control"
       className={`relative ${
         scrollable ? 'inline-flex min-w-full' : 'flex'
-      } items-center rounded-2xl bg-[#141724] p-1 border border-white/5 select-none ${
+      } items-center rounded-full bg-[#141724]/70 p-1 border border-white/8 select-none ${
         scrollable ? '' : className
       }`}
     >

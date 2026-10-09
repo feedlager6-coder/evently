@@ -62,10 +62,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             if (selectedCategoryId) telegram.hapticImpact('light');
             onSelectCategory(undefined);
           }}
-          className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all border ${
+          className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all ${
             !selectedCategoryId
-              ? 'bg-white text-gray-900 border-white shadow-sm'
-              : 'bg-[#161A28] text-gray-300 border-white/8 hover:border-white/20'
+              ? 'bg-white text-gray-900 border border-white shadow-sm'
+              : 'bg-[#161A28]/80 text-gray-300 border border-white/10 hover:border-white/20'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
@@ -84,10 +84,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 telegram.hapticImpact('light');
                 onSelectCategory(isSelected ? undefined : cat.id);
               }}
-              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all border ${
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all ${
                 isSelected
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/25'
-                  : 'bg-[#161A28] text-gray-300 border-white/8 hover:border-white/20'
+                  ? 'bg-indigo-600 text-white border border-indigo-500 shadow-md shadow-indigo-600/25'
+                  : 'bg-[#161A28]/80 text-gray-300 border border-white/10 hover:border-white/20'
               }`}
             >
               <span>{CATEGORY_ICONS[cat.id] || <Sparkles className="w-3.5 h-3.5" />}</span>
