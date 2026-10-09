@@ -225,6 +225,122 @@ export function getCachedCities(): City[] {
   return DEFAULT_CITIES;
 }
 
+export const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'concerts', name: 'Концерты', slug: 'concerts', is_active: true },
+  { id: 'parties', name: 'Вечеринки', slug: 'parties', is_active: true },
+  { id: 'sports', name: 'Спорт', slug: 'sports', is_active: true },
+  { id: 'education', name: 'Образование', slug: 'education', is_active: true },
+  { id: 'business', name: 'Бизнес', slug: 'business', is_active: true },
+  { id: 'exhibitions', name: 'Выставки', slug: 'exhibitions', is_active: true },
+  { id: 'other', name: 'Другое', slug: 'other', is_active: true },
+];
+
+let memoryCategoriesCache: Category[] | null = null;
+const CATEGORIES_STORAGE_KEY = 'evently_cached_categories';
+
+export function getCachedCategories(): Category[] {
+  if (memoryCategoriesCache && memoryCategoriesCache.length > 0) {
+    return memoryCategoriesCache;
+  }
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryCategoriesCache = parsed;
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore storage parse errors
+  }
+  memoryCategoriesCache = DEFAULT_CATEGORIES;
+  return DEFAULT_CATEGORIES;
+}
+
+export const SAMPLE_EVENTS: EventSummary[] = [
+  {
+    id: 'mock-1',
+    title: 'Вечер джаза и неоклассики в оранжерее',
+    cover_image_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+    category_id: 'concerts',
+    category_name: 'Концерты',
+    city_id: 'moscow',
+    city_name: 'Москва',
+    start_at: new Date(Date.now() + 3600000 * 24).toISOString(),
+    venue_name: 'Ботаническая оранжерея',
+    price_amount: 1500,
+    price_currency: 'RUB',
+    is_free: false,
+    status: 'published',
+    attendee_count: 42,
+    is_attending: false,
+    interest_count: 88,
+    current_user_interested: true,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock-2',
+    title: 'Световая иммерсивная инсталляция: Цифровые миры',
+    cover_image_url: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=800&q=80',
+    category_id: 'exhibitions',
+    category_name: 'Выставки',
+    city_id: 'moscow',
+    city_name: 'Москва',
+    start_at: new Date(Date.now() + 3600000 * 48).toISOString(),
+    venue_name: 'Центр современного искусства',
+    price_amount: 800,
+    price_currency: 'RUB',
+    is_free: false,
+    status: 'published',
+    attendee_count: 126,
+    is_attending: false,
+    interest_count: 215,
+    current_user_interested: false,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock-3',
+    title: 'Ночной техно-рейв & винил: SYNTHESIS',
+    cover_image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80',
+    category_id: 'parties',
+    category_name: 'Вечеринки',
+    city_id: 'moscow',
+    city_name: 'Москва',
+    start_at: new Date(Date.now() + 3600000 * 72).toISOString(),
+    venue_name: 'Mutabor Main Floor',
+    price_amount: 1200,
+    price_currency: 'RUB',
+    is_free: false,
+    status: 'published',
+    attendee_count: 310,
+    is_attending: true,
+    interest_count: 520,
+    current_user_interested: true,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock-4',
+    title: 'Открытый турнир по падел-теннису',
+    cover_image_url: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=800&q=80',
+    category_id: 'sports',
+    category_name: 'Спорт',
+    city_id: 'moscow',
+    city_name: 'Москва',
+    start_at: new Date(Date.now() + 3600000 * 96).toISOString(),
+    venue_name: 'Лужники Padel Club',
+    price_amount: 0,
+    price_currency: 'RUB',
+    is_free: true,
+    status: 'published',
+    attendee_count: 24,
+    is_attending: false,
+    interest_count: 35,
+    current_user_interested: false,
+    created_at: new Date().toISOString(),
+  }
+];
+
 export const api = {
   getBotUsername(): string {
     return cachedBotUsername;
@@ -232,6 +348,10 @@ export const api = {
 
   getCachedCities(): City[] {
     return getCachedCities();
+  },
+
+  getCachedCategories(): Category[] {
+    return getCachedCategories();
   },
 
   async getAppMeta(): Promise<{ app_name: string; bot_username: string; mini_app_url: string }> {
@@ -342,12 +462,33 @@ export const api = {
     if (categoryId) params.append('category_id', categoryId);
     if (dateFilter && dateFilter !== 'all') params.append('date_filter', dateFilter);
 
-    const res = await fetchWithTimeout(`${API_BASE}/events?${params.toString()}`, {
-      headers: getAuthHeaders(),
-      signal,
-    });
-    if (!res.ok) throw new Error('Не удалось загрузить события');
-    return res.json();
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/events?${params.toString()}`, {
+        headers: getAuthHeaders(),
+        signal,
+      });
+      if (!res.ok) {
+        if (!import.meta.env.DEV) {
+          throw new Error('Не удалось загрузить события');
+        }
+      } else {
+        return await res.json();
+      }
+    } catch (err) {
+      if (!import.meta.env.DEV) {
+        throw err;
+      }
+    }
+
+    // Local preview / offline fallback for design inspection
+    let list = SAMPLE_EVENTS;
+    if (categoryId) {
+      list = list.filter((e) => e.category_id === categoryId);
+    }
+    return {
+      events: list,
+      total: list.length,
+    };
   },
 
   async searchDiscovery(

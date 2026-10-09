@@ -275,3 +275,700 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ========================================================================== */
+/* LIQUID GLASS DESIGN SYSTEM (SCOPED TO [data-theme="liquid-glass"])        */
+/* 6 DISTINCT VISIONOS / MODERN IOS STYLISTIC VARIANTS                       */
+/* ========================================================================== */
+
+[data-theme="liquid-glass"] {
+  --lg-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+  font-family: var(--lg-font);
+  background-color: #05070B;
+  color: #F8FAFC;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Ambient Liquid Caustics Layer */
+.liquid-glass-caustics-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.caustic-mesh {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(85px);
+  will-change: transform;
+  animation: causticFloat 18s ease-in-out infinite alternate;
+}
+
+.caustic-mesh-1 {
+  width: 500px;
+  height: 500px;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.caustic-mesh-2 {
+  width: 380px;
+  height: 380px;
+  top: 35%;
+  right: -80px;
+  animation-duration: 22s;
+  animation-delay: -5s;
+}
+
+.caustic-mesh-3 {
+  width: 440px;
+  height: 440px;
+  bottom: 8%;
+  left: -100px;
+  animation-duration: 26s;
+  animation-delay: -10s;
+}
+
+@keyframes causticFloat {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, 25px) scale(1.08);
+  }
+  100% {
+    transform: translate(-25px, 45px) scale(0.95);
+  }
+}
+
+/* Common Optical Micro-Interaction physics */
+[data-theme="liquid-glass"] .card-press {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease, border-color 220ms ease !important;
+}
+[data-theme="liquid-glass"] .card-press:active {
+  transform: scale(0.985) !important;
+}
+
+[data-theme="liquid-glass"] [data-element="card-title"] {
+  letter-spacing: -0.015em;
+  font-weight: 650;
+}
+
+/* Common Liquid Glass Badge & Divider Rules */
+[data-theme="liquid-glass"] [data-element="card-badge-category"] {
+  background: rgba(10, 14, 24, 0.65) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"] [data-element="card-badge-price-free"] {
+  background: rgba(16, 185, 129, 0.22) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+  color: #6EE7B7 !important;
+}
+
+[data-theme="liquid-glass"] [data-element="card-badge-price-paid"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"] [data-element="card-divider"] {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 1: VisionOS Prism Glass (Чистый морозный кристалл)                  */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="1"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) {
+  background: #06080F !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="1"] .caustic-mesh-1,
+[data-theme="liquid-glass"]:not([data-glass-variant]) .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.16), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] .caustic-mesh-2,
+[data-theme="liquid-glass"]:not([data-glass-variant]) .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.13), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] .caustic-mesh-3,
+[data-theme="liquid-glass"]:not([data-glass-variant]) .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.10), transparent 70%);
+}
+
+/* V1 Header */
+[data-theme="liquid-glass"][data-glass-variant="1"] header[data-element="header"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) header[data-element="header"] {
+  background: rgba(10, 14, 24, 0.6) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4), inset 0 -1px 0 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* V1 City Selector */
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="city-selector"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  color: #FFFFFF !important;
+}
+
+/* V1 Search Bar */
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-lg-search="true"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-lg-search="true"] {
+  background: rgba(255, 255, 255, 0.045) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 8px 24px -4px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-lg-search-badge],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-lg-search-badge] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #E2E8F0 !important;
+}
+
+/* V1 Date Segmented Control (Telegram / iOS Pure Liquid Glass Capsule) */
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="segmented-control"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="segmented-control"] {
+  background: rgba(14, 18, 30, 0.40) !important;
+  border-radius: 9999px !important;
+  padding: 3.5px !important;
+  border: none !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.5), 0 4px 20px -2px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="segmented-indicator"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="segmented-indicator"] {
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  border: none !important;
+  box-shadow: inset 0 1px 1.5px 0.5px rgba(255, 255, 255, 0.65), inset 0 -0.5px 1px 0 rgba(0, 0, 0, 0.2), 0 4px 14px -1px rgba(0, 0, 0, 0.35) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="segmented-control"] button,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="segmented-control"] button {
+  border-radius: 9999px !important;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s ease !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="segmented-control"] button:active,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="segmented-control"] button:active {
+  transform: scale(0.94) !important;
+}
+
+/* V1 Category Pills (Telegram Refractive Glass Lens) */
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-inactive"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-inactive"] {
+  background: rgba(255, 255, 255, 0.045) !important;
+  border: none !important;
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.12), inset 0 -0.5px 1px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  color: #94A3B8 !important;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-inactive"]:active,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-inactive"]:active {
+  transform: scale(0.94) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-active-all"],
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-active"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-active-all"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-active"] {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border: none !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.65), inset 0 -0.5px 0.5px 0 rgba(0, 0, 0, 0.2), 0 4px 16px -2px rgba(0, 0, 0, 0.4) !important;
+  color: #FFFFFF !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-active-all"]:active,
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="category-pill-active"]:active,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-active-all"]:active,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="category-pill-active"]:active {
+  transform: scale(0.94) !important;
+}
+
+/* V1 Event Cards (VisionOS Prism Plate) */
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="event-card"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="event-card"] {
+  background: rgba(18, 24, 38, 0.55) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 24px !important;
+  box-shadow: inset 0 1.5px 0.5px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 0 rgba(255, 255, 255, 0.04), 0 16px 36px -8px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="event-card"]:hover,
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="event-card"]:hover {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  box-shadow: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.4), 0 20px 44px -8px rgba(0, 0, 0, 0.6) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="card-badge-category"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="card-badge-category"] {
+  background: rgba(10, 14, 24, 0.6) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.25) !important;
+  color: #FFFFFF !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="card-badge-price-free"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="card-badge-price-free"] {
+  background: rgba(16, 185, 129, 0.25) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+  color: #A7F3D0 !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] [data-element="card-badge-price-paid"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) [data-element="card-badge-price-paid"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.35) !important;
+  color: #FFFFFF !important;
+}
+
+/* V1 Floating Island Navigation Dock (Variant 3 Island Geometry + Variant 1 Crystal Pure Glass) */
+[data-theme="liquid-glass"][data-glass-variant="1"] nav[data-element="navigation"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) nav[data-element="navigation"] {
+  position: fixed !important;
+  bottom: calc(var(--safe-bottom, 0px) + 12px) !important;
+  left: 16px !important;
+  right: 16px !important;
+  max-width: 440px !important;
+  margin: 0 auto !important;
+  border-radius: 9999px !important;
+  background: rgba(10, 14, 24, 0.70) !important;
+  backdrop-filter: blur(32px) saturate(210%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(210%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 20px 48px -6px rgba(0, 0, 0, 0.75), inset 0 1.5px 0.5px 0 rgba(255, 255, 255, 0.38), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.3) !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  z-index: 50 !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease !important;
+}
+
+/* Telegram Elastic Dock Button Physics */
+[data-theme="liquid-glass"][data-glass-variant="1"] nav[data-element="navigation"] button,
+[data-theme="liquid-glass"]:not([data-glass-variant]) nav[data-element="navigation"] button {
+  position: relative !important;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.18s ease, background-color 0.18s ease !important;
+  border-radius: 9999px !important;
+  padding: 6px 16px !important;
+  will-change: transform;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] nav[data-element="navigation"] button:active,
+[data-theme="liquid-glass"]:not([data-glass-variant]) nav[data-element="navigation"] button:active {
+  transform: scale(0.86) !important;
+}
+
+/* Active Nav Tab Droplet */
+[data-theme="liquid-glass"][data-glass-variant="1"] nav[data-element="navigation"] [data-element="nav-tab-active"],
+[data-theme="liquid-glass"]:not([data-glass-variant]) nav[data-element="navigation"] [data-element="nav-tab-active"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 1px 0.5px 0 rgba(255, 255, 255, 0.4), 0 2px 10px rgba(0, 0, 0, 0.25) !important;
+  color: #FFFFFF !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="1"] nav[data-element="navigation"] [data-element="nav-tab-active"] svg,
+[data-theme="liquid-glass"]:not([data-glass-variant]) nav[data-element="navigation"] [data-element="nav-tab-active"] svg {
+  color: #818CF8 !important;
+  filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.75)) !important;
+  transform: scale(1.08) !important;
+}
+
+/* Content bottom clearance for floating dock */
+[data-theme="liquid-glass"] .content-safe-bottom {
+  padding-bottom: calc(6.5rem + var(--safe-bottom, 0px)) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 2: Obsidian Caustics (Глубокий обсидиановый люкс)                   */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="2"] {
+  background: #030408 !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.28), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(67, 56, 202, 0.26), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(192, 38, 211, 0.18), transparent 70%);
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] header[data-element="header"] {
+  background: rgba(8, 10, 18, 0.75) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.18) !important;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(139, 92, 246, 0.1) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 16px -2px rgba(124, 58, 237, 0.2) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-lg-search="true"] {
+  background: rgba(14, 18, 32, 0.65) !important;
+  border: 1px solid rgba(139, 92, 246, 0.22) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="segmented-control"] {
+  background: rgba(8, 11, 20, 0.7) !important;
+  border: 1px solid rgba(139, 92, 246, 0.16) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="segmented-indicator"] {
+  background: rgba(124, 58, 237, 0.28) !important;
+  border: 1px solid rgba(167, 139, 250, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 16px rgba(124, 58, 237, 0.3) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="category-pill-inactive"] {
+  background: rgba(20, 24, 40, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  color: #94A3B8 !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="category-pill-active-all"],
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="category-pill-active"] {
+  background: rgba(124, 58, 237, 0.24) !important;
+  border: 1px solid rgba(167, 139, 250, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 16px rgba(124, 58, 237, 0.3) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="event-card"] {
+  background: rgba(13, 17, 30, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(170%) !important;
+  border: 1px solid rgba(139, 92, 246, 0.24) !important;
+  border-radius: 22px !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.2), 0 18px 42px -6px rgba(0, 0, 0, 0.7), 0 0 24px -4px rgba(124, 58, 237, 0.16) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="event-card"]:hover {
+  border-color: rgba(167, 139, 250, 0.45) !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.32), 0 24px 50px -6px rgba(0, 0, 0, 0.8), 0 0 32px -2px rgba(124, 58, 237, 0.28) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="card-badge-category"] {
+  background: rgba(7, 10, 20, 0.75) !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="card-badge-price-free"] {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border: 1px solid rgba(52, 211, 153, 0.45) !important;
+  color: #6EE7B7 !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="2"] [data-element="card-badge-price-paid"] {
+  background: rgba(124, 58, 237, 0.28) !important;
+  border: 1px solid rgba(167, 139, 250, 0.45) !important;
+  color: #EDE9FE !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="2"] nav[data-element="navigation"] {
+  background: rgba(8, 10, 18, 0.8) !important;
+  backdrop-filter: blur(28px) !important;
+  border-top: 1px solid rgba(139, 92, 246, 0.2) !important;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(139, 92, 246, 0.15) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 3: Floating Island Dock (Парящие острова iOS 18)                   */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="3"] {
+  background: #070B14 !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="3"] .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.2), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="3"] .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.18), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="3"] .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.16), transparent 70%);
+}
+
+/* V3 Detached Floating Island Navigation Dock */
+[data-theme="liquid-glass"][data-glass-variant="3"] nav[data-element="navigation"] {
+  position: fixed !important;
+  bottom: calc(var(--safe-bottom, 0px) + 12px) !important;
+  left: 16px !important;
+  right: 16px !important;
+  max-width: 480px !important;
+  margin: 0 auto !important;
+  border-radius: 9999px !important;
+  background: rgba(14, 19, 32, 0.78) !important;
+  backdrop-filter: blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65), inset 0 1.5px 0.5px rgba(255, 255, 255, 0.3) !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="3"] header[data-element="header"] {
+  background: rgba(11, 16, 28, 0.65) !important;
+  backdrop-filter: blur(26px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 9999px !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-lg-search="true"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 9999px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-element="segmented-control"] {
+  background: rgba(10, 15, 26, 0.45) !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.45), 0 4px 18px -2px rgba(0, 0, 0, 0.35) !important;
+  padding: 3.5px !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-element="segmented-indicator"] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.7), inset 0 -0.5px 1px 0 rgba(0, 0, 0, 0.2), 0 4px 14px -1px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(18px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
+}
+
+/* V3 Floating Pod Cards */
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-element="event-card"] {
+  background: rgba(16, 22, 38, 0.65) !important;
+  backdrop-filter: blur(26px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 28px !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.3), 0 20px 48px -10px rgba(0, 0, 0, 0.7) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="3"] [data-element="event-card"]:hover {
+  transform: translateY(-3px) scale(1.005) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.42), 0 26px 56px -10px rgba(0, 0, 0, 0.78) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 4: Luminous Aura Fluid (Неоновое жидкое сияние)                    */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="4"] {
+  background: #04050A !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.25), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="4"] .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.25), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="4"] .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.26), transparent 70%);
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] header[data-element="header"] {
+  background: rgba(8, 11, 22, 0.7) !important;
+  backdrop-filter: blur(28px) !important;
+  border-bottom: 1px solid rgba(236, 72, 153, 0.2) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(236, 72, 153, 0.1) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(6, 182, 212, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 14px rgba(6, 182, 212, 0.2) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] [data-element="event-card"] {
+  background: rgba(13, 17, 30, 0.65) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.35) !important;
+  border-radius: 24px !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.25), 0 14px 36px -4px rgba(0, 0, 0, 0.6), 0 0 22px rgba(99, 102, 241, 0.14), 0 0 35px rgba(236, 72, 153, 0.08) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="4"] [data-element="event-card"]:hover {
+  border-color: rgba(236, 72, 153, 0.5) !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.35), 0 20px 48px -4px rgba(0, 0, 0, 0.7), 0 0 30px rgba(236, 72, 153, 0.25) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] [data-element="category-pill-active-all"],
+[data-theme="liquid-glass"][data-glass-variant="4"] [data-element="category-pill-active"] {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(236, 72, 153, 0.3)) !important;
+  border: 1px solid rgba(236, 72, 153, 0.45) !important;
+  box-shadow: 0 4px 18px rgba(236, 72, 153, 0.25) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="4"] nav[data-element="navigation"] {
+  background: rgba(8, 11, 22, 0.75) !important;
+  backdrop-filter: blur(28px) !important;
+  border-top: 1px solid rgba(6, 182, 212, 0.25) !important;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(6, 182, 212, 0.1) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 5: Frosted Monolith (Минималистичный архитектурный матовый)         */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="5"] {
+  background: #020306 !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="5"] .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.04), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="5"] .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.03), transparent 70%);
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] header[data-element="header"] {
+  background: rgba(6, 8, 12, 0.82) !important;
+  backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] [data-element="event-card"] {
+  background: rgba(16, 20, 30, 0.78) !important;
+  backdrop-filter: blur(22px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 20px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 12px 30px -6px rgba(0, 0, 0, 0.65) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="5"] [data-element="event-card"]:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 16px 36px -6px rgba(0, 0, 0, 0.75) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] [data-element="card-badge-category"] {
+  background: rgba(5, 7, 12, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="5"] nav[data-element="navigation"] {
+  background: rgba(6, 8, 12, 0.85) !important;
+  backdrop-filter: blur(26px) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ========================================================================== */
+/* VARIANT 6: Aurora Borealis Glass (Северное сияние под жидким стеклом)      */
+/* ========================================================================== */
+[data-theme="liquid-glass"][data-glass-variant="6"] {
+  background: #04080D !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] .caustic-mesh-1 {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.24), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="6"] .caustic-mesh-2 {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.22), transparent 70%);
+}
+[data-theme="liquid-glass"][data-glass-variant="6"] .caustic-mesh-3 {
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.22), transparent 70%);
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] header[data-element="header"] {
+  background: rgba(8, 14, 22, 0.65) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.2) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(52, 211, 153, 0.1) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="city-selector"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(52, 211, 153, 0.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 16px rgba(16, 185, 129, 0.18) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="segmented-indicator"] {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 16px rgba(16, 185, 129, 0.25) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="category-pill-active-all"],
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="category-pill-active"] {
+  background: rgba(16, 185, 129, 0.24) !important;
+  border: 1px solid rgba(52, 211, 153, 0.4) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 16px rgba(16, 185, 129, 0.25) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="event-card"] {
+  background: rgba(11, 18, 30, 0.6) !important;
+  backdrop-filter: blur(26px) saturate(200%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.22) !important;
+  border-radius: 24px !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.3), inset 0 0 20px rgba(16, 185, 129, 0.08), 0 16px 40px -6px rgba(0, 0, 0, 0.6) !important;
+}
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="event-card"]:hover {
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  box-shadow: inset 0 1.5px 0.5px rgba(255, 255, 255, 0.4), inset 0 0 25px rgba(16, 185, 129, 0.16), 0 22px 50px -6px rgba(0, 0, 0, 0.7) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] [data-element="card-badge-category"] {
+  background: rgba(6, 12, 20, 0.7) !important;
+  border: 1px solid rgba(52, 211, 153, 0.25) !important;
+}
+
+[data-theme="liquid-glass"][data-glass-variant="6"] nav[data-element="navigation"] {
+  background: rgba(7, 14, 22, 0.75) !important;
+  backdrop-filter: blur(30px) saturate(200%) !important;
+  border-top: 1px solid rgba(52, 211, 153, 0.2) !important;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.1) !important;
+}
+
+
+

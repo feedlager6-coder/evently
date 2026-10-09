@@ -25,12 +25,13 @@ export const Navigation: React.FC<NavigationProps> = ({
   const isMyEventsActive = currentTab === 'my_events' || currentTab === 'organizer';
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/92 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4">
+    <nav data-element="navigation" className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/92 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4">
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {/* Feed Tab */}
         <button
+          data-element={currentTab === 'feed' ? 'nav-tab-active' : undefined}
           onClick={() => handleTabClick('feed')}
-          className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
+          className={`flex flex-col items-center py-1.5 px-4 rounded-full btn-press transition-colors duration-150 ${
             currentTab === 'feed'
               ? 'text-indigo-400 font-semibold'
               : 'text-gray-400 hover:text-gray-200'
@@ -47,8 +48,9 @@ export const Navigation: React.FC<NavigationProps> = ({
 
         {/* My Events Tab (Personal Hub) */}
         <button
+          data-element={isMyEventsActive ? 'nav-tab-active' : undefined}
           onClick={() => handleTabClick('my_events')}
-          className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
+          className={`flex flex-col items-center py-1.5 px-4 rounded-full btn-press transition-colors duration-150 ${
             isMyEventsActive
               ? 'text-indigo-400 font-semibold'
               : 'text-gray-400 hover:text-gray-200'
@@ -66,8 +68,9 @@ export const Navigation: React.FC<NavigationProps> = ({
         {/* Admin Tab (only if admin) */}
         {isAdmin && (
           <button
+            data-element={currentTab === 'admin' ? 'nav-tab-active' : undefined}
             onClick={() => handleTabClick('admin')}
-            className={`flex flex-col items-center py-1.5 px-4 rounded-lg btn-press transition-colors duration-150 ${
+            className={`flex flex-col items-center py-1.5 px-4 rounded-full btn-press transition-colors duration-150 ${
               currentTab === 'admin'
                 ? 'text-indigo-400 font-semibold'
                 : 'text-gray-400 hover:text-gray-200'

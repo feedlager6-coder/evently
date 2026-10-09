@@ -13,10 +13,10 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentCity,
   onOpenCityModal,
-  isAdmin
+  isAdmin,
 }) => {
   return (
-    <header className="sticky top-0 z-30 bg-[#0B0D13]/85 backdrop-blur-md border-b border-white/5 px-4 py-3">
+    <header data-element="header" className="sticky top-0 z-30 bg-[#0B0D13]/85 backdrop-blur-md border-b border-white/5 px-4 py-3">
       <div className="flex items-center justify-between max-w-lg mx-auto">
         {/* Brand */}
         <div className="flex items-center space-x-2">
@@ -34,9 +34,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Actions: City Selector */}
         <div className="flex items-center space-x-1.5 min-w-0 flex-shrink">
-
           {/* Prominent City Selector */}
           <button
+            data-element="city-selector"
             onClick={() => {
               onOpenCityModal();
             }}

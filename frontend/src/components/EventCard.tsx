@@ -31,6 +31,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
 
   return (
     <div
+      data-element="event-card"
       onClick={onClick}
       className={`group relative rounded-[20px] overflow-hidden bg-[#131722] border border-white/8 hover:border-indigo-500/40 card-press cursor-pointer shadow-lg hover:shadow-indigo-500/10 ${
         isPast ? 'opacity-85 hover:opacity-100' : ''
@@ -49,7 +50,10 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
         {/* Top Badges (Frosted Glass) */}
         <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none">
           <div className="flex items-center space-x-1.5">
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-black/65 backdrop-blur-md text-white border border-white/10 shadow-sm">
+            <span
+              data-element="card-badge-category"
+              className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-black/65 backdrop-blur-md text-white border border-white/10 shadow-sm"
+            >
               {event.category_name}
             </span>
             {isPast && (
@@ -64,6 +68,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
             )}
           </div>
           <span
+            data-element={event.is_free ? 'card-badge-price-free' : 'card-badge-price-paid'}
             className={`px-2.5 py-1 rounded-full text-[11px] font-bold backdrop-blur-md border shadow-sm ${
               isPast
                 ? 'bg-white/10 border-white/10 text-gray-300'
@@ -98,7 +103,10 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
 
       {/* Card Body */}
       <div className="p-4 space-y-2.5">
-        <h3 className="font-semibold text-base text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
+        <h3
+          data-element="card-title"
+          className="font-semibold text-base text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug"
+        >
           {event.title}
         </h3>
 
@@ -114,7 +122,10 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
         </div>
 
         {/* Bottom stats */}
-        <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
+        <div
+          data-element="card-divider"
+          className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-gray-400"
+        >
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-1.5">
               <Users className="w-3.5 h-3.5 text-indigo-400" />

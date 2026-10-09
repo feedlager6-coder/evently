@@ -38,7 +38,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onSelectCategory,
 }) => {
   return (
-    <div className="space-y-3 py-2">
+    <div data-element="filter-bar" className="space-y-3 py-2">
       {/* Date Quick Segmented Control */}
       <div className="mx-4">
         <AnimatedSegmentedControl
@@ -56,6 +56,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar px-4 pb-1">
         {/* 'All' Category Pill */}
         <button
+          type="button"
+          data-element={!selectedCategoryId ? 'category-pill-active-all' : 'category-pill-inactive'}
           onClick={() => {
             if (selectedCategoryId) telegram.hapticImpact('light');
             onSelectCategory(undefined);
@@ -76,6 +78,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           return (
             <button
               key={cat.id}
+              type="button"
+              data-element={isSelected ? 'category-pill-active' : 'category-pill-inactive'}
               onClick={() => {
                 telegram.hapticImpact('light');
                 onSelectCategory(isSelected ? undefined : cat.id);

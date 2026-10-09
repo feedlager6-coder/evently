@@ -36,6 +36,69 @@ import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // Visual Theme Experiment: Default vs Liquid Glass
+  const [theme, setTheme] = useState<'default' | 'liquid-glass'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTheme = params.get('theme');
+      if (urlTheme === 'liquid-glass') return 'liquid-glass';
+      if (urlTheme === 'default') return 'default';
+      const saved = localStorage.getItem('ivently_theme');
+      if (saved === 'default') return 'default';
+      if (saved === 'liquid-glass') return 'liquid-glass';
+      return 'liquid-glass';
+    } catch {
+      return 'liquid-glass';
+    }
+  });
+
+  // Liquid Glass Stylistic Variant (1..6)
+  const [glassVariant, setGlassVariant] = useState<1 | 2 | 3 | 4 | 5 | 6>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const v = Number(params.get('v') || params.get('variant'));
+      if (v >= 1 && v <= 6) return v as 1 | 2 | 3 | 4 | 5 | 6;
+      const saved = Number(localStorage.getItem('ivently_glass_variant'));
+      if (saved >= 1 && saved <= 6) return saved as 1 | 2 | 3 | 4 | 5 | 6;
+      return 1;
+    } catch {
+      return 1;
+    }
+  });
+
+  const selectGlassVariant = useCallback((v: 1 | 2 | 3 | 4 | 5 | 6) => {
+    setGlassVariant(v);
+    try {
+      localStorage.setItem('ivently_glass_variant', String(v));
+      const url = new URL(window.location.href);
+      url.searchParams.set('v', String(v));
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    telegram.hapticImpact('light');
+    setTheme((prev) => {
+      const next = prev === 'liquid-glass' ? 'default' : 'liquid-glass';
+      try {
+        localStorage.setItem('ivently_theme', next);
+        const url = new URL(window.location.href);
+        if (next === 'liquid-glass') {
+          url.searchParams.set('theme', 'liquid-glass');
+        } else {
+          url.searchParams.delete('theme');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    (window as any).__toggleTheme = toggleTheme;
+    (window as any).__setGlassVariant = selectGlassVariant;
+  }, [toggleTheme, selectGlassVariant]);
+
   // Navigation & UI state
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
   const [isCityModalOpen, setIsCityModalOpen] = useState<boolean>(() => {
@@ -51,9 +114,9 @@ export const App: React.FC = () => {
     }
   });
 
-  // Core metadata - initialize with cached cities for instant 0ms startup
+  // Core metadata - initialize with cached cities & categories for instant 0ms startup
   const [cities, setCities] = useState<City[]>(() => api.getCachedCities());
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(() => api.getCachedCategories());
   const [selectedCityId, setSelectedCityId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('evently_selected_city_id');
@@ -320,6 +383,9 @@ export const App: React.FC = () => {
         }
         if (loadedCategories && loadedCategories.length > 0) {
           setCategories(loadedCategories);
+          try {
+            localStorage.setItem('evently_cached_categories', JSON.stringify(loadedCategories));
+          } catch {}
         }
 
         // City selection preference:
@@ -767,7 +833,20 @@ export const App: React.FC = () => {
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
-    <div className="min-h-screen bg-[#0B0D13] text-[#F3F4F6] content-safe-bottom selection:bg-indigo-500">
+    <div
+      data-theme={theme === 'liquid-glass' ? 'liquid-glass' : undefined}
+      data-glass-variant={theme === 'liquid-glass' ? glassVariant : undefined}
+      className={`min-h-screen ${theme === 'liquid-glass' ? 'liquid-glass-app' : 'bg-[#0B0D13]'} text-[#F3F4F6] content-safe-bottom selection:bg-indigo-500 relative`}
+    >
+      {/* Dynamic Ambient Caustics for Liquid Glass */}
+      {theme === 'liquid-glass' && (
+        <div className="liquid-glass-caustics-layer pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
+          <div className="caustic-mesh caustic-mesh-1" />
+          <div className="caustic-mesh caustic-mesh-2" />
+          <div className="caustic-mesh caustic-mesh-3" />
+        </div>
+      )}
+
       {/* Top Header */}
       <Header
         currentCity={currentCity}
@@ -777,12 +856,13 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area based on Tab */}
-      <main className="max-w-lg mx-auto">
+      <main className="max-w-lg mx-auto relative z-10">
         {currentTab === 'feed' && (
           <div className="space-y-3">
             {/* Prominent Discovery Search Trigger */}
             <div className="px-4 pt-1">
               <div
+                data-lg-search="true"
                 onClick={() => {
                   telegram.hapticImpact('light');
                   setSearchInitialQuery('');
@@ -792,7 +872,7 @@ export const App: React.FC = () => {
               >
                 <Search className="w-4 h-4 text-indigo-400 shrink-0 group-hover:scale-105 transition-transform" />
                 <span className="flex-1 text-gray-300 font-medium">События, места и организации...</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-white/5 text-gray-400 border border-white/5 shrink-0">
+                <span data-lg-search-badge="true" className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-white/5 text-gray-400 border border-white/5 shrink-0">
                   {currentCity ? currentCity.name : 'Город'}
                 </span>
               </div>
