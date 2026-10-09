@@ -49,6 +49,13 @@ export function AnimatedSegmentedControl<T extends string>({
   const velocityWidthRef = useRef<number>(0);
   const rafIdRef = useRef<number | null>(null);
 
+  // Gesture tracking refs
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const hasMovedRef = useRef(false);
+  const dragHoveredValRef = useRef<T>(value);
+
   // 60 FPS Physics Spring with Inertia Overshoot & Settle Recoil Wobble
   const animateSpringTo = useCallback((targetLeft: number, targetWidth: number, initialVelLeft = 0) => {
     if (rafIdRef.current) {
@@ -167,8 +174,10 @@ export function AnimatedSegmentedControl<T extends string>({
 
     setLayout((prev) => ({ ...prev, top, height }));
 
-    // Launch 60 FPS physics spring
-    animateSpringTo(left, width);
+    // Launch 60 FPS physics spring if not currently user-dragging
+    if (!isDraggingRef.current) {
+      animateSpringTo(left, width);
+    }
 
     if (scrollable) {
       activeButton.scrollIntoView({
@@ -227,7 +236,132 @@ export function AnimatedSegmentedControl<T extends string>({
     };
   }, [value]);
 
+  // Pointer drag gestures
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    hasMovedRef.current = false;
+    isDraggingRef.current = false;
+    dragHoveredValRef.current = value;
+
+    // Subtle tactile expansion on touch down
+    if (indicatorInnerRef.current) {
+      indicatorInnerRef.current.style.transform = 'scale3d(1.06, 1.05, 1)';
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const deltaX = Math.abs(e.clientX - startXRef.current);
+    const deltaY = Math.abs(e.clientY - startYRef.current);
+
+    // If moving more vertically before engaging drag, allow normal scroll
+    if (!isDraggingRef.current && deltaY > deltaX && deltaY > 7) {
+      if (!rafIdRef.current && indicatorInnerRef.current) {
+        indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+      }
+      return;
+    }
+
+    // Engage horizontal drag gesture
+    if (!isDraggingRef.current && deltaX > 6) {
+      isDraggingRef.current = true;
+      hasMovedRef.current = true;
+
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+
+    if (!isDraggingRef.current) return;
+
+    const rect = container.getBoundingClientRect();
+    const relativeX = e.clientX - rect.left;
+
+    // Find closest button/item to current pointer X
+    let closestItem = items[0];
+    let minDistance = Infinity;
+
+    for (const item of items) {
+      const btn = buttonRefs.current.get(item.value);
+      if (!btn) continue;
+      const btnCenter = btn.offsetLeft + btn.offsetWidth / 2;
+      const dist = Math.abs(relativeX - btnCenter);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestItem = item;
+      }
+    }
+
+    const targetBtn = buttonRefs.current.get(closestItem.value);
+    const targetWidth = targetBtn ? targetBtn.offsetWidth : currentWidthRef.current;
+
+    // Fluid drag position clamped to container bounds
+    const maxLeft = Math.max(0, container.clientWidth - targetWidth);
+    const rawLeft = relativeX - targetWidth / 2;
+    const dragLeft = Math.max(0, Math.min(maxLeft, rawLeft));
+
+    currentLeftRef.current = dragLeft;
+    currentWidthRef.current = targetWidth;
+
+    if (indicatorWrapperRef.current) {
+      indicatorWrapperRef.current.style.transform = `translate3d(${dragLeft.toFixed(2)}px, 0, 0)`;
+      indicatorWrapperRef.current.style.width = `${targetWidth}px`;
+    }
+    if (indicatorInnerRef.current) {
+      // Playful slightly enlarged lens during drag ("живая, играет")
+      indicatorInnerRef.current.style.transform = 'scale3d(1.07, 1.05, 1)';
+    }
+
+    if (closestItem.value !== dragHoveredValRef.current) {
+      dragHoveredValRef.current = closestItem.value;
+      telegram.hapticSelection();
+    }
+  };
+
+  const finishGesture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {}
+
+      isDraggingRef.current = false;
+
+      const finalVal = dragHoveredValRef.current;
+      const finalBtn = buttonRefs.current.get(finalVal);
+
+      if (finalBtn) {
+        // Spring smoothly into the slot from finger release position
+        animateSpringTo(finalBtn.offsetLeft, finalBtn.offsetWidth);
+      }
+
+      if (finalVal !== value) {
+        if (hapticFeedback) {
+          telegram.hapticImpact('light');
+        }
+        onChange(finalVal);
+      }
+    } else {
+      if (!rafIdRef.current && indicatorInnerRef.current) {
+        indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+      }
+    }
+  };
+
   const handleSelect = (itemValue: T) => {
+    if (hasMovedRef.current) return;
+
     if (itemValue !== value) {
       if (hapticFeedback) {
         telegram.hapticImpact('light');
@@ -243,9 +377,13 @@ export function AnimatedSegmentedControl<T extends string>({
       ref={containerRef}
       role="tablist"
       data-element="segmented-control"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishGesture}
+      onPointerCancel={finishGesture}
       className={`relative ${
         scrollable ? 'inline-flex min-w-full' : 'flex'
-      } items-center rounded-full bg-[#141724]/70 p-1 border border-white/8 select-none ${
+      } items-center rounded-full bg-[#141724]/70 p-1 border border-white/8 select-none touch-none ${
         scrollable ? '' : className
       }`}
     >

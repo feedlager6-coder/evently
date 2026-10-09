@@ -1282,7 +1282,9 @@ export const App: React.FC = () => {
 
       {/* Silky Feathered Bottom Gradient Scrim (Envelops the Floating Crystal Dock) */}
       <div
-        className="pointer-events-none fixed bottom-0 inset-x-0 z-30 h-28 bg-gradient-to-t from-[#05070B] via-[#05070B]/60 to-transparent transition-opacity duration-300"
+        className={`pointer-events-none fixed bottom-0 inset-x-0 z-30 h-28 bg-gradient-to-t from-[#05070B] via-[#05070B]/60 to-transparent transition-opacity duration-300 ${
+          isOrganizerWorkspaceOpen ? 'opacity-0' : 'opacity-100'
+        }`}
         aria-hidden="true"
       />
 
@@ -1291,6 +1293,7 @@ export const App: React.FC = () => {
         currentTab={currentTab}
         onChangeTab={(tab) => setCurrentTab(tab)}
         isAdmin={isAdmin}
+        isVisible={!isOrganizerWorkspaceOpen}
       />
     </div>
   );

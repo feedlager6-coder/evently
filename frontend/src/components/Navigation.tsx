@@ -8,6 +8,7 @@ interface NavigationProps {
   currentTab: TabType;
   onChangeTab: (tab: TabType) => void;
   isAdmin: boolean;
+  isVisible?: boolean;
 }
 
 interface NavItem {
@@ -20,6 +21,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   currentTab,
   onChangeTab,
   isAdmin,
+  isVisible = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const lensWrapperRef = useRef<HTMLDivElement>(null);
@@ -159,6 +161,11 @@ export const Navigation: React.FC<NavigationProps> = ({
     hasMovedRef.current = false;
     isDraggingRef.current = false;
     dragHoveredTabRef.current = effectiveActiveTab;
+
+    // Tactile elastic expansion when pressed down
+    if (lensInnerRef.current) {
+      lensInnerRef.current.style.transform = 'scale3d(1.06, 1.05, 1)';
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -198,7 +205,8 @@ export const Navigation: React.FC<NavigationProps> = ({
       lensWrapperRef.current.style.transform = `translate3d(${slotPos * 100}%, 0, 0)`;
     }
     if (lensInnerRef.current) {
-      lensInnerRef.current.style.transform = 'scale3d(1.03, 0.97, 1)';
+      // Alive, playfully expanded lens during continuous drag
+      lensInnerRef.current.style.transform = 'scale3d(1.07, 1.05, 1)';
     }
 
     const targetTab = tabs[targetIndex].id;
@@ -227,6 +235,10 @@ export const Navigation: React.FC<NavigationProps> = ({
         telegram.hapticImpact('light');
         onChangeTab(finalTab);
       }
+    } else {
+      if (!rafIdRef.current && lensInnerRef.current) {
+        lensInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+      }
     }
   };
 
@@ -242,7 +254,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   return (
     <nav
       data-element="navigation"
-      className="fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/92 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4 select-none touch-none"
+      data-visible={isVisible !== false ? 'true' : 'false'}
+      className={`fixed bottom-0 inset-x-0 z-40 bg-[#0E101A]/92 backdrop-blur-md border-t border-white/8 nav-safe-bottom px-4 select-none touch-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        isVisible === false ? 'translate-y-36 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+      }`}
     >
       <div
         ref={containerRef}

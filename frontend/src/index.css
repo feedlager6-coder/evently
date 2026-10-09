@@ -543,9 +543,16 @@
   -webkit-user-select: none !important;
 }
 
+/* Navigation Dock Off-Screen Transition when hidden (e.g. Organizer Workspace) */
+[data-theme="liquid-glass"] nav[data-element="navigation"][data-visible="false"] {
+  transform: translateY(140px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Sliding Interactive Lens Squircle (Organic, Tactile Liquid Glass with Inertia) */
 [data-theme="liquid-glass"] [data-element="nav-sliding-lens"] {
-  border-radius: 22px !important;
+  border-radius: 20px !important;
   background: rgba(255, 255, 255, 0.10) !important;
   backdrop-filter: blur(16px) saturate(190%) !important;
   -webkit-backdrop-filter: blur(16px) saturate(190%) !important;
