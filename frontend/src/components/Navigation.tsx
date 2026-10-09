@@ -41,9 +41,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   // Dragging gesture state
   const [isDragging, setIsDragging] = useState(false);
   const [dragSlotProgress, setDragSlotProgress] = useState<number>(activeIndex);
-  const [hoveredTabId, setHoveredTabId] = useState<TabType>(effectiveActiveTab);
 
+  const startXRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
+  const hasMovedRef = useRef(false);
   const dragHoveredTabRef = useRef<TabType>(effectiveActiveTab);
 
   // Compute equal slot width percentage: exactly 33.333% (if 3 tabs) or 50% (if 2 tabs)
@@ -55,63 +56,61 @@ export const Navigation: React.FC<NavigationProps> = ({
     const container = containerRef.current;
     if (!container) return;
 
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {}
-
-    isDraggingRef.current = true;
-    setIsDragging(true);
-
-    const rect = container.getBoundingClientRect();
-    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const slotWidth = rect.width / tabs.length;
-    const targetIndex = Math.min(tabs.length - 1, Math.floor(relativeX / slotWidth));
-
-    // Smooth continuous slot progress (centered on finger)
-    const slotPos = Math.max(0, Math.min(tabs.length - 1, relativeX / slotWidth - 0.5));
-    setDragSlotProgress(slotPos);
-
-    const targetTab = tabs[targetIndex].id;
-    dragHoveredTabRef.current = targetTab;
-    setHoveredTabId(targetTab);
+    startXRef.current = e.clientX;
+    hasMovedRef.current = false;
+    isDraggingRef.current = false;
+    dragHoveredTabRef.current = effectiveActiveTab;
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current) return;
     const container = containerRef.current;
     if (!container) return;
+
+    const deltaX = Math.abs(e.clientX - startXRef.current);
+
+    // Only engage continuous drag if the user actually moved their finger
+    if (!isDraggingRef.current && deltaX > 6) {
+      isDraggingRef.current = true;
+      hasMovedRef.current = true;
+      setIsDragging(true);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+
+    if (!isDraggingRef.current) return;
 
     const rect = container.getBoundingClientRect();
     const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const slotWidth = rect.width / tabs.length;
     const targetIndex = Math.min(tabs.length - 1, Math.floor(relativeX / slotWidth));
 
-    // Move slot progress continuously with finger
+    // Continuous slot progress tracking finger
     const slotPos = Math.max(0, Math.min(tabs.length - 1, relativeX / slotWidth - 0.5));
     setDragSlotProgress(slotPos);
 
     const targetTab = tabs[targetIndex].id;
     if (targetTab !== dragHoveredTabRef.current) {
       dragHoveredTabRef.current = targetTab;
-      setHoveredTabId(targetTab);
       // Telegram tactile feedback on passing into a new tab
       telegram.hapticSelection();
     }
   };
 
   const finishGesture = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current) return;
-    isDraggingRef.current = false;
-    setIsDragging(false);
-
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
 
-    const finalTab = dragHoveredTabRef.current;
-    if (finalTab !== effectiveActiveTab) {
-      telegram.hapticImpact('light');
-      onChangeTab(finalTab);
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+
+      const finalTab = dragHoveredTabRef.current;
+      if (finalTab !== effectiveActiveTab) {
+        telegram.hapticImpact('light');
+        onChangeTab(finalTab);
+      }
     }
   };
 
@@ -145,7 +144,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           className={`absolute top-0 bottom-0 pointer-events-none flex items-center justify-center ${
             isDragging
               ? 'transition-none'
-              : 'transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]'
+              : 'transition-transform duration-280 ease-[cubic-bezier(0.16,1,0.3,1)]'
           }`}
           style={{
             width: `${slotWidthPercent}%`,
@@ -154,19 +153,16 @@ export const Navigation: React.FC<NavigationProps> = ({
           }}
           aria-hidden="true"
         >
-          {/* Compact, tactile, liquid glass pill (slightly smaller, elastic on drag) */}
+          {/* Liquid Glass Pill: Comfortably and fully covers the tab icon and label */}
           <div
             data-element="nav-sliding-lens"
-            className={`w-[74px] xs:w-[80px] h-[38px] rounded-full transition-transform duration-200 ${
-              isDragging ? 'scale-[1.07]' : 'scale-100'
-            }`}
+            className="w-[calc(100%-8px)] h-[44px] rounded-full"
           />
         </div>
 
         {/* Tab Buttons (Equally partitioned slots) */}
         {tabs.map((tab) => {
           const isActive = tab.id === effectiveActiveTab;
-          const isHovered = isDragging ? tab.id === hoveredTabId : isActive;
           const Icon = tab.icon;
 
           return (
@@ -177,7 +173,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               onClick={() => handleTabClick(tab.id)}
               type="button"
               style={{ width: `${slotWidthPercent}%` }}
-              className={`relative z-10 flex flex-col items-center justify-center py-1 rounded-full select-none cursor-pointer touch-none transition-colors duration-150 ${
+              className={`relative z-10 flex flex-col items-center justify-center py-1 rounded-full select-none cursor-pointer touch-none transition-colors duration-200 ${
                 isActive
                   ? 'text-indigo-400 font-semibold'
                   : 'text-gray-400 hover:text-gray-200'
@@ -185,21 +181,13 @@ export const Navigation: React.FC<NavigationProps> = ({
               aria-label={tab.label}
             >
               <Icon
-                className={`w-5 h-5 mb-0.5 transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                  isHovered && isDragging
-                    ? 'scale-[1.22] -translate-y-1 text-indigo-300'
-                    : isActive
-                    ? 'scale-105 stroke-[2.25]'
-                    : 'scale-100 stroke-2'
+                className={`w-5 h-5 mb-0.5 transition-colors duration-200 ${
+                  isActive ? 'stroke-[2.25] text-indigo-400' : 'stroke-2 text-gray-400'
                 }`}
               />
               <span
-                className={`text-[10px] tracking-tight transition-all duration-150 ${
-                  isHovered && isDragging
-                    ? 'scale-105 font-bold text-white'
-                    : isActive
-                    ? 'font-medium text-indigo-400'
-                    : 'text-gray-400'
+                className={`text-[10.5px] tracking-tight transition-colors duration-200 ${
+                  isActive ? 'font-semibold text-white' : 'font-normal text-gray-400'
                 }`}
               >
                 {tab.label}

@@ -555,12 +555,12 @@
   z-index: 1;
 }
 
-/* Telegram Elastic Dock Button Physics */
+/* Telegram Elastic Dock Button */
 [data-theme="liquid-glass"] nav[data-element="navigation"] button {
   position: relative !important;
   z-index: 2 !important;
   border-radius: 9999px !important;
-  padding: 6px 16px !important;
+  padding: 4px 6px !important;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -569,7 +569,7 @@
 }
 
 [data-theme="liquid-glass"] nav[data-element="navigation"] button svg {
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.18s ease !important;
+  transition: color 0.18s ease !important;
 }
 
 /* Active Nav Tab Glow */
