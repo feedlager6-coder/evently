@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Compass, Calendar, Shield } from 'lucide-react';
 import { telegram } from '../services/telegram';
 
@@ -22,6 +22,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   isAdmin,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lensWrapperRef = useRef<HTMLDivElement>(null);
+  const lensInnerRef = useRef<HTMLDivElement>(null);
 
   // Map 'organizer' to 'my_events' in bottom bar
   const effectiveActiveTab: TabType =
@@ -38,17 +40,114 @@ export const Navigation: React.FC<NavigationProps> = ({
     tabs.findIndex((t) => t.id === effectiveActiveTab)
   );
 
-  // Dragging gesture state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragSlotProgress, setDragSlotProgress] = useState<number>(activeIndex);
+  // Equal slot width percentage: 50% (2 tabs) or 33.333% (3 tabs)
+  const slotWidthPercent = 100 / tabs.length;
 
+  // 60 FPS Physics Spring State Refs
+  const currentPosRef = useRef<number>(activeIndex);
+  const velocityRef = useRef<number>(0);
+  const rafIdRef = useRef<number | null>(null);
+
+  // Pointer gesture tracking
   const startXRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
   const hasMovedRef = useRef(false);
   const dragHoveredTabRef = useRef<TabType>(effectiveActiveTab);
 
-  // Compute equal slot width percentage: exactly 33.333% (if 3 tabs) or 50% (if 2 tabs)
-  const slotWidthPercent = 100 / tabs.length;
+  // Spring physics animation with inertia overshoot & settle recoil ("потряхивание при торможении")
+  const animateSpringTo = useCallback((target: number, initialVelocity = 0) => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
+    let lastTime = performance.now();
+    let pos = currentPosRef.current;
+    let vel = initialVelocity;
+    const stiffness = 280;
+    const damping = 22;
+    let arrivalTime: number | null = null;
+
+    const step = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.032);
+      lastTime = now;
+
+      const dist = pos - target;
+      const force = -stiffness * dist - damping * vel;
+      vel += force * dt;
+      pos += vel * dt;
+      currentPosRef.current = pos;
+      velocityRef.current = vel;
+
+      // Detect arrival phase near target
+      if (arrivalTime === null && Math.abs(dist) < 0.14) {
+        arrivalTime = now;
+      }
+
+      // 60 FPS Inertia & Settle Recoil Wobble
+      let scaleX = 1;
+      let scaleY = 1;
+
+      if (arrivalTime !== null) {
+        const elapsed = (now - arrivalTime) / 1000;
+        // Elastic damped harmonic recoil ripple (decaying sine wave)
+        const ripple = Math.sin(elapsed * 28) * Math.exp(-elapsed * 8.5) * 0.045;
+        scaleX = 1 + ripple;
+        scaleY = 1 - ripple * 0.65;
+      } else {
+        // Fluid elongation along travel direction
+        const stretch = Math.min(0.06, Math.abs(vel) * 0.012);
+        scaleX = 1 + stretch;
+        scaleY = 1 - stretch * 0.6;
+      }
+
+      // GPU Compositor transforms (no React render cycle overhead)
+      if (lensWrapperRef.current) {
+        lensWrapperRef.current.style.transform = `translate3d(${pos * 100}%, 0, 0)`;
+      }
+      if (lensInnerRef.current) {
+        lensInnerRef.current.style.transform = `scale3d(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)}, 1)`;
+      }
+
+      // Settle termination criteria
+      const isSettled =
+        Math.abs(dist) < 0.001 &&
+        Math.abs(vel) < 0.01 &&
+        (arrivalTime === null || now - arrivalTime > 280);
+
+      if (isSettled) {
+        currentPosRef.current = target;
+        velocityRef.current = 0;
+        if (lensWrapperRef.current) {
+          lensWrapperRef.current.style.transform = `translate3d(${target * 100}%, 0, 0)`;
+        }
+        if (lensInnerRef.current) {
+          lensInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+        }
+        rafIdRef.current = null;
+        return;
+      }
+
+      rafIdRef.current = requestAnimationFrame(step);
+    };
+
+    rafIdRef.current = requestAnimationFrame(step);
+  }, []);
+
+  // Launch spring transition when activeIndex changes
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      animateSpringTo(activeIndex);
+    }
+  }, [activeIndex, animateSpringTo]);
+
+  // Clean up RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
 
   // Pointer drag gestures
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -72,7 +171,13 @@ export const Navigation: React.FC<NavigationProps> = ({
     if (!isDraggingRef.current && deltaX > 6) {
       isDraggingRef.current = true;
       hasMovedRef.current = true;
-      setIsDragging(true);
+
+      // Cancel any ongoing spring animation during active drag
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {}
@@ -87,26 +192,37 @@ export const Navigation: React.FC<NavigationProps> = ({
 
     // Continuous slot progress tracking finger
     const slotPos = Math.max(0, Math.min(tabs.length - 1, relativeX / slotWidth - 0.5));
-    setDragSlotProgress(slotPos);
+    currentPosRef.current = slotPos;
+
+    if (lensWrapperRef.current) {
+      lensWrapperRef.current.style.transform = `translate3d(${slotPos * 100}%, 0, 0)`;
+    }
+    if (lensInnerRef.current) {
+      lensInnerRef.current.style.transform = 'scale3d(1.03, 0.97, 1)';
+    }
 
     const targetTab = tabs[targetIndex].id;
     if (targetTab !== dragHoveredTabRef.current) {
       dragHoveredTabRef.current = targetTab;
-      // Telegram tactile feedback on passing into a new tab
       telegram.hapticSelection();
     }
   };
 
   const finishGesture = (e: React.PointerEvent<HTMLDivElement>) => {
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {}
-
     if (isDraggingRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {}
+
       isDraggingRef.current = false;
-      setIsDragging(false);
 
       const finalTab = dragHoveredTabRef.current;
+      const targetIndex = tabs.findIndex((t) => t.id === finalTab);
+      const validTarget = targetIndex >= 0 ? targetIndex : activeIndex;
+
+      // Spring-recoil smoothly from finger release point into the slot
+      animateSpringTo(validTarget);
+
       if (finalTab !== effectiveActiveTab) {
         telegram.hapticImpact('light');
         onChangeTab(finalTab);
@@ -115,16 +231,13 @@ export const Navigation: React.FC<NavigationProps> = ({
   };
 
   const handleTabClick = (tabId: TabType) => {
+    if (hasMovedRef.current) return;
+
     if (tabId !== effectiveActiveTab) {
       telegram.hapticImpact('light');
       onChangeTab(tabId);
     }
   };
-
-  // Determine indicator translation:
-  // When dragging: follow continuous slot progress
-  // When idle: exactly activeIndex * 100%
-  const currentSlotTranslation = isDragging ? dragSlotProgress * 100 : activeIndex * 100;
 
   return (
     <nav
@@ -137,26 +250,23 @@ export const Navigation: React.FC<NavigationProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={finishGesture}
         onPointerCancel={finishGesture}
-        className="relative flex items-center max-w-lg mx-auto touch-none select-none h-12"
+        className="relative flex items-center max-w-lg mx-auto touch-none select-none h-14"
       >
-        {/* Sliding Liquid Glass Slot Wrapper (100% Mathematically Centered) */}
+        {/* Sliding Liquid Glass Slot Wrapper (60 FPS GPU-Accelerated Hardware Spring) */}
         <div
-          className={`absolute top-0 bottom-0 pointer-events-none flex items-center justify-center ${
-            isDragging
-              ? 'transition-none'
-              : 'transition-transform duration-280 ease-[cubic-bezier(0.16,1,0.3,1)]'
-          }`}
+          ref={lensWrapperRef}
+          className="absolute top-0 bottom-0 pointer-events-none flex items-center justify-center will-change-transform"
           style={{
             width: `${slotWidthPercent}%`,
-            transform: `translate3d(${currentSlotTranslation}%, 0, 0)`,
-            willChange: 'transform',
+            transform: `translate3d(${activeIndex * 100}%, 0, 0)`,
           }}
           aria-hidden="true"
         >
-          {/* Liquid Glass Pill: Comfortably and fully covers the tab icon and label */}
+          {/* Liquid Glass Pill: Softly rounded squircle with inertia settle recoil */}
           <div
+            ref={lensInnerRef}
             data-element="nav-sliding-lens"
-            className="w-[calc(100%-8px)] h-[44px] rounded-full"
+            className="w-[calc(100%-10px)] h-[48px] rounded-[22px] will-change-transform"
           />
         </div>
 
@@ -173,7 +283,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               onClick={() => handleTabClick(tab.id)}
               type="button"
               style={{ width: `${slotWidthPercent}%` }}
-              className={`relative z-10 flex flex-col items-center justify-center py-1 rounded-full select-none cursor-pointer touch-none transition-colors duration-200 ${
+              className={`relative z-10 flex flex-col items-center justify-center py-1.5 rounded-full select-none cursor-pointer touch-none transition-colors duration-200 ${
                 isActive
                   ? 'text-indigo-400 font-semibold'
                   : 'text-gray-400 hover:text-gray-200'
@@ -181,13 +291,13 @@ export const Navigation: React.FC<NavigationProps> = ({
               aria-label={tab.label}
             >
               <Icon
-                className={`w-5 h-5 mb-0.5 transition-colors duration-200 ${
+                className={`w-5 h-5 mb-1 transition-colors duration-200 ${
                   isActive ? 'stroke-[2.25] text-indigo-400' : 'stroke-2 text-gray-400'
                 }`}
               />
               <span
-                className={`text-[10.5px] tracking-tight transition-colors duration-200 ${
-                  isActive ? 'font-semibold text-white' : 'font-normal text-gray-400'
+                className={`text-[11px] font-medium tracking-tight transition-colors duration-200 ${
+                  isActive ? 'text-white' : 'text-gray-400'
                 }`}
               >
                 {tab.label}
