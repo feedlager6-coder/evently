@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { telegram } from '../services/telegram';
 
 export interface SegmentedControlItem<T extends string> {
@@ -31,58 +31,184 @@ export function AnimatedSegmentedControl<T extends string>({
 }: AnimatedSegmentedControlProps<T>): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
+  const indicatorWrapperRef = useRef<HTMLDivElement>(null);
+  const indicatorInnerRef = useRef<HTMLDivElement>(null);
 
-  const [indicator, setIndicator] = useState<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-    ready: boolean;
-  }>({
-    left: 0,
+  const [isReady, setIsReady] = useState(false);
+  const [layout, setLayout] = useState<{ top: number; height: number; left: number; width: number }>({
     top: 0,
-    width: 0,
     height: 0,
-    ready: false,
+    left: 0,
+    width: 0,
   });
 
-  const updateIndicator = () => {
-    const container = containerRef.current;
-    const activeButton = buttonRefs.current.get(value);
+  const isInitialMountRef = useRef(true);
+  const currentLeftRef = useRef<number>(0);
+  const currentWidthRef = useRef<number>(0);
+  const velocityLeftRef = useRef<number>(0);
+  const velocityWidthRef = useRef<number>(0);
+  const rafIdRef = useRef<number | null>(null);
 
-    if (container && activeButton) {
-      // Use DOM layout offsets relative to offsetParent (immune to parent animations and transforms)
+  // 60 FPS Physics Spring with Inertia Overshoot & Settle Recoil Wobble
+  const animateSpringTo = useCallback((targetLeft: number, targetWidth: number, initialVelLeft = 0) => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
+    let lastTime = performance.now();
+    let posLeft = currentLeftRef.current;
+    let velLeft = initialVelLeft || velocityLeftRef.current;
+    let posWidth = currentWidthRef.current;
+    let velWidth = velocityWidthRef.current;
+
+    const stiffness = 280;
+    const damping = 22;
+    let arrivalTime: number | null = null;
+
+    const step = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.032);
+      lastTime = now;
+
+      // Spring physics for position
+      const distLeft = posLeft - targetLeft;
+      const forceLeft = -stiffness * distLeft - damping * velLeft;
+      velLeft += forceLeft * dt;
+      posLeft += velLeft * dt;
+      currentLeftRef.current = posLeft;
+      velocityLeftRef.current = velLeft;
+
+      // Spring physics for width
+      const distWidth = posWidth - targetWidth;
+      const forceWidth = -stiffness * distWidth - (damping + 4) * velWidth;
+      velWidth += forceWidth * dt;
+      posWidth += velWidth * dt;
+      currentWidthRef.current = posWidth;
+      velocityWidthRef.current = velWidth;
+
+      // Detect arrival phase near target position
+      if (arrivalTime === null && Math.abs(distLeft) < 6) {
+        arrivalTime = now;
+      }
+
+      // Compute liquid inertia & settle recoil wobble ("потряхивание при торможении")
+      let scaleX = 1;
+      let scaleY = 1;
+
+      if (arrivalTime !== null) {
+        const elapsed = (now - arrivalTime) / 1000;
+        // High-frequency damped settle ripple
+        const ripple = Math.sin(elapsed * 28) * Math.exp(-elapsed * 8.5) * 0.045;
+        scaleX = 1 + ripple;
+        scaleY = 1 - ripple * 0.65;
+      } else {
+        // Fluid elongation in direction of travel
+        const stretch = Math.min(0.06, Math.abs(velLeft) * 0.0008);
+        scaleX = 1 + stretch;
+        scaleY = 1 - stretch * 0.6;
+      }
+
+      // Direct GPU Compositor update at 60/120 FPS
+      if (indicatorWrapperRef.current) {
+        indicatorWrapperRef.current.style.transform = `translate3d(${posLeft.toFixed(2)}px, 0, 0)`;
+        indicatorWrapperRef.current.style.width = `${Math.max(12, posWidth).toFixed(2)}px`;
+      }
+      if (indicatorInnerRef.current) {
+        indicatorInnerRef.current.style.transform = `scale3d(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)}, 1)`;
+      }
+
+      // Settle termination criteria
+      const settled =
+        Math.abs(distLeft) < 0.2 &&
+        Math.abs(velLeft) < 1 &&
+        Math.abs(distWidth) < 0.2 &&
+        (arrivalTime === null || now - arrivalTime > 280);
+
+      if (settled) {
+        currentLeftRef.current = targetLeft;
+        currentWidthRef.current = targetWidth;
+        velocityLeftRef.current = 0;
+        velocityWidthRef.current = 0;
+
+        if (indicatorWrapperRef.current) {
+          indicatorWrapperRef.current.style.transform = `translate3d(${targetLeft}px, 0, 0)`;
+          indicatorWrapperRef.current.style.width = `${targetWidth}px`;
+        }
+        if (indicatorInnerRef.current) {
+          indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+        }
+        rafIdRef.current = null;
+        return;
+      }
+
+      rafIdRef.current = requestAnimationFrame(step);
+    };
+
+    rafIdRef.current = requestAnimationFrame(step);
+  }, []);
+
+  // Update layout and trigger animation
+  useLayoutEffect(() => {
+    const activeButton = buttonRefs.current.get(value);
+    if (!activeButton) return;
+
+    const left = activeButton.offsetLeft;
+    const top = activeButton.offsetTop;
+    const width = activeButton.offsetWidth;
+    const height = activeButton.offsetHeight;
+
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      currentLeftRef.current = left;
+      currentWidthRef.current = width;
+      setLayout({ top, height, left, width });
+      setIsReady(true);
+      return;
+    }
+
+    setLayout((prev) => ({ ...prev, top, height }));
+
+    // Launch 60 FPS physics spring
+    animateSpringTo(left, width);
+
+    if (scrollable) {
+      activeButton.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }
+  }, [value, items, scrollable, animateSpringTo]);
+
+  // Handle window/container resize without spring lag
+  useEffect(() => {
+    const handleResize = () => {
+      const activeButton = buttonRefs.current.get(value);
+      if (!activeButton) return;
+
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
       const left = activeButton.offsetLeft;
       const top = activeButton.offsetTop;
       const width = activeButton.offsetWidth;
       const height = activeButton.offsetHeight;
 
-      setIndicator({
-        left,
-        top,
-        width,
-        height,
-        ready: true,
-      });
+      currentLeftRef.current = left;
+      currentWidthRef.current = width;
+      velocityLeftRef.current = 0;
+      velocityWidthRef.current = 0;
 
-      // If scrollable, ensure the active tab is scrolled into view smoothly
-      if (scrollable) {
-        activeButton.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'nearest',
-        });
+      setLayout({ top, height, left, width });
+
+      if (indicatorWrapperRef.current) {
+        indicatorWrapperRef.current.style.transform = `translate3d(${left}px, 0, 0)`;
+        indicatorWrapperRef.current.style.width = `${width}px`;
       }
-    }
-  };
-
-  useLayoutEffect(() => {
-    updateIndicator();
-  }, [value, items]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      updateIndicator();
+      if (indicatorInnerRef.current) {
+        indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
+      }
     };
 
     window.addEventListener('resize', handleResize);
@@ -95,8 +221,11 @@ export function AnimatedSegmentedControl<T extends string>({
     return () => {
       window.removeEventListener('resize', handleResize);
       observer?.disconnect();
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
     };
-  }, [value, items]);
+  }, [value]);
 
   const handleSelect = (itemValue: T) => {
     if (itemValue !== value) {
@@ -120,23 +249,27 @@ export function AnimatedSegmentedControl<T extends string>({
         scrollable ? '' : className
       }`}
     >
-      {/* Sliding Active Pill Indicator */}
+      {/* Sliding Active Pill Indicator (60 FPS Hardware Spring with Recoil Wobble) */}
       <div
-        data-element="segmented-indicator"
-        className={`absolute top-0 left-0 rounded-xl bg-indigo-600 shadow-md shadow-indigo-600/25 pointer-events-none ${
-          indicator.ready
-            ? 'transition-[transform,width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100'
-            : 'opacity-0'
+        ref={indicatorWrapperRef}
+        className={`absolute pointer-events-none will-change-transform ${
+          isReady ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-          top: `${indicator.top}px`,
-          height: `${indicator.height}px`,
-          width: `${indicator.width}px`,
-          transform: `translate3d(${indicator.left}px, 0, 0)`,
-          willChange: 'transform, width',
+          top: `${layout.top}px`,
+          height: `${layout.height}px`,
+          left: 0,
+          width: `${layout.width}px`,
+          transform: `translate3d(${layout.left}px, 0, 0)`,
         }}
         aria-hidden="true"
-      />
+      >
+        <div
+          ref={indicatorInnerRef}
+          data-element="segmented-indicator"
+          className="w-full h-full rounded-full will-change-transform"
+        />
+      </div>
 
       {/* Segment Buttons */}
       {items.map((item) => {
@@ -166,7 +299,7 @@ export function AnimatedSegmentedControl<T extends string>({
               isSmall ? 'py-1.5 text-[10.5px] xs:text-[11px]' : 'py-2 text-xs'
             } font-semibold rounded-xl flex items-center justify-center ${
               isSmall ? 'space-x-0.5 xs:space-x-1' : 'space-x-1 sm:space-x-1.5'
-            } transition-all duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 active:scale-[0.95] select-none cursor-pointer ${
+            } transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 select-none cursor-pointer ${
               isActive ? 'text-white' : 'text-gray-400 hover:text-gray-200'
             }`}
           >
@@ -177,7 +310,7 @@ export function AnimatedSegmentedControl<T extends string>({
               <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-ping" />
             )}
 
-            {/* Optional Count Badge (Only show if count > 0 to preserve compact geometry on mobile) */}
+            {/* Optional Count Badge */}
             {typeof item.count === 'number' && item.count > 0 && (
               <span
                 className={`${
@@ -207,3 +340,5 @@ export function AnimatedSegmentedControl<T extends string>({
 
   return controlContent;
 }
+
+export default AnimatedSegmentedControl;

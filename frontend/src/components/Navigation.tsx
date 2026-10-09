@@ -262,11 +262,11 @@ export const Navigation: React.FC<NavigationProps> = ({
           }}
           aria-hidden="true"
         >
-          {/* Liquid Glass Pill: Softly rounded squircle with inertia settle recoil */}
+          {/* Liquid Glass Pill: Softly rounded squircle with inertia settle recoil (compact width) */}
           <div
             ref={lensInnerRef}
             data-element="nav-sliding-lens"
-            className="w-[calc(100%-10px)] h-[48px] rounded-[22px] will-change-transform"
+            className="w-[calc(100%-16px)] max-w-[88px] h-[46px] rounded-[20px] will-change-transform"
           />
         </div>
 
