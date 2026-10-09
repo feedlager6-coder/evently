@@ -56,6 +56,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   const hasMovedRef = useRef(false);
   const dragHoveredTabRef = useRef<TabType>(effectiveActiveTab);
 
+  const isInitialMountRef = useRef<boolean>(true);
+  const isTouchOnActiveTabRef = useRef<boolean>(false);
+
   // Spring physics animation with inertia overshoot & settle recoil ("потряхивание при торможении")
   const animateSpringTo = useCallback((target: number, initialVelocity = 0) => {
     if (rafIdRef.current) {
@@ -137,6 +140,15 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   // Launch spring transition when activeIndex changes
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      currentPosRef.current = activeIndex;
+      if (lensWrapperRef.current) {
+        lensWrapperRef.current.style.transform = `translate3d(${activeIndex * 100}%, 0, 0)`;
+      }
+      return;
+    }
+
     if (!isDraggingRef.current) {
       animateSpringTo(activeIndex);
     }
@@ -162,8 +174,16 @@ export const Navigation: React.FC<NavigationProps> = ({
     isDraggingRef.current = false;
     dragHoveredTabRef.current = effectiveActiveTab;
 
-    // Tactile elastic expansion when pressed down
-    if (lensInnerRef.current) {
+    // Check if pointer started on active tab
+    const rect = container.getBoundingClientRect();
+    const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const slotWidth = rect.width / tabs.length;
+    const clickedSlot = Math.min(tabs.length - 1, Math.floor(relativeX / slotWidth));
+    const isOnActiveTab = clickedSlot === activeIndex;
+    isTouchOnActiveTabRef.current = isOnActiveTab;
+
+    // Tactile elastic expansion only when pressed down on active tab
+    if (isOnActiveTab && lensInnerRef.current) {
       lensInnerRef.current.style.transform = 'scale3d(1.06, 1.05, 1)';
     }
   };
@@ -172,10 +192,13 @@ export const Navigation: React.FC<NavigationProps> = ({
     const container = containerRef.current;
     if (!container) return;
 
+    // Only allow continuous drag if touch started on the active tab lens
+    if (!isTouchOnActiveTabRef.current) return;
+
     const deltaX = Math.abs(e.clientX - startXRef.current);
 
     // Only engage continuous drag if the user actually moved their finger
-    if (!isDraggingRef.current && deltaX > 6) {
+    if (!isDraggingRef.current && deltaX > 8) {
       isDraggingRef.current = true;
       hasMovedRef.current = true;
 
@@ -205,7 +228,6 @@ export const Navigation: React.FC<NavigationProps> = ({
       lensWrapperRef.current.style.transform = `translate3d(${slotPos * 100}%, 0, 0)`;
     }
     if (lensInnerRef.current) {
-      // Alive, playfully expanded lens during continuous drag
       lensInnerRef.current.style.transform = 'scale3d(1.07, 1.05, 1)';
     }
 
@@ -240,10 +262,11 @@ export const Navigation: React.FC<NavigationProps> = ({
         lensInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
       }
     }
+    isTouchOnActiveTabRef.current = false;
   };
 
   const handleTabClick = (tabId: TabType) => {
-    if (hasMovedRef.current) return;
+    if (isDraggingRef.current || hasMovedRef.current) return;
 
     if (tabId !== effectiveActiveTab) {
       telegram.hapticImpact('light');
@@ -273,7 +296,6 @@ export const Navigation: React.FC<NavigationProps> = ({
           className="absolute top-0 bottom-0 pointer-events-none flex items-center justify-center will-change-transform"
           style={{
             width: `${slotWidthPercent}%`,
-            transform: `translate3d(${activeIndex * 100}%, 0, 0)`,
           }}
           aria-hidden="true"
         >

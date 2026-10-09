@@ -20,6 +20,11 @@ const DATE_OPTIONS: { id: DateFilterType; label: string }[] = [
   { id: 'weekend', label: 'Выходные' },
 ];
 
+const DATE_SEGMENT_ITEMS = DATE_OPTIONS.map((opt) => ({
+  value: opt.id,
+  label: opt.label,
+}));
+
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   concerts: <Music className="w-3.5 h-3.5" />,
   parties: <Flame className="w-3.5 h-3.5" />,
@@ -42,10 +47,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Date Quick Segmented Control */}
       <div className="mx-4">
         <AnimatedSegmentedControl
-          items={DATE_OPTIONS.map((opt) => ({
-            value: opt.id,
-            label: opt.label,
-          }))}
+          items={DATE_SEGMENT_ITEMS}
           value={dateFilter}
           onChange={onSelectDate}
           size="sm"

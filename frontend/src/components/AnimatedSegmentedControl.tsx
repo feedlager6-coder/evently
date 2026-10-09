@@ -35,14 +35,13 @@ export function AnimatedSegmentedControl<T extends string>({
   const indicatorInnerRef = useRef<HTMLDivElement>(null);
 
   const [isReady, setIsReady] = useState(false);
-  const [layout, setLayout] = useState<{ top: number; height: number; left: number; width: number }>({
+  const [layout, setLayout] = useState<{ top: number; height: number }>({
     top: 0,
     height: 0,
-    left: 0,
-    width: 0,
   });
 
   const isInitialMountRef = useRef(true);
+  const prevValueRef = useRef<T>(value);
   const currentLeftRef = useRef<number>(0);
   const currentWidthRef = useRef<number>(0);
   const velocityLeftRef = useRef<number>(0);
@@ -50,6 +49,7 @@ export function AnimatedSegmentedControl<T extends string>({
   const rafIdRef = useRef<number | null>(null);
 
   // Gesture tracking refs
+  const isTouchStartedOnIndicatorRef = useRef(false);
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -92,8 +92,8 @@ export function AnimatedSegmentedControl<T extends string>({
       currentWidthRef.current = posWidth;
       velocityWidthRef.current = velWidth;
 
-      // Detect arrival phase near target position
-      if (arrivalTime === null && Math.abs(distLeft) < 6) {
+      // Detect arrival phase near target position (within 5px)
+      if (arrivalTime === null && Math.abs(distLeft) < 5) {
         arrivalTime = now;
       }
 
@@ -103,12 +103,12 @@ export function AnimatedSegmentedControl<T extends string>({
 
       if (arrivalTime !== null) {
         const elapsed = (now - arrivalTime) / 1000;
-        // High-frequency damped settle ripple
+        // Damped harmonic recoil ripple
         const ripple = Math.sin(elapsed * 28) * Math.exp(-elapsed * 8.5) * 0.045;
         scaleX = 1 + ripple;
         scaleY = 1 - ripple * 0.65;
       } else {
-        // Fluid elongation in direction of travel
+        // Fluid elongation along travel direction
         const stretch = Math.min(0.06, Math.abs(velLeft) * 0.0008);
         scaleX = 1 + stretch;
         scaleY = 1 - stretch * 0.6;
@@ -163,53 +163,63 @@ export function AnimatedSegmentedControl<T extends string>({
     const width = activeButton.offsetWidth;
     const height = activeButton.offsetHeight;
 
+    if (width === 0) return;
+
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       currentLeftRef.current = left;
       currentWidthRef.current = width;
-      setLayout({ top, height, left, width });
+      setLayout({ top, height });
+      if (indicatorWrapperRef.current) {
+        indicatorWrapperRef.current.style.transform = `translate3d(${left}px, 0, 0)`;
+        indicatorWrapperRef.current.style.width = `${width}px`;
+      }
       setIsReady(true);
+      prevValueRef.current = value;
       return;
     }
 
-    setLayout((prev) => ({ ...prev, top, height }));
+    setLayout((prev) => (prev.top === top && prev.height === height ? prev : { top, height }));
 
     // Launch 60 FPS physics spring if not currently user-dragging
     if (!isDraggingRef.current) {
       animateSpringTo(left, width);
     }
+    prevValueRef.current = value;
 
     if (scrollable) {
       activeButton.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
-        inline: 'nearest',
+        inline: 'center',
       });
     }
-  }, [value, items, scrollable, animateSpringTo]);
+  }, [value, scrollable, animateSpringTo]);
 
-  // Handle window/container resize without spring lag
+  // Handle window/container resize
   useEffect(() => {
     const handleResize = () => {
       const activeButton = buttonRefs.current.get(value);
       if (!activeButton) return;
-
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
 
       const left = activeButton.offsetLeft;
       const top = activeButton.offsetTop;
       const width = activeButton.offsetWidth;
       const height = activeButton.offsetHeight;
 
+      if (width === 0) return;
+
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
       currentLeftRef.current = left;
       currentWidthRef.current = width;
       velocityLeftRef.current = 0;
       velocityWidthRef.current = 0;
 
-      setLayout({ top, height, left, width });
+      setLayout({ top, height });
 
       if (indicatorWrapperRef.current) {
         indicatorWrapperRef.current.style.transform = `translate3d(${left}px, 0, 0)`;
@@ -236,8 +246,9 @@ export function AnimatedSegmentedControl<T extends string>({
     };
   }, [value]);
 
-  // Pointer drag gestures
+  // Pointer drag gestures (disabled in scrollable mode so horizontal pan works natively)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (scrollable) return;
     if (e.button !== 0) return;
     const container = containerRef.current;
     if (!container) return;
@@ -248,29 +259,42 @@ export function AnimatedSegmentedControl<T extends string>({
     isDraggingRef.current = false;
     dragHoveredValRef.current = value;
 
-    // Subtle tactile expansion on touch down
-    if (indicatorInnerRef.current) {
+    // Check if touch started on the active indicator lens
+    const rect = container.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const indLeft = currentLeftRef.current;
+    const indRight = indLeft + currentWidthRef.current;
+    const isOnIndicator = clickX >= indLeft - 12 && clickX <= indRight + 12;
+    isTouchStartedOnIndicatorRef.current = isOnIndicator;
+
+    // Subtle tactile expansion on touch down if grabbing the active indicator
+    if (isOnIndicator && indicatorInnerRef.current) {
       indicatorInnerRef.current.style.transform = 'scale3d(1.06, 1.05, 1)';
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (scrollable) return;
     const container = containerRef.current;
     if (!container) return;
+
+    // Only allow indicator dragging if gesture started on the indicator itself
+    if (!isTouchStartedOnIndicatorRef.current) return;
 
     const deltaX = Math.abs(e.clientX - startXRef.current);
     const deltaY = Math.abs(e.clientY - startYRef.current);
 
     // If moving more vertically before engaging drag, allow normal scroll
-    if (!isDraggingRef.current && deltaY > deltaX && deltaY > 7) {
+    if (!isDraggingRef.current && deltaY > deltaX && deltaY > 8) {
       if (!rafIdRef.current && indicatorInnerRef.current) {
         indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
       }
+      isTouchStartedOnIndicatorRef.current = false;
       return;
     }
 
     // Engage horizontal drag gesture
-    if (!isDraggingRef.current && deltaX > 6) {
+    if (!isDraggingRef.current && deltaX > 8) {
       isDraggingRef.current = true;
       hasMovedRef.current = true;
 
@@ -320,7 +344,6 @@ export function AnimatedSegmentedControl<T extends string>({
       indicatorWrapperRef.current.style.width = `${targetWidth}px`;
     }
     if (indicatorInnerRef.current) {
-      // Playful slightly enlarged lens during drag ("живая, играет")
       indicatorInnerRef.current.style.transform = 'scale3d(1.07, 1.05, 1)';
     }
 
@@ -331,6 +354,7 @@ export function AnimatedSegmentedControl<T extends string>({
   };
 
   const finishGesture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (scrollable) return;
     if (isDraggingRef.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
@@ -342,7 +366,6 @@ export function AnimatedSegmentedControl<T extends string>({
       const finalBtn = buttonRefs.current.get(finalVal);
 
       if (finalBtn) {
-        // Spring smoothly into the slot from finger release position
         animateSpringTo(finalBtn.offsetLeft, finalBtn.offsetWidth);
       }
 
@@ -357,10 +380,11 @@ export function AnimatedSegmentedControl<T extends string>({
         indicatorInnerRef.current.style.transform = 'scale3d(1, 1, 1)';
       }
     }
+    isTouchStartedOnIndicatorRef.current = false;
   };
 
   const handleSelect = (itemValue: T) => {
-    if (hasMovedRef.current) return;
+    if (isDraggingRef.current || hasMovedRef.current) return;
 
     if (itemValue !== value) {
       if (hapticFeedback) {
@@ -377,13 +401,13 @@ export function AnimatedSegmentedControl<T extends string>({
       ref={containerRef}
       role="tablist"
       data-element="segmented-control"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishGesture}
-      onPointerCancel={finishGesture}
+      onPointerDown={scrollable ? undefined : handlePointerDown}
+      onPointerMove={scrollable ? undefined : handlePointerMove}
+      onPointerUp={scrollable ? undefined : finishGesture}
+      onPointerCancel={scrollable ? undefined : finishGesture}
       className={`relative ${
-        scrollable ? 'inline-flex min-w-full' : 'flex'
-      } items-center rounded-full bg-[#141724]/70 p-1 border border-white/8 select-none touch-none ${
+        scrollable ? 'inline-flex min-w-full touch-pan-x' : 'flex touch-none'
+      } items-center rounded-full bg-[#141724]/70 p-1 border border-white/8 select-none ${
         scrollable ? '' : className
       }`}
     >
@@ -397,8 +421,6 @@ export function AnimatedSegmentedControl<T extends string>({
           top: `${layout.top}px`,
           height: `${layout.height}px`,
           left: 0,
-          width: `${layout.width}px`,
-          transform: `translate3d(${layout.left}px, 0, 0)`,
         }}
         aria-hidden="true"
       >
@@ -470,7 +492,10 @@ export function AnimatedSegmentedControl<T extends string>({
 
   if (scrollable) {
     return (
-      <div className={`w-full overflow-x-auto no-scrollbar py-0.5 ${className}`}>
+      <div
+        className={`w-full overflow-x-auto no-scrollbar py-0.5 touch-pan-x overscroll-x-contain ${className}`}
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {controlContent}
       </div>
     );
