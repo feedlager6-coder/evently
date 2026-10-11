@@ -9,20 +9,22 @@ interface HeaderProps {
   onOpenCityModal: () => void;
   user?: TelegramWebAppUser | null;
   isAdmin: boolean;
+  onOpenUserProfile?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentCity,
   onOpenCityModal,
   user,
-  isAdmin
+  isAdmin,
+  onOpenUserProfile,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#08080A]/85 backdrop-blur-xl border-b border-white/8 px-4 py-2.5 shadow-[0_1px_12px_rgba(0,0,0,0.4)]">
       <div className="flex items-center justify-between max-w-[480px] mx-auto">
         {/* Brand & City */}
         <div className="flex items-center space-x-2.5 min-w-0">
-          <BrandIcon className="w-8 h-8 rounded-xl bg-[#1c1b1e] border border-white/12 p-1.5" iconClassName="w-4 h-4 text-white" />
+          <BrandIcon className="w-8 h-8 rounded-full bg-black border border-white/15 p-1.5" iconClassName="w-4 h-4 text-white" />
           <div className="flex flex-col min-w-0">
             <div className="flex items-center space-x-1.5">
               <span className="font-bold text-base tracking-tight text-white leading-none">
@@ -50,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Actions: Notification Bell + Avatar matching Stitch */}
+        {/* Right Actions: Notification Bell + Avatar button */}
         <div className="flex items-center space-x-2.5 shrink-0">
           <button
             type="button"
@@ -61,7 +63,13 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981]" />
           </button>
 
-          <div className="w-9 h-9 rounded-full overflow-hidden border border-white/15 shadow-sm shrink-0 ring-1 ring-white/10 bg-[#1c1b1e] flex items-center justify-center">
+          <button
+            type="button"
+            onClick={onOpenUserProfile}
+            className="w-9 h-9 rounded-full overflow-hidden border border-white/15 shadow-sm shrink-0 ring-1 ring-white/10 bg-[#1c1b1e] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+            aria-label="Профиль пользователя"
+            title="Открыть профиль"
+          >
             {user ? (
               <SafeAvatar
                 name={user.first_name || user.username || 'U'}
@@ -73,10 +81,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <User className="w-4 h-4 text-zinc-300" />
               </div>
             )}
-          </div>
+          </button>
         </div>
       </div>
     </header>
   );
 };
-

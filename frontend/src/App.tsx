@@ -31,6 +31,8 @@ import { CreateOrganizationModal } from './components/CreateOrganizationModal';
 import { MySubscriptionsModal } from './components/MySubscriptionsModal';
 import { DiscoveryModal } from './components/DiscoveryModal';
 import { EventCompanyModal } from './components/EventCompanyModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import { TicketModal } from './components/TicketModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
@@ -39,18 +41,7 @@ import { SafeImage } from './components/SafeImage';
 export const App: React.FC = () => {
   // Navigation & UI state
   const [currentTab, setCurrentTab] = useState<TabType>('feed');
-  const [isCityModalOpen, setIsCityModalOpen] = useState<boolean>(() => {
-    try {
-      const param = telegram.getStartParam();
-      if (param && param.trim().startsWith('event_')) {
-        return false;
-      }
-      const saved = localStorage.getItem('evently_selected_city_id');
-      return !saved;
-    } catch {
-      return true;
-    }
-  });
+  const [isCityModalOpen, setIsCityModalOpen] = useState<boolean>(false);
 
   // Core metadata - initialize with cached cities for instant 0ms startup
   const [cities, setCities] = useState<City[]>(() => api.getCachedCities());
@@ -59,9 +50,10 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('evently_selected_city_id');
       const cached = api.getCachedCities();
-      return saved && cached.some((c) => c.id === saved) ? saved : '';
+      if (saved && cached.some((c) => c.id === saved)) return saved;
+      return 'makhachkala';
     } catch {
-      return '';
+      return 'makhachkala';
     }
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
@@ -127,6 +119,13 @@ export const App: React.FC = () => {
   // Telegram User
   const [user, setUser] = useState<TelegramWebAppUser | null>(null);
 
+  // User Profile modal state
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+
+  // Electronic Ticket Modal state
+  const [ticketEvent, setTicketEvent] = useState<EventResponse | EventSummary | null>(null);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [organizerInitialFilter, setOrganizerInitialFilter] = useState<'going' | 'wishlist'>('going');
 
   // Unified Discovery search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -312,8 +311,8 @@ export const App: React.FC = () => {
     const initMetadata = async () => {
       try {
         const [loadedCities, loadedCategories] = await Promise.all([
-          api.getCities(),
-          api.getCategories(),
+          api.getCities().catch(() => api.getCachedCities()),
+          api.getCategories().catch(() => []),
           api.getAppMeta().catch(() => null),
         ]);
         if (loadedCities && loadedCities.length > 0) {
@@ -357,15 +356,9 @@ export const App: React.FC = () => {
           setSelectedCityId(confirmedCity);
           setIsCityModalOpen(false);
         } else {
-          setSelectedCityId('');
-          // Do not force city modal if user came from a deep link or is actively viewing an event or workspace
-          const currentParam = telegram.getStartParam();
-          const hasEventDeepLink = Boolean(
-            isDeepLinkActiveRef.current ||
-            (currentParam && currentParam.trim().startsWith('event_')) ||
-            isDetailsOpenRef.current
-          );
-          setIsCityModalOpen(!hasEventDeepLink);
+          const defaultCity = effectiveCities.some((c) => c.id === 'makhachkala') ? 'makhachkala' : (effectiveCities[0]?.id || 'makhachkala');
+          setSelectedCityId(defaultCity);
+          setIsCityModalOpen(false);
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -380,17 +373,11 @@ export const App: React.FC = () => {
     };
   }, [processStartParam]);
 
-  const feedAbortControllerRef = useRef<AbortController | null>(null);
   const feedRequestIdRef = useRef<number>(0);
   const feedLoadingStartedAtRef = useRef<number>(0);
 
   // 2. Fetch Discovery Feed Events
   const loadFeedEvents = useCallback(async () => {
-    if (feedAbortControllerRef.current) {
-      feedAbortControllerRef.current.abort();
-    }
-    const currentController = new AbortController();
-    feedAbortControllerRef.current = currentController;
     const currentRequestId = ++feedRequestIdRef.current;
     feedLoadingStartedAtRef.current = Date.now();
 
@@ -406,16 +393,12 @@ export const App: React.FC = () => {
       const res = await api.getEvents(
         selectedCityId,
         selectedCategoryId,
-        dateFilter,
-        currentController.signal
+        dateFilter
       );
       if (currentRequestId === feedRequestIdRef.current) {
         setEvents(res.events);
       }
     } catch (err: any) {
-      if (err.name === 'AbortError' || currentController.signal.aborted) {
-        return; // gracefully ignore cancelled request
-      }
       if (currentRequestId === feedRequestIdRef.current) {
         setFeedError(err.message || 'Ошибка загрузки событий');
       }
@@ -779,6 +762,7 @@ export const App: React.FC = () => {
         onOpenCityModal={() => setIsCityModalOpen(true)}
         user={user}
         isAdmin={isAdmin}
+        onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
       />
 
       {/* Main Content Area based on Tab */}
@@ -1129,6 +1113,11 @@ export const App: React.FC = () => {
               onExplore={() => {
                 setCurrentTab('feed');
               }}
+              onOpenTicket={(ev) => {
+                setTicketEvent(ev);
+                setIsTicketModalOpen(true);
+              }}
+              initialFilter={organizerInitialFilter}
             />
           )
         )}
@@ -1191,6 +1180,10 @@ export const App: React.FC = () => {
           setIsCompanyModalOpen(true);
         }}
         onOpenBroadcastComposer={handleOpenBroadcastComposerFromEvent}
+        onOpenTicket={(ev) => {
+          setTicketEvent(ev);
+          setIsTicketModalOpen(true);
+        }}
       />
 
       {/* Event Company Discovery Modal */}
@@ -1319,6 +1312,56 @@ export const App: React.FC = () => {
         }}
         onVenueClick={handleVenueClick}
         initialQuery={searchInitialQuery}
+      />
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        user={user}
+        currentCity={currentCity}
+        onOpenCityModal={() => {
+          setIsUserProfileModalOpen(false);
+          setIsCityModalOpen(true);
+        }}
+        attendingCount={attendingEvents.length}
+        interestedCount={interestedEvents.length}
+        subscriptionsCount={userSubscriptions.length}
+        onNavigateToAttending={() => {
+          setIsUserProfileModalOpen(false);
+          setOrganizerInitialFilter('going');
+          setCurrentTab('organizer');
+        }}
+        onNavigateToInterested={() => {
+          setIsUserProfileModalOpen(false);
+          setOrganizerInitialFilter('wishlist');
+          setCurrentTab('organizer');
+        }}
+        onOpenSubscriptions={() => {
+          setIsUserProfileModalOpen(false);
+          setIsSubscriptionsModalOpen(true);
+        }}
+        onOpenOrganizerWorkspace={() => {
+          setIsUserProfileModalOpen(false);
+          setIsOrganizerWorkspaceOpen(true);
+        }}
+        isAdmin={isAdmin}
+        onOpenAdminPanel={() => {
+          if (isAdmin) {
+            setIsUserProfileModalOpen(false);
+            setCurrentTab('admin');
+          }
+        }}
+      />
+
+      {/* Electronic Ticket Modal */}
+      <TicketModal
+        isOpen={isTicketModalOpen}
+        onClose={() => {
+          setIsTicketModalOpen(false);
+          setTicketEvent(null);
+        }}
+        event={ticketEvent}
       />
 
       {/* Bottom Navigation */}

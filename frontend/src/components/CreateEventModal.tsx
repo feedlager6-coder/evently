@@ -334,7 +334,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in overflow-y-auto">
       <div 
-        className="w-full max-w-lg rounded-3xl bg-[#121522] border border-white/10 p-5 shadow-2xl space-y-4 my-auto sheet-slide-up"
+        className="w-full max-w-lg rounded-3xl bg-[#1c1b1e] border border-white/10 p-5 shadow-2xl space-y-4 my-auto sheet-slide-up"
         onClick={(e) => {
           e.stopPropagation();
         }}

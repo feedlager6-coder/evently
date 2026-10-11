@@ -1,5 +1,4 @@
 import React from 'react';
-import { Compass } from 'lucide-react';
 
 interface BrandIconProps {
   className?: string;
@@ -8,26 +7,48 @@ interface BrandIconProps {
 }
 
 /**
- * BrandIcon — Unified source of truth for Ivently brand iconography (Compass).
- * Supports:
- * - 'badge': Signature Ivently gradient rounded squircle with crisp white Compass symbol.
- * - 'icon': Bare Compass icon with customizable size and color classes.
+ * BrandIcon — Unified source of truth for Ivently brand iconography.
+ * Visual concept: Minimalist black circle with a single white star.
+ * No gradients, no text, no unnecessary decorative elements.
  */
 export const BrandIcon: React.FC<BrandIconProps> = ({
   className = 'w-8 h-8',
-  iconClassName = 'w-4 h-4 text-white',
+  iconClassName = 'w-4 h-4',
   variant = 'badge',
 }) => {
   if (variant === 'icon') {
-    return <Compass className={iconClassName} />;
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={iconClassName}
+        aria-hidden="true"
+      >
+        <path
+          d="M12 3L14.2 9.8L21 12L14.2 14.2L12 21L9.8 14.2L3 12L9.8 9.8L12 3Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
   }
 
   return (
     <div
-      className={`rounded-xl bg-[#1c1b1e] border border-white/12 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.5)] flex items-center justify-center shrink-0 select-none ${className}`}
+      className={`rounded-full bg-black border border-white/15 flex items-center justify-center shrink-0 select-none overflow-hidden shadow-sm ${className}`}
       aria-hidden="true"
     >
-      <Compass className={iconClassName} />
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={iconClassName}
+      >
+        <path
+          d="M12 3L14.2 9.8L21 12L14.2 14.2L12 21L9.8 14.2L3 12L9.8 9.8L12 3Z"
+          fill="#FFFFFF"
+        />
+      </svg>
     </div>
   );
 };

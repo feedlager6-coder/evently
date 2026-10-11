@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { EventSummary, OrganizationSummary, UserSubscriptionItem } from '../types';
 import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
@@ -37,6 +37,8 @@ interface OrganizerTabProps {
   onOrgClick: (orgId: string) => void;
   onExplore: () => void;
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
+  onOpenTicket?: (event: EventSummary) => void;
+  initialFilter?: 'going' | 'wishlist';
 }
 
 export const OrganizerTab: React.FC<OrganizerTabProps> = ({
@@ -55,9 +57,15 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onOrgClick,
   onExplore,
   onOpenBroadcastComposer: _onOpenBroadcastComposer,
+  onOpenTicket,
+  initialFilter = 'going',
 }) => {
-  const [activeFilter, setActiveFilter] = useState<'going' | 'wishlist'>('going');
+  const [activeFilter, setActiveFilter] = useState<'going' | 'wishlist'>(initialFilter);
   const [showAllSubscriptions, setShowAllSubscriptions] = useState(false);
+
+  useEffect(() => {
+    setActiveFilter(initialFilter);
+  }, [initialFilter]);
 
   const now = new Date();
   const activeAttending = attendingEvents.filter((e) => new Date(e.start_at) >= now);
@@ -298,11 +306,15 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           telegram.hapticImpact('light');
-                          onEventClick(event);
+                          if (onOpenTicket) {
+                            onOpenTicket(event);
+                          } else {
+                            onEventClick(event);
+                          }
                         }}
                         className="py-1.5 px-3 rounded-full bg-[#353437] text-white font-medium text-xs active:scale-95 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center gap-0.5"
                       >
-                        <span>Показать</span>
+                        <span>Билет</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>

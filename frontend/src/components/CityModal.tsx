@@ -163,14 +163,14 @@ export const CityModal: React.FC<CityModalProps> = ({
             <div>
               <h3 className="text-base font-bold text-white">Выберите город</h3>
               {isMandatory && (
-                <p className="text-[10px] text-gray-400">Для отображения афиши событий</p>
+                <p className="text-[10px] text-[#c4c7c8]">Для отображения афиши событий</p>
               )}
             </div>
           </div>
           {!isMandatory && (
             <button 
               onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 btn-press transition-colors"
+              className="p-1.5 rounded-lg text-[#c4c7c8] hover:text-white hover:bg-white/5 btn-press transition-colors"
               title="Закрыть"
             >
               <X className="w-5 h-5" />
@@ -192,13 +192,13 @@ export const CityModal: React.FC<CityModalProps> = ({
           ) : (
             <>
               <Navigation className="w-4 h-4 text-[#4edea3]" />
-              <span>📍 Определить мой город</span>
+              <span>Определить мой город</span>
             </>
           )}
         </button>
 
         {locationError && (
-          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-center space-x-1.5">
+          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[#ffb95f] text-[11px] flex items-center space-x-1.5">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{locationError}</span>
           </div>
@@ -207,7 +207,7 @@ export const CityModal: React.FC<CityModalProps> = ({
         {/* Popular Cities Chips */}
         {!searchQuery.trim() && (
           <div className="space-y-1.5 pt-0.5">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="text-[10px] font-semibold text-[#8e9192] uppercase tracking-wider">
               Популярные города
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -226,8 +226,8 @@ export const CityModal: React.FC<CityModalProps> = ({
                     }}
                     className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all flex items-center space-x-1 btn-press ${
                       isSelected
-                        ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
-                        : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20 hover:text-white'
+                        ? 'bg-white text-black font-bold shadow-md'
+                        : 'bg-[#201f22] text-[#c4c7c8] border border-white/8 hover:border-white/20 hover:text-white'
                     }`}
                   >
                     <span>{CITY_EMOJIS[city.id] || '📍'}</span>
@@ -241,20 +241,20 @@ export const CityModal: React.FC<CityModalProps> = ({
 
         {/* Search Input */}
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-[#8e9192] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск города..."
-            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#201f22] border border-white/8 text-white placeholder-gray-400 text-xs focus:outline-none focus:border-[#4edea3]/60"
+            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#201f22] border border-white/8 text-white placeholder-[#8e9192] text-xs focus:outline-none focus:border-[#4edea3]/60"
           />
         </div>
 
         {/* Cities list */}
         <div className="space-y-1.5 overflow-y-auto max-h-[260px] pr-0.5 custom-scrollbar">
           {filteredCities.length === 0 ? (
-            <div className="py-6 text-center text-xs text-gray-400">
+            <div className="py-6 text-center text-xs text-[#8e9192]">
               Город не найден
             </div>
           ) : (
@@ -270,19 +270,19 @@ export const CityModal: React.FC<CityModalProps> = ({
                   }}
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl border btn-press transition-all ${
                     isSelected
-                      ? 'bg-indigo-600/20 border-indigo-500/60 text-white shadow-sm'
-                      : 'bg-[#201f22]/40 border-white/5 text-gray-300 hover:bg-[#201f22] hover:text-white'
+                      ? 'bg-[#10b981]/15 border-[#10b981]/50 text-white shadow-sm'
+                      : 'bg-[#201f22]/60 border-white/8 text-[#c4c7c8] hover:bg-[#201f22] hover:text-white'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5">
                     <span className="text-xl">{CITY_EMOJIS[city.id] || '📍'}</span>
                     <div className="text-left">
                       <div className="font-semibold text-xs text-white">{city.name}</div>
-                      <div className="text-[10px] text-gray-400">{city.country}</div>
+                      <div className="text-[10px] text-[#8e9192]">{city.country}</div>
                     </div>
                   </div>
                   {isSelected && (
-                    <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0 shadow-sm animate-scale-pop">
+                    <div className="w-5 h-5 rounded-full bg-[#10b981] flex items-center justify-center text-black shrink-0 shadow-sm animate-scale-pop">
                       <Check className="w-3 h-3 stroke-[3]" />
                     </div>
                   )}
@@ -295,4 +295,3 @@ export const CityModal: React.FC<CityModalProps> = ({
     </div>
   );
 };
-

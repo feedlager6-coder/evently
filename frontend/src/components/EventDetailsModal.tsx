@@ -61,6 +61,7 @@ interface EventDetailsModalProps {
   isOrganizer?: boolean;
   onEditEvent?: (event: EventResponse) => void;
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
+  onOpenTicket?: (event: EventResponse) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -76,6 +77,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   isOrganizer = false,
   onEditEvent,
   onOpenBroadcastComposer,
+  onOpenTicket,
 }) => {
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [isSharePreparing, setIsSharePreparing] = useState(false);
@@ -614,24 +616,50 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             </button>
           </div>
 
-          {/* Quick Action: Buy Ticket / Ticket Tier Button */}
-          <button
-            onClick={() => {
-              telegram.hapticImpact('light');
-              const ticketUrl = event.source_url || (event as any).registration_url || (event as any).ticket_link;
-              if (ticketUrl) {
-                window.open(ticketUrl, '_blank');
-              } else {
-                handleGoingClick();
-              }
-            }}
-            disabled={isPast}
-            className="h-11 px-5 rounded-full bg-[#00a572] text-[#00311f] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
-            type="button"
-          >
-            <Ticket className="w-4 h-4" />
-            <span>{isFree ? 'Иду' : 'Билет'}</span>
-          </button>
+          {/* Ticket / Registration Action Button */}
+          {(() => {
+            const ticketUrl = event.source_url || (event as any).registration_url || (event as any).ticket_link;
+            
+            // 1. If user is already attending, show dedicated "Мой билет" QR trigger
+            if (event.is_attending) {
+              return (
+                <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    if (onOpenTicket) {
+                      onOpenTicket(event);
+                    }
+                  }}
+                  className="h-11 px-4 rounded-full bg-[#10b981] text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md"
+                  type="button"
+                >
+                  <Ticket className="w-4 h-4 text-black" />
+                  <span>Мой билет</span>
+                </button>
+              );
+            }
+
+            // 2. If event has external ticket/registration URL
+            if (ticketUrl) {
+              return (
+                <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    window.open(ticketUrl, '_blank');
+                  }}
+                  disabled={isPast}
+                  className="h-11 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                  type="button"
+                >
+                  <Ticket className="w-4 h-4" />
+                  <span>{isFree ? 'Регистрация' : 'Купить билет'}</span>
+                </button>
+              );
+            }
+
+            // 3. Otherwise, for standard in-app events, the segmented control spans cleanly without duplication
+            return null;
+          })()}
         </div>
       </div>
     </div>
