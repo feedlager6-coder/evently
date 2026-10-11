@@ -1323,11 +1323,6 @@ export const App: React.FC = () => {
         currentTab={currentTab}
         onChangeTab={(tab) => setCurrentTab(tab)}
         isAdmin={isAdmin}
-        onOpenSearch={() => {
-          telegram.hapticImpact('light');
-          setSearchInitialQuery('');
-          setIsSearchOpen(true);
-        }}
       />
     </div>
   );
