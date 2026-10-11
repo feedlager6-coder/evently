@@ -5,23 +5,19 @@ import { api } from '../services/api';
 import { 
   Calendar, 
   MapPin, 
-  Users, 
   Check, 
-  X, 
+  ArrowLeft,
   Share2, 
   Ticket, 
-  User as UserIcon,
-  ChevronRight,
   Heart,
   Edit,
-  MessageCircle,
   Send,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  Compass,
+  Lock,
+  Handshake
 } from 'lucide-react';
-import { formatFollowers } from './OrganizationModal';
-import { GoingAnimation } from './GoingAnimation';
-import type { GoingAnimationState } from './GoingAnimation';
-import { AnimatedCounter } from './AnimatedCounter';
 import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
 
@@ -81,15 +77,24 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onEditEvent,
   onOpenBroadcastComposer,
 }) => {
-  const [copied, setCopied] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [isSharePreparing, setIsSharePreparing] = useState(false);
-  const [rsvpAnimationPhase, setRsvpAnimationPhase] = useState<GoingAnimationState>('idle');
   const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
   const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
 
   const canEdit = Boolean(isOrganizer || event?.is_organizer);
 
+  // Setup Telegram BackButton
+  useEffect(() => {
+    if (isOpen) {
+      telegram.showBackButton(onClose);
+      return () => {
+        telegram.hideBackButton();
+      };
+    }
+  }, [isOpen, onClose]);
+
+  // Load companion search status
   useEffect(() => {
     if (isOpen && event) {
       api.getCompanyStatus(event.id)
@@ -105,6 +110,24 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
   const eventDate = new Date(event.start_at);
   const isPast = eventDate.getTime() < Date.now();
+
+  const formattedDayOfWeek = eventDate.toLocaleDateString('ru-RU', {
+    weekday: 'long',
+  });
+  const formattedDayAndMonth = eventDate.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+  });
+  const formattedShortDate = eventDate.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'numeric',
+  });
+
+  const formattedTime = eventDate.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   const formattedFullDate = eventDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
     day: 'numeric',
@@ -147,7 +170,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       }
     }
 
-    // 2. Web Share API fallback (external browsers / unsupported webviews)
+    // 2. Web Share API fallback
     let shared = false;
     if (navigator.share) {
       try {
@@ -159,9 +182,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         shared = true;
         return;
       } catch (err: any) {
-        if (err.name === 'AbortError') {
-          return;
-        }
+        if (err.name === 'AbortError') return;
       }
     }
 
@@ -178,11 +199,9 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           document.execCommand('copy');
           document.body.removeChild(textArea);
         }
-        setCopied(true);
         setShareToast('Ссылка на событие скопирована!');
         telegram.hapticSuccess();
         setTimeout(() => {
-          setCopied(false);
           setShareToast(null);
         }, 2500);
       } catch (copyErr) {
@@ -191,442 +210,428 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     }
   };
 
-  const handleRsvpClick = async () => {
-    if (isRsvpLoading) return;
+  const handleGoingClick = async () => {
+    if (isRsvpLoading || isInterestLoading) return;
+    telegram.hapticImpact('medium');
+    await onToggleRsvp(event.id, Boolean(event.is_attending));
+  };
 
-    if (event.is_attending) {
-      // Canceling attendance
-      telegram.hapticImpact('light');
-      setRsvpAnimationPhase('loading');
-      try {
-        await onToggleRsvp(event.id, true);
-        setRsvpAnimationPhase('idle');
-      } catch {
-        setRsvpAnimationPhase('idle');
-      }
-    } else {
-      // Joining event: Flagship RSVP Sequence
-      telegram.hapticImpact('medium');
-      setRsvpAnimationPhase('loading');
-      try {
-        await onToggleRsvp(event.id, false);
-        // On successful HTTP confirmation, trigger the stride animation
-        setRsvpAnimationPhase('animating');
-        telegram.hapticSuccess();
-      } catch {
-        setRsvpAnimationPhase('idle');
-        telegram.hapticError();
-      }
-    }
+  const handleInterestedClick = async () => {
+    if (isInterestLoading || isRsvpLoading || !onToggleInterest) return;
+    telegram.hapticImpact('light');
+    await onToggleInterest(event.id, Boolean(event.current_user_interested));
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-fade-in p-0 sm:p-4">
-      {/* Bottom Sheet Modal Container with physics slide up */}
-      <div 
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Top Media / Hero */}
-        <div className="relative aspect-[16/9] w-full bg-gray-900 shrink-0">
-          <SafeImage
-            src={event.cover_image_url}
-            alt={event.title}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0F121C] via-transparent to-black/40" />
-
-          {/* Action Buttons */}
-          <div className="absolute top-4 inset-x-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-[#131315] text-[#e5e1e4] selection:bg-[#4edea3]/30 overflow-hidden">
+      {/* Top Header Bar (Stitch Mobile Stack style) */}
+      <header className="fixed top-0 inset-x-0 z-50 pt-safe bg-[#131315]/80 backdrop-blur-xl border-b border-white/5 shadow-[0_1px_12px_rgba(0,0,0,0.4)]">
+        <div className="h-14 max-w-[480px] mx-auto px-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <button
-              onClick={onClose}
-              className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-black/80 transition-colors"
+              onClick={() => {
+                telegram.hapticImpact('light');
+                onClose();
+              }}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-[#c4c7c8] hover:text-white active:scale-95 transition-all"
+              aria-label="Назад"
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <h1 className="text-base font-semibold text-white tracking-tight truncate pl-1">
+              Детали события
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               onClick={handleShare}
               disabled={isSharePreparing}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-black/80 transition-colors text-xs font-medium disabled:opacity-60"
+              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#c4c7c8] hover:text-white active:scale-95 transition-all"
+              aria-label="Поделиться"
             >
-              {isSharePreparing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Share2 className="w-3.5 h-3.5" />
-              )}
-              <span>{isSharePreparing ? 'Подготовка...' : copied ? 'Скопировано!' : 'Поделиться'}</span>
+              <Share2 className="w-4 h-4" />
             </button>
           </div>
+        </div>
+      </header>
 
-          {/* Toast Notification */}
-          {shareToast && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-full bg-emerald-600/95 text-white text-xs font-semibold shadow-2xl backdrop-blur-md animate-fade-in flex items-center space-x-1.5 pointer-events-none">
-              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>{shareToast}</span>
+      {/* Share Toast */}
+      {shareToast && (
+        <div className="fixed top-16 inset-x-0 z-50 flex justify-center pointer-events-none px-4">
+          <div className="px-4 py-2 rounded-full bg-[#10b981] text-[#00311f] font-semibold text-xs shadow-lg animate-bounce">
+            {shareToast}
+          </div>
+        </div>
+      )}
+
+      {/* Main Scrollable Body */}
+      <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-[480px] mx-auto pt-16 pb-36 px-4 space-y-5">
+        {/* Hero Stage (320px rounded-3xl with scrim & top badges) */}
+        <div className="relative w-full rounded-3xl overflow-hidden bg-[#201f22] shadow-xl">
+          <div className="w-full h-80 relative">
+            <SafeImage
+              src={event.cover_image_url}
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
+            {/* Gradient Scrim for Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#131315] via-[#131315]/40 to-transparent" />
+
+            {/* Floating Top Badges on Cover */}
+            <div className="absolute top-4 inset-x-4 flex items-center justify-between pointer-events-auto">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-white font-bold text-[11px] tracking-wide flex items-center gap-1.5 shadow-md">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
+                  LIVE СКОРО
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-[#c4c7c8] font-bold text-[11px] tracking-wide shadow-md">
+                  {formattedShortDate}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleShare}
+                  disabled={isSharePreparing}
+                  className="w-10 h-10 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center text-[#c4c7c8] hover:text-white active:scale-95 transition-all shadow-md"
+                  aria-label="Поделиться"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                {onToggleInterest && (
+                  <button
+                    onClick={handleInterestedClick}
+                    disabled={isInterestLoading}
+                    className="w-10 h-10 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center text-[#c4c7c8] hover:text-[#4edea3] active:scale-95 transition-all shadow-md"
+                    aria-label="В закладки"
+                  >
+                    <Heart
+                      className={`w-4 h-4 transition-transform ${
+                        event.current_user_interested ? 'fill-[#4edea3] text-[#4edea3] scale-110' : ''
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
-          )}
 
-
-          {/* Badges on hero bottom */}
-          <div className="absolute bottom-3 left-4 flex flex-wrap gap-2">
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-600/90 text-white backdrop-blur-md shadow-sm">
-              {event.category_name}
-            </span>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 text-gray-200 border border-white/10 backdrop-blur-md">
-              📍 {event.city_name}
-            </span>
+            {/* Bottom Hero Scrim Information */}
+            <div className="absolute bottom-4 inset-x-4 flex items-end justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="px-3 py-1 self-start rounded-full bg-[#2a2a2c]/85 backdrop-blur-md text-[#4edea3] font-semibold text-xs">
+                  {event.category_name}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#00a572] text-[#00311f] font-bold text-sm shadow-lg">
+                <Ticket className="w-4 h-4" />
+                <span>{priceText}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Scrollable Content Body */}
-        <div className="p-5 overflow-y-auto space-y-5 no-scrollbar">
-          {/* Title */}
-          <h2 className="text-xl font-bold text-white tracking-tight leading-snug">
+        {/* Event Headline */}
+        <div className="flex flex-col space-y-3 px-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight leading-snug">
             {event.title}
           </h2>
 
-          {/* Key Facts Cards */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Date */}
-            <div className="p-3 rounded-2xl bg-[#171B29] border border-white/5 space-y-1">
-              <div className="flex items-center space-x-1.5 text-indigo-400 text-xs font-medium">
-                <Calendar className="w-4 h-4" />
-                <span>Дата и время</span>
+          <div className="grid grid-cols-1 gap-2.5">
+            {/* Date & Time Row Card */}
+            <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#1c1b1e] shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-[#2a2a2c] flex items-center justify-center text-[#4edea3] shrink-0">
+                <Calendar className="w-5 h-5" />
               </div>
-              <div className="text-xs font-medium text-white capitalize leading-tight">
-                {formattedFullDate}
+              <div className="flex flex-col min-w-0">
+                <span className="text-white font-semibold text-sm truncate capitalize">
+                  {formattedDayOfWeek}, {formattedDayAndMonth}
+                </span>
+                <span className="text-[#c4c7c8] text-xs">
+                  {formattedTime} • Местное время
+                </span>
               </div>
             </div>
 
-            {/* Price */}
-            <div className="p-3 rounded-2xl bg-[#171B29] border border-white/5 space-y-1">
-              <div className="flex items-center space-x-1.5 text-emerald-400 text-xs font-medium">
-                <Ticket className="w-4 h-4" />
-                <span>Стоимость</span>
-              </div>
-              <div className="text-xs font-bold text-white leading-tight">
-                {priceText}
-              </div>
-            </div>
-          </div>
-
-          {/* Location details */}
-          <div className="p-3.5 rounded-2xl bg-[#171B29] border border-white/5 space-y-1">
-            <div className="flex items-center space-x-1.5 text-indigo-400 text-xs font-medium">
-              <MapPin className="w-4 h-4" />
-              <span>Локация</span>
-            </div>
-            <div className="text-sm font-semibold text-white">{event.venue_name}</div>
-            {event.address && (
-              <div className="text-xs text-gray-400">{event.address}</div>
-            )}
-          </div>
-
-          {/* Organizer info */}
-          {event.organization_id ? (
-            <div
-              onClick={() => onOpenOrgModal?.(event.organization_id!)}
-              className="flex items-center justify-between p-3.5 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl overflow-hidden border border-indigo-500/30 flex items-center justify-center shrink-0">
-                  <SafeAvatar
-                    src={event.organization_avatar_url}
-                    name={event.organization_name || 'Организация'}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[11px] text-gray-400 font-medium">Организация</div>
-                  <div className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
-                    {event.organization_name || 'Организатор'}
+            {/* Location Card & Route */}
+            <div className="flex flex-col rounded-2xl bg-[#1c1b1e] overflow-hidden shadow-sm">
+              <div className="p-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-[#2a2a2c] flex items-center justify-center text-[#4edea3] shrink-0">
+                    <MapPin className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center space-x-1.5 text-[11px] text-gray-400">
-                    {event.organization_category && <span>{event.organization_category}</span>}
-                    {event.organization_followers_count !== undefined && (
-                      <>
-                        <span>•</span>
-                        <span className="text-indigo-400 font-medium">
-                          {formatFollowers(event.organization_followers_count)}
-                        </span>
-                      </>
-                    )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-white font-semibold text-sm truncate">
+                      {event.venue_name || 'Локация'}
+                    </span>
+                    <span className="text-[#c4c7c8] text-xs truncate">
+                      {event.address ? `${event.address}, ` : ''}{event.city_name || ''}
+                    </span>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
-                <span>Профиль</span>
-                <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
-              </div>
-            </div>
-          ) : event.organizer_name ? (
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-[#171B29]/60 border border-white/5">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                  <UserIcon className="w-4 h-4" />
-                </div>
-                <div className="text-xs">
-                  <div className="text-gray-400">Организатор</div>
-                  <div className="font-medium text-white">{event.organizer_name}</div>
-                </div>
-              </div>
-              {event.allow_event_contact && event.organizer_contact_url && (
                 <button
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    const query = encodeURIComponent(`${event.venue_name || ''} ${event.address || ''} ${event.city_name || ''}`.trim());
+                    window.open(`https://yandex.ru/maps/?text=${query}`, '_blank');
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold shrink-0 active:scale-95 transition-all"
                   type="button"
-                  onClick={() => telegram.openTelegramLink(event.organizer_contact_url!)}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 hover:text-indigo-300 text-xs font-medium border border-indigo-500/30 transition-colors"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Написать</span>
+                  Маршрут
                 </button>
-              )}
-            </div>
-          ) : null}
-
-          {/* Description */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-white">О мероприятии</h4>
-            <p className="text-xs leading-relaxed text-gray-300 whitespace-pre-line">
-              {event.description}
-            </p>
-          </div>
-
-          {/* Attendees & Interested Summary */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-400 py-1">
-            <div className="flex items-center space-x-1.5">
-              <Users className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>
-                Уже идут:{' '}
-                <strong className="text-white font-semibold">
-                  <AnimatedCounter
-                    value={event.attendee_count}
-                    suffix={getAttendeesWord(event.attendee_count)}
-                  />
-                </strong>
-              </span>
-            </div>
-            {event.interest_count > 0 && (
-              <div className="flex items-center space-x-1.5 text-purple-300">
-                <Heart className="w-3.5 h-3.5 fill-purple-500/20 text-purple-400 shrink-0" />
-                <span>
-                  <strong className="text-white font-semibold">{event.interest_count}</strong> {getInterestedWord(event.interest_count)}
-                </span>
               </div>
-            )}
-          </div>
 
-          {/* Native Telegram Sharing: «Позвать друга» */}
-          {!isPast && (
-            <button
-              type="button"
-              onClick={handleShare}
-              disabled={isSharePreparing}
-              className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-indigo-300 hover:text-white font-medium flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-60"
-            >
-              {isSharePreparing ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
-                  <span>Подготовка карточки...</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Позвать друга в Telegram 👥</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Organizer Pro Trigger banner inside event details */}
-          {canEdit && (event.interest_count || 0) > 0 && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-white flex items-center gap-1.5">
-                  <span>🔥</span>
-                  <span><strong>{event.interest_count}</strong> {getInterestedWord(event.interest_count)}</span>
-                </span>
-                <span className="text-[11px] text-purple-300 font-medium">Интерес к событию</span>
-              </div>
-              <p className="text-[11px] text-gray-300 leading-relaxed">
-                Можно написать им и рассказать об изменениях, предложить скидку или напомнить о событии — так больше людей могут прийти.
-              </p>
-              <button
-                type="button"
+              {/* Navigator Strip */}
+              <div 
                 onClick={() => {
                   telegram.hapticImpact('light');
-                  onOpenBroadcastComposer?.(event.id, event.organization_id);
+                  const query = encodeURIComponent(`${event.venue_name || ''} ${event.address || ''} ${event.city_name || ''}`.trim());
+                  window.open(`https://yandex.ru/maps/?text=${query}`, '_blank');
                 }}
-                className="w-full py-2 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/40 text-xs font-semibold text-purple-100 flex items-center justify-center space-x-1.5 transition-all btn-press shadow-sm"
+                className="w-full h-16 bg-[#201f22] relative flex items-center justify-center cursor-pointer hover:bg-[#262529] transition-colors border-t border-white/5"
               >
-                <Send className="w-3.5 h-3.5 text-purple-300" />
-                <span>Написать тем, кто хочет пойти</span>
-              </button>
-            </div>
-          )}
-
-          {/* Social Discovery: «Найти компанию» entry card */}
-          {isPast ? (
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 opacity-60">
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-gray-500">
-                  <Users className="w-5 h-5 text-gray-400" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-gray-300">Поиск компании</div>
-                  <div className="text-[11px] text-gray-500 truncate mt-0.5">Мероприятие завершено • поиск закрыт</div>
+                <div className="px-3 py-1 rounded-full bg-[#0e0e10]/80 backdrop-blur-md text-[#c4c7c8] text-[11px] font-bold flex items-center gap-1.5 shadow-sm">
+                  <Compass className="w-3.5 h-3.5 text-[#4edea3]" />
+                  <span>Открыть в навигаторе</span>
                 </div>
               </div>
             </div>
-          ) : (
-            <div
-              onClick={() => {
+          </div>
+        </div>
+
+        {/* Organizer Entity Card */}
+        {event.organization_name && (
+          <div 
+            onClick={() => {
+              if (onOpenOrgModal && event.organization_id) {
                 telegram.hapticImpact('light');
-                onOpenCompanyModal?.(event);
-              }}
-              className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/30 to-purple-950/30 border border-indigo-500/20 hover:border-indigo-500/40 transition-all cursor-pointer group shadow-sm"
-            >
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0 text-indigo-400 group-hover:scale-105 transition-transform">
-                  <Users className="w-5 h-5 text-indigo-400" />
+                onOpenOrgModal(event.organization_id);
+              }
+            }}
+            className="flex items-center justify-between p-3.5 rounded-2xl bg-[#1c1b1e] hover:bg-[#201f22] transition-colors cursor-pointer shadow-sm"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-[#2a2a2c] shrink-0 border border-white/10">
+                <SafeAvatar
+                  src={event.organization_avatar_url}
+                  name={event.organization_name}
+                  type="org"
+                  sizeClassName="w-12 h-12"
+                  className="rounded-full"
+                />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-white font-semibold text-sm truncate">
+                    {event.organization_name}
+                  </span>
+                  <ShieldCheck className="w-4 h-4 text-[#4edea3] shrink-0" />
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white group-hover:text-indigo-200 transition-colors flex items-center space-x-1.5">
-                    <span>Найти компанию</span>
-                    {isCompanyOptedIn && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Ваша анкета активна" />
-                    )}
-                  </div>
-                  <div className="text-[11px] text-gray-400 truncate mt-0.5">
+                <span className="text-[#c4c7c8] text-xs">
+                  Организатор события
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenOrgModal && event.organization_id) {
+                  telegram.hapticImpact('light');
+                  onOpenOrgModal(event.organization_id);
+                }
+              }}
+              className="px-4 py-2 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold active:scale-95 transition-all shrink-0"
+              type="button"
+            >
+              В профиль
+            </button>
+          </div>
+        )}
+
+        {/* Companion Discovery Feature ("Найти компанию") */}
+        {!isPast && (
+          <div className="p-4 rounded-3xl bg-[#1c1b1e] relative overflow-hidden shadow-md space-y-3.5">
+            {/* Ambient subtle illumination orb */}
+            <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full bg-[#10b981]/10 blur-2xl pointer-events-none" />
+
+            <div className="flex items-start justify-between gap-3 relative z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center shrink-0">
+                  <Handshake className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-base">
+                    Найти компанию
+                  </h3>
+                  <p className="text-[#4edea3] text-xs font-medium">
                     {companyMembersCount > 0
                       ? `${companyMembersCount} ${getCompanyMembersWord(companyMembersCount)}`
                       : 'Познакомьтесь с теми, кто тоже идёт'}
-                  </div>
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-1 text-xs text-indigo-400 font-medium pl-2 shrink-0">
-                <span>{isCompanyOptedIn ? 'Моя анкета' : 'Открыть'}</span>
-                <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
-              </div>
             </div>
-          )}
-        </div>
 
-        {/* Sticky Bottom Action Bar */}
-        <div className="modal-safe-bottom bg-[#131722] border-t border-white/8 shrink-0 px-4 py-3 space-y-2">
-          {isPast ? (
-            <div className="py-1">
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-center space-y-1">
-                <div className="text-sm font-semibold text-white flex items-center justify-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
-                  <span>Мероприятие завершено</span>
-                </div>
-                <div className="text-xs">
-                  {(event as any).is_creator ? (
-                    <span className="text-purple-300 font-medium">✓ Вы организатор этого события</span>
-                  ) : event.is_attending ? (
-                    <span className="text-emerald-400 font-medium">✓ Вы были участником этого события</span>
-                  ) : event.current_user_interested ? (
-                    <span className="text-indigo-300 font-medium">✓ Вы сохраняли это событие в избранное</span>
-                  ) : (
-                    <span className="text-gray-400">Событие находится в архиве</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Primary CTA: «Я иду» */}
+            <p className="text-[#c4c7c8] text-xs leading-relaxed relative z-10">
+              Не с кем пойти? Активируйте приватный поиск компаньонов. Ваш профиль остаётся скрытым до момента взаимного согласия.
+            </p>
+
+            <div className="flex flex-col gap-2 relative z-10">
               <button
-                onClick={handleRsvpClick}
-                disabled={isRsvpLoading || isInterestLoading}
-                title={event.is_attending ? 'Нажмите, чтобы отменить участие' : 'Подтвердить участие'}
-                className={`w-full h-12 px-6 rounded-2xl font-semibold text-sm flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
-                  event.is_attending || rsvpAnimationPhase === 'animating'
-                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 shadow-sm'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-600/25 shadow-lg'
-                } disabled:opacity-70`}
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenCompanyModal?.(event);
+                }}
+                className="w-full py-3 px-4 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+                type="button"
               >
-                <GoingAnimation
-                  state={
-                    rsvpAnimationPhase === 'animating'
-                      ? 'animating'
-                      : isRsvpLoading
-                      ? 'loading'
-                      : event.is_attending
-                      ? 'success'
-                      : 'idle'
-                  }
-                  onAnimationEnd={() => setRsvpAnimationPhase('idle')}
-                  size={18}
-                />
-                <span>
-                  {isRsvpLoading && rsvpAnimationPhase === 'loading'
-                    ? 'Обновление...'
-                    : 'Я иду'}
-                </span>
+                <Handshake className="w-4 h-4 text-[#4edea3]" />
+                <span>{isCompanyOptedIn ? 'Моя анкета компании' : 'Активировать поиск компании'}</span>
               </button>
 
-              {/* Secondary Action: «Хочу пойти» */}
-              {onToggleInterest && (
-                <button
-                  onClick={() => {
-                    if (isInterestLoading || isRsvpLoading) return;
-                    telegram.hapticImpact('light');
-                    onToggleInterest(event.id, Boolean(event.current_user_interested));
-                  }}
-                  disabled={isInterestLoading || isRsvpLoading}
-                  title={event.current_user_interested ? 'Нажмите, чтобы отменить интерес' : 'Хочу пойти'}
-                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all duration-200 btn-press ${
-                    event.current_user_interested
-                      ? 'bg-purple-500/15 border border-purple-500/35 text-purple-200 hover:bg-purple-500/25'
-                      : 'bg-[#181C2B] border border-white/8 text-gray-300 hover:text-white hover:border-white/20'
-                  } disabled:opacity-60`}
-                >
-                  <Heart
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      event.current_user_interested
-                        ? 'fill-purple-400 text-purple-400 scale-110'
-                        : 'text-gray-400'
-                    }`}
-                  />
-                  <span>
-                    {isInterestLoading
-                      ? 'Обновление...'
-                      : 'Хочу пойти'}
-                  </span>
-                  {event.interest_count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
-                      event.current_user_interested
-                        ? 'bg-purple-500/25 text-purple-200'
-                        : 'bg-white/10 text-gray-400'
-                    }`}>
-                      {event.interest_count}
-                    </span>
-                  )}
-                </button>
-              )}
-            </>
-          )}
+              <div className="flex items-center justify-center gap-1.5 text-[#8e9192] text-[11px] pt-0.5">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Приватность защищена: Telegram ID не раскрывается</span>
+              </div>
+            </div>
+          </div>
+        )}
 
-          {/* Organizer Edit Action */}
-          {canEdit && (
-            <div className="pt-2 border-t border-white/10">
+        {/* About Event Description */}
+        <div className="flex flex-col space-y-3 p-4 rounded-3xl bg-[#1c1b1e] shadow-sm">
+          <h3 className="text-white font-semibold text-base">О событии</h3>
+          <p className="text-[#c4c7c8] text-xs leading-relaxed whitespace-pre-line">
+            {event.description || 'Описание мероприятия скоро появится.'}
+          </p>
+
+          {/* Highlights Badges */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <span className="px-3 py-1.5 rounded-full bg-[#2a2a2c] text-[#e5e1e4] text-xs font-medium flex items-center gap-1.5">
+              <span>🎟️</span>
+              <span>{priceText}</span>
+            </span>
+            <span className="px-3 py-1.5 rounded-full bg-[#2a2a2c] text-[#e5e1e4] text-xs font-medium flex items-center gap-1.5">
+              <span>👥</span>
+              <span>{event.attendee_count} {getAttendeesWord(event.attendee_count)}</span>
+            </span>
+            {event.interest_count > 0 && (
+              <span className="px-3 py-1.5 rounded-full bg-[#2a2a2c] text-[#e5e1e4] text-xs font-medium flex items-center gap-1.5">
+                <span>♡</span>
+                <span>{event.interest_count} {getInterestedWord(event.interest_count)}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Broadcast Entry for Organizers */}
+        {canEdit && (
+          <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#4edea3] uppercase tracking-wide">
+                Инструменты организатора
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
                   telegram.hapticImpact('light');
-                  if (onEditEvent && event) {
-                    onEditEvent(event);
-                  }
+                  onEditEvent?.(event);
                 }}
-                disabled={isRsvpLoading || isInterestLoading}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 transition-all flex items-center justify-center space-x-1.5 btn-press"
+                className="py-2.5 px-3 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
               >
-                <Edit className="w-3.5 h-3.5 text-indigo-300" />
-                <span>Редактировать событие</span>
+                <Edit className="w-3.5 h-3.5" />
+                <span>Редактировать</span>
               </button>
+              {onOpenBroadcastComposer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    onOpenBroadcastComposer(event.id, event.organization_id);
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                >
+                  <Send className="w-3.5 h-3.5 text-[#4edea3]" />
+                  <span>Рассылка</span>
+                </button>
+              )}
             </div>
-          )}
+          </div>
+        )}
+      </main>
+
+      {/* Sticky Bottom Optical Glass Action Dock (Matching Stitch Obsidian Optical) */}
+      <div className="fixed bottom-3 inset-x-0 mx-auto w-full max-w-[480px] px-4 z-50 pointer-events-none">
+        <div className="p-1.5 rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] border border-white/12 flex items-center justify-between gap-2 pointer-events-auto">
+          {/* Mutually Exclusive Intent Segmented Toggle Group */}
+          <div 
+            aria-label="Статус участия" 
+            className="flex items-center bg-[#2a2a2c]/80 p-1 rounded-full flex-1 min-w-0" 
+            role="radiogroup"
+          >
+            {/* Radio Option 1: "Я иду" */}
+            <button
+              onClick={handleGoingClick}
+              disabled={isRsvpLoading || isInterestLoading || isPast}
+              aria-checked={Boolean(event.is_attending)}
+              role="radio"
+              type="button"
+              className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                event.is_attending
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-[#c4c7c8] hover:text-white'
+              } disabled:opacity-50`}
+            >
+              {isRsvpLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className={`w-3.5 h-3.5 ${event.is_attending ? 'text-black' : 'text-[#c4c7c8]'}`} />
+              )}
+              <span className="truncate">Я иду</span>
+            </button>
+
+            {/* Radio Option 2: "Хочу пойти" */}
+            <button
+              onClick={handleInterestedClick}
+              disabled={isInterestLoading || isRsvpLoading || isPast || !onToggleInterest}
+              aria-checked={Boolean(event.current_user_interested)}
+              role="radio"
+              type="button"
+              className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                event.current_user_interested
+                  ? 'bg-white text-black shadow-md'
+                  : 'text-[#c4c7c8] hover:text-white'
+              } disabled:opacity-50`}
+            >
+              {isInterestLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Heart className={`w-3.5 h-3.5 ${event.current_user_interested ? 'fill-black text-black' : 'text-[#c4c7c8]'}`} />
+              )}
+              <span className="truncate">Хочу</span>
+            </button>
+          </div>
+
+          {/* Quick Action: Buy Ticket / Ticket Tier Button */}
+          <button
+            onClick={() => {
+              telegram.hapticImpact('light');
+              const ticketUrl = event.source_url || (event as any).registration_url || (event as any).ticket_link;
+              if (ticketUrl) {
+                window.open(ticketUrl, '_blank');
+              } else {
+                handleGoingClick();
+              }
+            }}
+            disabled={isPast}
+            className="h-11 px-5 rounded-full bg-[#00a572] text-[#00311f] font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
+            type="button"
+          >
+            <Ticket className="w-4 h-4" />
+            <span>{isFree ? 'Иду' : 'Билет'}</span>
+          </button>
         </div>
       </div>
     </div>

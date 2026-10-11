@@ -1,0 +1,196 @@
+/* ==========================================================================
+   IVENTLY DESIGN LAB — LIQUID GLASS & OBSIDIAN DESIGN SYSTEM
+   Mobile Viewport: 390px x 844px (iPhone 13/14/15 standard)
+   Engine Target: WebKit (iOS Telegram) + Chromium WebView (Android Telegram)
+   ========================================================================== */
+
+:root {
+  /* Obsidian Palette (replaces washed-out purple/indigo with pure luxury dark tones) */
+  --obsidian-canvas: #050608;
+  --obsidian-surface-base: #0A0B0F;
+  --obsidian-surface-elevated: #111319;
+  --obsidian-surface-highlight: #171A24;
+  --obsidian-rim-subtle: rgba(255, 255, 255, 0.08);
+  --obsidian-rim-focused: rgba(255, 255, 255, 0.22);
+
+  /* Optical Glass Material Tokens */
+  --glass-tint-light: rgba(255, 255, 255, 0.09);
+  --glass-tint-strong: rgba(255, 255, 255, 0.16);
+  --glass-tint-emerald: rgba(16, 185, 129, 0.15);
+  --glass-blur-nav: 24px;
+  --glass-blur-lens: 16px;
+  --glass-blur-pill: 12px;
+
+  /* Specular Highlight Lip (Simulates true polished physical glass bevel) */
+  --lens-specular-lip: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.65);
+  --lens-specular-glow: inset 0 0 14px 0 rgba(255, 255, 255, 0.14);
+  --lens-contact-shadow: inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.4);
+  --lens-outer-elevation: 0 8px 24px -2px rgba(0, 0, 0, 0.5), 0 2px 6px 0 rgba(0, 0, 0, 0.35);
+
+  /* Physics Spring Easing */
+  --spring-lens: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring-fast: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Glass Lens Surface */
+.liquid-lens {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-tint-light);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lens)) saturate(190%) brightness(1.08);
+  backdrop-filter: blur(var(--glass-blur-lens)) saturate(190%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    var(--lens-specular-lip),
+    var(--lens-specular-glow),
+    var(--lens-contact-shadow),
+    var(--lens-outer-elevation);
+  transition:
+    transform 280ms var(--spring-lens),
+    box-shadow 280ms var(--spring-lens),
+    border-color 280ms var(--spring-lens),
+    background 280ms var(--spring-lens);
+  will-change: transform, box-shadow;
+}
+
+/* Diagonal Specular Sheen across lens surface */
+.liquid-lens::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.12) 20%,
+    rgba(255, 255, 255, 0.02) 40%,
+    rgba(255, 255, 255, 0) 65%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+/* Bottom Rim Reflection */
+.liquid-lens::after {
+  content: "";
+  position: absolute;
+  inset: auto 15% 1px 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* NAVIGATION VARIANT A: Obsidian Horizontal Capsule with Optical Glass Active Lens */
+.nav-dock-variant-a {
+  background: #08090C;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.12),
+    0 20px 40px -10px rgba(0, 0, 0, 0.85),
+    0 4px 12px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* NAVIGATION VARIANT B: Translucent Liquid Glass Dock with Elevated Optical Lens */
+.nav-dock-variant-b {
+  background: rgba(14, 16, 22, 0.65);
+  -webkit-backdrop-filter: blur(var(--glass-blur-nav)) saturate(200%);
+  backdrop-filter: blur(var(--glass-blur-nav)) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.3),
+    0 24px 48px -12px rgba(0, 0, 0, 0.75),
+    0 8px 16px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Sliding Dock Lens Indicator */
+.dock-lens-indicator {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.13);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.12);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.12);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow:
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 0 12px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.35),
+    0 6px 18px -2px rgba(0, 0, 0, 0.45);
+  transition: transform 320ms var(--spring-lens), width 320ms var(--spring-lens);
+  will-change: transform, width;
+  pointer-events: none;
+}
+
+.dock-lens-indicator::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.15) 24%,
+    rgba(255, 255, 255, 0) 50%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Floating Glass Badges */
+.glass-pill-badge {
+  background: rgba(14, 16, 22, 0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 12px 0 rgba(0, 0, 0, 0.35);
+}
+
+.glass-pill-emerald {
+  background: rgba(6, 44, 30, 0.65);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(167, 243, 208, 0.45),
+    0 4px 12px 0 rgba(6, 44, 30, 0.4);
+}
+
+/* Editorial Event Card Container */
+.editorial-card {
+  background: var(--obsidian-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.06),
+    0 16px 36px -8px rgba(0, 0, 0, 0.65);
+  transition: transform 220ms var(--spring-lens), border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.editorial-card:active {
+  transform: scale(0.985);
+}
+
+/* Image Cinematic Scrim */
+.card-media-scrim {
+  background: linear-gradient(
+    180deg,
+    rgba(5, 6, 8, 0.15) 0%,
+    rgba(5, 6, 8, 0.05) 50%,
+    rgba(5, 6, 8, 0.75) 85%,
+    rgba(17, 19, 25, 1) 100%
+  );
+}
+
+/* Accessible Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .liquid-lens,
+  .dock-lens-indicator,
+  .editorial-card {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

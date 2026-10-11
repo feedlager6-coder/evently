@@ -36,7 +36,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   const renderFallback = () => {
     return (
       <div
-        className={`relative overflow-hidden shrink-0 flex items-center justify-center text-indigo-300 font-bold select-none bg-gradient-to-tr from-indigo-900 to-purple-900 ${effectiveSize} ${className}`}
+        className={`relative overflow-hidden shrink-0 flex items-center justify-center text-white font-bold select-none bg-gradient-to-tr bg-[#2a2a2c] ${effectiveSize} ${className}`}
       >
         {initials ? (
           <span className="leading-none text-xs sm:text-sm">{initials}</span>
@@ -57,7 +57,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
     <div className={`relative overflow-hidden shrink-0 ${effectiveSize} ${className}`}>
       {/* Loading Skeleton / Gradient */}
       {imageState === 'loading' && (
-        <div className="absolute inset-0 bg-[#171B29] animate-pulse flex items-center justify-center">
+        <div className="absolute inset-0 bg-[#201f22] animate-pulse flex items-center justify-center">
           <span className="text-gray-600 text-xs font-bold">{initials}</span>
         </div>
       )}

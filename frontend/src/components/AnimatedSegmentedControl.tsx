@@ -115,13 +115,13 @@ export function AnimatedSegmentedControl<T extends string>({
       role="tablist"
       className={`relative ${
         scrollable ? 'inline-flex min-w-full' : 'flex'
-      } items-center rounded-2xl bg-[#141724] p-1 border border-white/5 select-none ${
+      } items-center rounded-2xl bg-[#0e0e10]/90 backdrop-blur-xl p-1 border border-white/5 select-none ${
         scrollable ? '' : className
       }`}
     >
       {/* Sliding Active Pill Indicator */}
       <div
-        className={`absolute top-0 left-0 rounded-xl bg-indigo-600 shadow-md shadow-indigo-600/25 pointer-events-none ${
+        className={`absolute top-0 left-0 rounded-xl bg-[#39393b]/90 backdrop-blur-2xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] border border-white/10 pointer-events-none ${
           indicator.ready
             ? 'transition-[transform,width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] opacity-100'
             : 'opacity-0'
@@ -164,8 +164,8 @@ export function AnimatedSegmentedControl<T extends string>({
               isSmall ? 'py-1.5 text-[10.5px] xs:text-[11px]' : 'py-2 text-xs'
             } font-semibold rounded-xl flex items-center justify-center ${
               isSmall ? 'space-x-0.5 xs:space-x-1' : 'space-x-1 sm:space-x-1.5'
-            } transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-indigo-400 ${
-              isActive ? 'text-white' : 'text-gray-400 hover:text-gray-200'
+            } transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-[#4edea3]/40 ${
+              isActive ? 'text-white font-bold' : 'text-[#c4c7c8] hover:text-white'
             }`}
           >
             <span className={scrollable || !equalWidth ? 'whitespace-nowrap' : 'truncate'}>{item.label}</span>

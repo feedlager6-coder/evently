@@ -232,7 +232,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
         {/* Pinned Header */}
         <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-[#131724]">
           <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/30">
+            <div className="w-8 h-8 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/20 text-[#4edea3] flex items-center justify-center shrink-0 border border-white/10">
               <Users className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -254,7 +254,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
 
         {/* Toast alert */}
         {toastMessage && (
-          <div className="mx-4 mt-3 px-3.5 py-2 rounded-xl bg-indigo-600/90 text-white text-xs font-medium flex items-center space-x-2 animate-fade-in shrink-0">
+          <div className="mx-4 mt-3 px-3.5 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/90 text-white text-xs font-medium flex items-center space-x-2 animate-fade-in shrink-0">
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span>{toastMessage}</span>
           </div>
@@ -281,7 +281,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                 <div className="flex items-center space-x-1.5 shrink-0">
                   <button
                     onClick={() => setIsEditingNote(!isEditingNote)}
-                    className="text-[11px] font-medium text-indigo-300 hover:text-indigo-200 px-2 py-1 rounded-lg bg-indigo-500/15"
+                    className="text-[11px] font-medium text-white hover:text-[#c4c7c8] px-2 py-1 rounded-lg bg-[#2a2a2c]"
                   >
                     {isEditingNote ? 'Скрыть форму' : 'Изменить заметку'}
                   </button>
@@ -308,14 +308,14 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                     onChange={(e) => setNoteText(e.target.value.slice(0, 140))}
                     placeholder="Пара слов о себе или компании, которую ищете..."
                     rows={2}
-                    className="w-full text-xs p-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full text-xs p-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
                   />
                   <div className="flex items-center justify-between text-[10px] text-gray-400">
                     <span>{140 - noteText.length} символов</span>
                     <button
                       type="submit"
                       disabled={actionLoadingId === 'opt-in'}
-                      className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors"
+                      className="px-3 py-1 rounded-lg bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-medium text-xs transition-colors"
                     >
                       Сохранить
                     </button>
@@ -324,9 +324,9 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               )}
             </div>
           ) : (
-            <div className="p-3.5 rounded-2xl bg-[#171B29] border border-white/8 space-y-2.5">
+            <div className="p-3.5 rounded-2xl bg-[#201f22] border border-white/8 space-y-2.5">
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/20 text-[#4edea3] flex items-center justify-center shrink-0 mt-0.5">
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -357,12 +357,12 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                     onChange={(e) => setNoteText(e.target.value.slice(0, 140))}
                     placeholder="Пара слов о себе или пожелания (опционально, до 140 симв.)"
                     rows={2}
-                    className="w-full text-xs p-2.5 rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full text-xs p-2.5 rounded-xl bg-black/30 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
                   />
                   <button
                     onClick={() => handleOptIn()}
                     disabled={actionLoadingId === 'opt-in'}
-                    className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-indigo-600/25"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-black/40"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>Найти компанию</span>
@@ -393,7 +393,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 sm:px-5 space-y-3.5 no-scrollbar">
           {isLoading ? (
             <div className="h-full min-h-[260px] flex flex-col items-center justify-center space-y-2 text-gray-400">
-              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[#4edea3] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">Загрузка...</span>
             </div>
           ) : (
@@ -415,7 +415,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                 members.map((member) => (
                   <div
                     key={member.profile_id}
-                    className="p-3 sm:p-3.5 rounded-2xl bg-[#171B29] border border-white/5 space-y-2.5 hover:border-white/10 transition-colors"
+                    className="p-3 sm:p-3.5 rounded-2xl bg-[#201f22] border border-white/5 space-y-2.5 hover:border-white/10 transition-colors"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <div className="w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px] rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#131722]">
@@ -464,7 +464,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                       ) : member.relationship_status === 'pending_incoming' ? (
                         <button
                           onClick={() => setActiveTab('requests')}
-                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-indigo-600/20 active:scale-[0.99]"
+                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-black/40 active:scale-[0.99]"
                         >
                           <span>Ответить на запрос</span>
                         </button>
@@ -472,7 +472,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                         <button
                           onClick={() => handleSendRequest(member.profile_id)}
                           disabled={actionLoadingId === member.profile_id}
-                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-indigo-600/20 disabled:opacity-60 active:scale-[0.99]"
+                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-black/40 disabled:opacity-60 active:scale-[0.99]"
                         >
                           <Send className="w-3.5 h-3.5 shrink-0" />
                           <span>Познакомиться</span>
@@ -489,7 +489,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               {/* Incoming Section */}
               <div className="space-y-2">
                 <div className="text-xs font-bold text-gray-300 flex items-center space-x-1.5">
-                  <UserPlus className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <UserPlus className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
                   <span>Входящие запросы ({requests.incoming.length})</span>
                 </div>
                 {requests.incoming.length === 0 ? (
@@ -500,7 +500,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                   requests.incoming.map((req) => (
                     <div
                       key={req.request_id}
-                      className="p-3 rounded-2xl bg-[#171B29] border border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                      className="p-3 rounded-2xl bg-[#201f22] border border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
                         <div className="w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px] rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#131722]">
@@ -541,7 +541,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               {/* Outgoing Section */}
               <div className="space-y-2">
                 <div className="text-xs font-bold text-gray-300 flex items-center space-x-1.5">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <Clock className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
                   <span>Исходящие запросы ({requests.outgoing.length})</span>
                 </div>
                 {requests.outgoing.length === 0 ? (
@@ -552,7 +552,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                   requests.outgoing.map((req) => (
                     <div
                       key={req.request_id}
-                      className="p-3 rounded-2xl bg-[#171B29] border border-white/8 flex items-center justify-between gap-2"
+                      className="p-3 rounded-2xl bg-[#201f22] border border-white/8 flex items-center justify-between gap-2"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0 flex-1">
                         <div className="w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px] rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#131722]">
@@ -566,7 +566,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                           <div className="text-xs font-bold text-white truncate">
                             {req.other_user_display_name}
                           </div>
-                          <div className="text-[10px] text-indigo-300">Ожидает ответа</div>
+                          <div className="text-[10px] text-white">Ожидает ответа</div>
                         </div>
                       </div>
                       <button
@@ -586,7 +586,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
             <div className="space-y-3">
               {matches.length === 0 ? (
                 <div className="py-10 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 mx-auto flex items-center justify-center text-indigo-400">
+                  <div className="w-12 h-12 rounded-2xl bg-white text-[#1a1c1c] font-semibold active:scale-95/10 mx-auto flex items-center justify-center text-[#4edea3]">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div className="text-xs font-semibold text-white">Вы пока не нашли компанию</div>
@@ -631,7 +631,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                           telegram.hapticImpact('medium');
                           telegram.openTelegramLink(match.partner_telegram_url!);
                         }}
-                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-semibold text-xs flex items-center justify-center space-x-2 transition-all shadow-md shadow-indigo-600/20 active:scale-[0.98]"
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#10b981] to-[#00a572] hover:from-[#4edea3] hover:to-[#10b981] text-white font-semibold text-xs flex items-center justify-center space-x-2 transition-all shadow-md shadow-black/40 active:scale-[0.98]"
                       >
                         <MessageCircle className="w-4 h-4 fill-white/20 shrink-0" />
                         <span className="truncate">Написать: @{match.partner_telegram_username}</span>
@@ -657,7 +657,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
 
           {/* Privacy Guarantee Footer */}
           <div className="pt-2 border-t border-white/5 flex items-center space-x-2 text-[10px] text-gray-500">
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <ShieldCheck className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
             <span>Контакты Telegram открываются только при взаимном согласии. Telegram ID защищен.</span>
           </div>
 

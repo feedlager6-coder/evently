@@ -183,7 +183,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Actions */}
-        <div className="relative p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
+        <div className="relative p-4 flex items-center justify-between border-b border-white/5 bg-[#201f22]/70 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
@@ -206,7 +206,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
         <div className="p-5 overflow-y-auto space-y-5 no-scrollbar flex-1">
           {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-3 text-gray-400">
-              <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
+              <Loader2 className="w-7 h-7 animate-spin text-[#4edea3]" />
               <span className="text-xs">Загрузка организации...</span>
             </div>
           ) : error ? (
@@ -215,7 +215,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               <div className="text-sm font-semibold">{error}</div>
               <button
                 onClick={loadData}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2 btn-press"
+                className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white text-xs font-medium hover:bg-white/90 mt-2 btn-press"
               >
                 Повторить попытку
               </button>
@@ -225,7 +225,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {/* Profile Card */}
               <div className="flex flex-col items-center text-center space-y-3 pt-2">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-indigo-500/30 flex items-center justify-center shadow-xl">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/10 flex items-center justify-center shadow-xl">
                     <SafeAvatar
                       src={org.avatar_url}
                       name={org.name}
@@ -234,7 +234,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     />
                   </div>
                   {org.is_verified && (
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow">
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white flex items-center justify-center shadow">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
                   )}
@@ -245,14 +245,14 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     <span>{org.name}</span>
                   </h2>
                   <div className="flex items-center justify-center space-x-2 text-xs text-gray-400">
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-indigo-300 font-medium">
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white font-medium">
                       {org.category}
                     </span>
                     <span>•</span>
                     <AnimatedCounter
                       value={org.followers_count}
                       suffix={getFollowersWord(org.followers_count)}
-                      className="text-indigo-400 font-semibold"
+                      className="text-[#4edea3] font-semibold"
                     />
                   </div>
                 </div>
@@ -270,7 +270,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       </button>
                       <button
                         onClick={() => onOpenCreateEvent?.(org.id)}
-                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-indigo-600/25 border border-indigo-500/30 btn-press text-center leading-tight"
+                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-black/40 border border-white/10 btn-press text-center leading-tight"
                       >
                         <Plus className="w-3.5 h-3.5 shrink-0" />
                         <span>Создать событие</span>
@@ -283,7 +283,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       className={`w-full py-3 px-6 rounded-2xl font-bold text-xs flex items-center justify-center space-x-2 transition-all duration-300 shadow-lg ${
                         org.is_subscribed
                           ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 shadow-emerald-500/10'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                          : 'bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white shadow-black/40'
                       } btn-press disabled:opacity-75`}
                     >
                       {isSubscribing ? (
@@ -305,10 +305,10 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               </div>
 
               {/* Location & Links */}
-              <div className="p-3.5 rounded-2xl bg-[#171B29] border border-white/5 space-y-2 text-xs">
+              <div className="p-3.5 rounded-2xl bg-[#201f22] border border-white/5 space-y-2 text-xs">
                 {(org.city_name || org.address) && (
                   <div className="flex items-start space-x-2 text-gray-300">
-                    <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <MapPin className="w-4 h-4 text-[#4edea3] shrink-0 mt-0.5" />
                     <div>
                       {org.address && <div className="text-white font-medium">{org.address}</div>}
                       {org.city_name && <div className="text-gray-400">{org.city_name}</div>}
@@ -321,7 +321,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     href={org.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center space-x-2 text-indigo-400 hover:underline pt-1 border-t border-white/5"
+                    className="flex items-center space-x-2 text-[#4edea3] hover:underline pt-1 border-t border-white/5"
                   >
                     <Globe className="w-4 h-4 shrink-0" />
                     <span className="truncate">{org.website.replace(/^https?:\/\//, '')}</span>
@@ -334,7 +334,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     href={org.social_link.startsWith('http') ? org.social_link : `https://${org.social_link}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center space-x-2 text-indigo-400 hover:underline pt-1 border-t border-white/5"
+                    className="flex items-center space-x-2 text-[#4edea3] hover:underline pt-1 border-t border-white/5"
                   >
                     <span className="w-4 h-4 text-center font-bold text-xs shrink-0">@</span>
                     <span className="truncate">Социальные сети / Канал</span>
@@ -349,7 +349,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                   <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     О нас
                   </h4>
-                  <p className="text-xs leading-relaxed text-gray-300 whitespace-pre-line p-3 rounded-2xl bg-[#171B29]/60 border border-white/5">
+                  <p className="text-xs leading-relaxed text-gray-300 whitespace-pre-line p-3 rounded-2xl bg-[#201f22]/60 border border-white/5">
                     {org.description}
                   </p>
                 </div>
@@ -366,7 +366,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     return {
                       type: 'upcoming',
                       label: 'Предстоящее',
-                      badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+                      badgeClass: 'bg-[#2a2a2c] text-white border-white/10',
                     };
                   }
                   if (t >= todayStart && t <= nowTime) {
@@ -405,7 +405,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       </div>
 
                       {activeEvents.length === 0 ? (
-                        <div className="p-5 text-center rounded-2xl bg-[#171B29]/40 border border-white/5 space-y-1.5">
+                        <div className="p-5 text-center rounded-2xl bg-[#201f22]/40 border border-white/5 space-y-1.5">
                           <Calendar className="w-5 h-5 text-gray-500 mx-auto" />
                           <div className="text-xs text-gray-300 font-medium">
                             У организации пока нет предстоящих событий
@@ -439,7 +439,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                                   onClose();
                                   onEventClick(ev);
                                 }}
-                                className="flex items-center space-x-3 p-3 rounded-2xl bg-[#171B29] border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer card-press"
+                                className="flex items-center space-x-3 p-3 rounded-2xl bg-[#201f22] border border-white/5 hover:border-white/20 transition-all cursor-pointer card-press"
                               >
                                 <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-900 shrink-0">
                                   <SafeImage
@@ -459,7 +459,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                                     </span>
                                   </div>
                                   <div className="flex items-center space-x-2 text-[11px] text-gray-400">
-                                    <span className="text-indigo-400 font-medium">{dateStr}</span>
+                                    <span className="text-[#4edea3] font-medium">{dateStr}</span>
                                     <span>•</span>
                                     <span className="truncate">{ev.venue_name}</span>
                                   </div>
@@ -488,7 +488,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                               {pastEvents.length}
                             </span>
                           </div>
-                          <div className="flex items-center space-x-1 text-[11px] font-normal lowercase text-indigo-400">
+                          <div className="flex items-center space-x-1 text-[11px] font-normal lowercase text-[#4edea3]">
                             <span>{showPastEvents ? 'скрыть' : 'показать архив'}</span>
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showPastEvents ? 'rotate-180' : ''}`} />
                           </div>
@@ -518,7 +518,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                                     onClose();
                                     onEventClick(ev);
                                   }}
-                                  className="flex items-center space-x-3 p-3 rounded-2xl bg-[#141724]/70 border border-white/5 hover:border-white/10 transition-all cursor-pointer card-press"
+                                  className="flex items-center space-x-3 p-3 rounded-2xl bg-[#201f22]/70 border border-white/5 hover:border-white/10 transition-all cursor-pointer card-press"
                                 >
                                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-900 shrink-0 grayscale-[40%]">
                                     <SafeImage

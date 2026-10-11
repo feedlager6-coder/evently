@@ -61,7 +61,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
+        <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#201f22]/70 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
@@ -69,7 +69,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
             <X className="w-5 h-5" />
           </button>
           <div className="text-sm font-bold text-white flex items-center space-x-2">
-            <Bookmark className="w-4 h-4 text-indigo-400" />
+            <Bookmark className="w-4 h-4 text-[#4edea3]" />
             <span>Мои подписки</span>
           </div>
           <div className="w-9" />
@@ -79,7 +79,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
         <div className="p-5 overflow-y-auto space-y-3 no-scrollbar flex-1">
           {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-3 text-gray-400">
-              <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
+              <Loader2 className="w-7 h-7 animate-spin text-[#4edea3]" />
               <span className="text-xs">Загрузка ваших подписок...</span>
             </div>
           ) : error ? (
@@ -88,14 +88,14 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
               <div className="text-xs font-semibold">{error}</div>
               <button
                 onClick={loadSubscriptions}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500 mt-2 btn-press"
+                className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white text-xs font-medium hover:bg-white/90 mt-2 btn-press"
               >
                 Повторить попытку
               </button>
             </div>
           ) : subscriptions.length === 0 ? (
-            <div className="py-16 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-indigo-400">
+            <div className="py-16 px-4 text-center rounded-2xl bg-[#201f22] border border-white/5 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-[#4edea3]">
                 <Users className="w-6 h-6" />
               </div>
               <div className="space-y-1">
@@ -120,9 +120,9 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
                       onClose();
                       onSelectOrg(org.id);
                     }}
-                    className="flex items-center space-x-3.5 p-3 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer card-press"
+                    className="flex items-center space-x-3.5 p-3 rounded-2xl bg-[#201f22] border border-white/5 hover:border-white/10 transition-all cursor-pointer card-press"
                   >
-                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-indigo-500/30 flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center shrink-0">
                       <SafeAvatar
                         src={org.avatar_url}
                         name={org.name}
@@ -136,11 +136,11 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
                           {org.name}
                         </span>
                         {org.is_verified && (
-                          <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
                         )}
                       </div>
                       <div className="flex items-center space-x-2 text-[11px] text-gray-400">
-                        <span className="text-indigo-300">{org.category}</span>
+                        <span className="text-white">{org.category}</span>
                         <span>•</span>
                         <span>{formatFollowers(org.followers_count)}</span>
                       </div>

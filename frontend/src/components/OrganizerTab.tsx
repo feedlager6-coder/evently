@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 import type { EventSummary, OrganizationSummary, UserSubscriptionItem } from '../types';
-import { EventCard } from './EventCard';
+import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
 import { formatFollowers } from './OrganizationModal';
 import { telegram } from '../services/telegram';
-import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 import {
-  Building2,
+  Ticket,
+  QrCode,
+  Sparkles,
+  Store,
   ChevronRight,
-  ShieldCheck,
   Plus,
-  Calendar,
+  ArrowRight,
+  Heart,
+  MapPin,
+  Users,
+  CheckCircle2,
+  ShieldCheck,
+  ShoppingBag,
+  Bell
 } from 'lucide-react';
-
-
-export type PersonalHubTab = 'attending' | 'interested' | 'created' | 'subscriptions' | 'history';
 
 interface OrganizerTabProps {
   attendingEvents: EventSummary[];
@@ -23,13 +28,11 @@ interface OrganizerTabProps {
   isLoadingInterested: boolean;
   subscriptions: UserSubscriptionItem[];
   isLoadingSubscriptions: boolean;
-  // Organizer summary
   organizations?: OrganizationSummary[];
   myCreatedEvents?: EventSummary[];
   onOpenOrganizerWorkspace: () => void;
   onOpenCreateEvent?: () => void;
   onOpenCreateOrg: () => void;
-  // Item actions
   onEventClick: (event: EventSummary) => void;
   onOrgClick: (orgId: string) => void;
   onExplore: () => void;
@@ -42,509 +45,463 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   interestedEvents,
   isLoadingInterested,
   subscriptions,
-  isLoadingSubscriptions,
-  organizations = [],
-  myCreatedEvents = [],
+  isLoadingSubscriptions: _isLoadingSubscriptions,
+  organizations: _organizations = [],
+  myCreatedEvents: _myCreatedEvents = [],
   onOpenOrganizerWorkspace,
   onOpenCreateEvent,
   onOpenCreateOrg,
   onEventClick,
   onOrgClick,
   onExplore,
-  onOpenBroadcastComposer,
+  onOpenBroadcastComposer: _onOpenBroadcastComposer,
 }) => {
-  const [activeTab, setActiveTab] = useState<PersonalHubTab>('attending');
+  const [activeFilter, setActiveFilter] = useState<'going' | 'wishlist'>('going');
+  const [showAllSubscriptions, setShowAllSubscriptions] = useState(false);
 
   const now = new Date();
   const activeAttending = attendingEvents.filter((e) => new Date(e.start_at) >= now);
   const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
-  const upcomingCreatedEvents = myCreatedEvents.filter((e) => new Date(e.start_at) >= now);
-  const pastCreatedEvents = myCreatedEvents.filter((e) => new Date(e.start_at) < now);
 
-  const pastEventsMap = new Map<string, EventSummary>();
-  attendingEvents
-    .filter((e) => new Date(e.start_at) < now)
-    .forEach((e) => pastEventsMap.set(e.id, { ...e, is_attending: true }));
-  interestedEvents
-    .filter((e) => new Date(e.start_at) < now)
-    .forEach((e) => {
-      if (!pastEventsMap.has(e.id)) {
-        pastEventsMap.set(e.id, { ...e, current_user_interested: true });
-      }
-    });
-  pastCreatedEvents.forEach((e) => {
-    const existing = pastEventsMap.get(e.id);
-    if (existing) {
-      pastEventsMap.set(e.id, { ...existing, is_creator: true });
-    } else {
-      pastEventsMap.set(e.id, { ...e, is_creator: true });
-    }
-  });
-  const pastEvents = Array.from(pastEventsMap.values()).sort(
-    (a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()
-  );
+  const totalTickets = activeAttending.length;
 
-  const isOrganizer = organizations.length > 0;
-  const totalFollowers = organizations.reduce((acc, o) => acc + (o.followers_count || 0), 0);
-  const hasAnyPersonalActivity =
-    attendingEvents.length > 0 || interestedEvents.length > 0 || subscriptions.length > 0 || myCreatedEvents.length > 0;
-  const isBusyLoading =
-    isLoadingAttending || isLoadingInterested || isLoadingSubscriptions;
-
-  const handleTabChange = (tab: PersonalHubTab) => {
-    if (tab !== activeTab) {
+  const handleFilterSwitch = (filter: 'going' | 'wishlist') => {
+    if (activeFilter !== filter) {
       telegram.hapticImpact('light');
-      setActiveTab(tab);
+      setActiveFilter(filter);
     }
   };
 
   return (
-    <div className="space-y-4 px-4 py-2 pb-20">
-      {/* 1. Organizer Entry Banner (Only if user owns/manages organizations) */}
-      {isOrganizer && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/60 via-purple-950/40 to-[#141724] border border-indigo-500/25 shadow-lg flex items-center justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <div className="flex items-center space-x-1.5 text-indigo-400">
-              <Building2 className="w-4 h-4 shrink-0" />
-              <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-                Кабинет организатора
-              </h3>
-            </div>
-            <p className="text-xs text-gray-300 truncate">
-              {organizations.length} {organizations.length === 1 ? 'организация' : 'организаций'} •{' '}
-              {totalFollowers} {formatFollowers(totalFollowers).split(' ')[1]}
-            </p>
+    <div className="flex flex-col w-full max-w-[480px] mx-auto px-4 pt-2 pb-24 space-y-4 relative">
+      {/* Ambient Optical Glow Spot */}
+      <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-72 h-32 bg-[#10b981]/10 blur-[90px] rounded-full pointer-events-none -z-10" />
+
+      {/* 1. Header Area matching Stitch Obsidian Optical */}
+      <header className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Мои события</h1>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#2a2a2c] text-[#4edea3] text-[11px] font-bold tracking-wide shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
+            PRO Клуб
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-[#1c1b1e] px-3 py-1.5 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] border border-white/5">
+          <Ticket className="w-4 h-4 text-[#4edea3]" />
+          <span className="text-xs text-white font-semibold">
+            {totalTickets} {totalTickets === 1 ? 'билет' : totalTickets >= 2 && totalTickets <= 4 ? 'билета' : 'билетов'}
+          </span>
+        </div>
+      </header>
+
+      {/* 2. Organizer Space Banner (Obsidian Optical Glass Card) */}
+      <section className="relative overflow-hidden rounded-[24px] bg-[#201f22] p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),0_12px_32px_rgba(0,0,0,0.5)] border border-white/5">
+        {/* Subtle emerald ambient spot */}
+        <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex items-start justify-between relative z-10 mb-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#353437]/80 backdrop-blur-md border border-white/5">
+            <Sparkles className="w-3.5 h-3.5 text-[#ffb95f]" />
+            <span className="text-[10px] font-bold text-[#c4c7c8] uppercase tracking-wider">
+              Кабинет организатора
+            </span>
           </div>
-
-          <button
-            onClick={() => {
-              telegram.hapticImpact('medium');
-              onOpenOrganizerWorkspace();
-            }}
-            className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all shrink-0 btn-press"
-          >
-            <span>Кабинет</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <Store className="w-5 h-5 text-[#8e9192]" />
         </div>
-      )}
 
-      {/* 2. Page Title Header */}
-      <div className="px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <h2 className="text-lg font-bold text-white tracking-tight">Мои события</h2>
-          <p className="text-xs text-gray-400 leading-relaxed">Ваши планы, сохранённые мероприятия и подписки</p>
+        <div className="relative z-10 space-y-1">
+          <h2 className="text-base font-semibold text-white">Организуете мероприятия?</h2>
+          <p className="text-xs text-[#c4c7c8] leading-relaxed max-w-[95%]">
+            Управляйте афишей, собирайте аудиторию и запускайте рассылки напрямую в Telegram.
+          </p>
         </div>
-        {onOpenCreateEvent && (
+
+        <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={() => {
               telegram.hapticImpact('light');
-              onOpenCreateEvent();
+              onOpenOrganizerWorkspace();
             }}
-            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 text-xs font-semibold flex items-center space-x-1.5 btn-press shrink-0"
+            type="button"
+            className="group flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-white text-[#1a1c1c] font-semibold text-xs active:scale-95 transition-all shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Создать событие</span>
+            <span>В кабинет</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </button>
-        )}
-      </div>
-
-      {/* 3. Empty State for new/unengaged users vs Active Tabs */}
-      {!isBusyLoading && !hasAnyPersonalActivity && !isOrganizer ? (
-        <div className="p-6 text-center rounded-3xl bg-[#141724] border border-white/5 space-y-4 my-2">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
-            <Calendar className="w-7 h-7" />
-          </div>
-
-          <div className="space-y-1.5 max-w-xs mx-auto">
-            <h3 className="text-base font-bold text-white tracking-tight">
-              У вас пока нет мероприятий
-            </h3>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Отмечайте события в афише («Я иду» или «Хочу пойти»), подписывайтесь на площадки или создайте собственное мероприятие.
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-2 max-w-xs mx-auto">
-            {onOpenCreateEvent && (
-              <button
-                type="button"
-                onClick={() => {
-                  telegram.hapticImpact('medium');
-                  onOpenCreateEvent();
-                }}
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all btn-press flex items-center justify-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Создать событие</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                telegram.hapticImpact('light');
+          <button
+            onClick={() => {
+              telegram.hapticImpact('light');
+              if (onOpenCreateEvent) {
+                onOpenCreateEvent();
+              } else {
                 onOpenCreateOrg();
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 font-semibold text-xs transition-colors btn-press flex items-center justify-center space-x-2"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Создать профиль организации</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                telegram.hapticImpact('light');
-                onExplore();
-              }}
-              className="w-full py-2 text-xs text-gray-400 hover:text-white transition-colors"
-            >
-              Смотреть афишу событий →
-            </button>
-          </div>
+              }
+            }}
+            type="button"
+            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-[#39393b]/70 text-white font-semibold text-xs shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] active:scale-95 transition-all hover:bg-[#39393b]"
+          >
+            <Plus className="w-4 h-4 text-[#4edea3]" />
+            <span>Создать</span>
+          </button>
         </div>
-      ) : (
-        <>
-          {/* Responsive 2-Row Segmented Tabs (Zero horizontal page overflow) */}
-          <div className="w-full space-y-1.5 select-none">
-            <AnimatedSegmentedControl
-              items={[
-                { value: 'attending', label: 'Я иду', count: activeAttending.length },
-                { value: 'interested', label: 'Хочу пойти', count: activeInterested.length },
-                ...(myCreatedEvents.length > 0
-                  ? [{ value: 'created', label: 'Созданные', count: upcomingCreatedEvents.length }]
-                  : []),
-              ]}
-              value={activeTab}
-              onChange={(val) => handleTabChange(val as PersonalHubTab)}
-              size="sm"
-              equalWidth={false}
-            />
-            <AnimatedSegmentedControl
-              items={[
-                { value: 'subscriptions', label: 'Подписки', count: subscriptions.length },
-                { value: 'history', label: 'Прошедшие', count: pastEvents.length },
-              ]}
-              value={activeTab}
-              onChange={(val) => handleTabChange(val as PersonalHubTab)}
-              size="sm"
-              equalWidth={false}
-            />
-          </div>
+      </section>
 
-          {/* 4. Tab Contents */}
-          <div key={activeTab} className="animate-tab-enter">
-      {/* TAB: ATTENDING */}
-      {activeTab === 'attending' && (
-        <div className="space-y-3">
+      {/* 3. Mutually Exclusive Segmented Filter Track (Tactile Glass Lens Track) */}
+      <section className="flex flex-col">
+        <div className="relative p-1 rounded-full bg-[#0e0e10]/90 backdrop-blur-xl flex items-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_24px_rgba(0,0,0,0.4)] border border-white/5">
+          {/* Sliding Pill Indicator */}
+          <div
+            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-[#39393b]/80 backdrop-blur-2xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] transition-transform duration-300 ease-out pointer-events-none ${
+              activeFilter === 'going' ? 'translate-x-0 left-1' : 'translate-x-full left-1'
+            }`}
+          />
+
+          <button
+            onClick={() => handleFilterSwitch('going')}
+            type="button"
+            className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
+              activeFilter === 'going' ? 'text-white' : 'text-[#c4c7c8]'
+            }`}
+          >
+            <CheckCircle2 className={`w-4 h-4 ${activeFilter === 'going' ? 'text-[#4edea3]' : 'opacity-60'}`} />
+            <span>Я иду</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeFilter === 'going'
+                  ? 'bg-[#10b981]/25 text-[#4edea3]'
+                  : 'bg-[#2a2a2c] text-[#c4c7c8]'
+              }`}
+            >
+              {activeAttending.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleFilterSwitch('wishlist')}
+            type="button"
+            className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
+              activeFilter === 'wishlist' ? 'text-white' : 'text-[#c4c7c8]'
+            }`}
+          >
+            <Heart className={`w-4 h-4 ${activeFilter === 'wishlist' ? 'fill-white text-white' : 'opacity-60'}`} />
+            <span>Хочу пойти</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeFilter === 'wishlist'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-[#2a2a2c] text-[#c4c7c8]'
+              }`}
+            >
+              {activeInterested.length}
+            </span>
+          </button>
+        </div>
+      </section>
+
+      {/* 4. Filter Panel: "Я иду" (Going) */}
+      {activeFilter === 'going' && (
+        <section className="flex flex-col gap-3">
           {isLoadingAttending ? (
-            <div className="py-16 text-center text-xs text-gray-400">Загрузка ваших планов...</div>
+            <div className="py-14 text-center text-xs text-[#c4c7c8]">Загрузка ваших билетов...</div>
           ) : activeAttending.length === 0 ? (
-            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                🎟
+            <div className="py-12 px-4 text-center rounded-[24px] bg-[#201f22] border border-white/5 space-y-3 shadow-lg">
+              <div className="w-12 h-12 rounded-full bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center mx-auto border border-[#10b981]/30">
+                <Ticket className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Нет активных планов</div>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Здесь появятся предстоящие события, на которые вы нажали «Я иду»
+                <h3 className="font-bold text-sm text-white">У вас пока нет активных билетов</h3>
+                <p className="text-xs text-[#c4c7c8] max-w-xs mx-auto">
+                  Выберите интересное событие в афише и нажмите «Я иду», чтобы получить электронный билет
                 </p>
               </div>
               <button
                 onClick={onExplore}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
+                type="button"
+                className="px-5 py-2.5 rounded-full bg-white text-[#1a1c1c] text-xs font-semibold shadow-md active:scale-95 transition-all"
               >
-                Найти событие
+                Найти событие в афише
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {activeAttending.map((event) => (
-                <EventCard
+            activeAttending.map((event) => {
+              const eventDate = new Date(event.start_at);
+              const formattedDate = eventDate.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              }).toUpperCase();
+
+              return (
+                <article
                   key={event.id}
-                  event={event}
                   onClick={() => onEventClick(event)}
-                />
-              ))}
-            </div>
+                  className="relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
+                >
+                  {/* Hero Image */}
+                  <div className="relative h-44 w-full overflow-hidden">
+                    <SafeImage
+                      src={event.cover_image_url}
+                      alt={event.title}
+                      loading="eager"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#201f22] via-[#201f22]/40 to-transparent" />
+
+                    {/* Top Overlays */}
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                      <span className="px-3 py-1 rounded-full bg-[#0e0e10]/80 backdrop-blur-xl text-white font-bold text-[11px] shadow-sm border border-white/10">
+                        {formattedDate}
+                      </span>
+                    </div>
+
+                    {/* Companions Badge on Image */}
+                    {event.attendee_count > 1 && (
+                      <div className="absolute bottom-2 left-3 flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#00a572]/80 backdrop-blur-md text-[#00311f] font-bold text-[11px] flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          <span>Идут ещё {event.attendee_count - 1} чел.</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-3.5 space-y-3">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white tracking-tight line-clamp-1">
+                        {event.title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-[#c4c7c8] text-xs">
+                        <MapPin className="w-3.5 h-3.5 text-[#8e9192] shrink-0" />
+                        <span className="truncate">
+                          {event.venue_name || event.city_name || 'Локация в приложении'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Ticket & QR Drawer Element matching Stitch */}
+                    <div className="p-3 rounded-2xl bg-[#1c1b1e] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#39393b] flex items-center justify-center text-[#4edea3] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
+                          <QrCode className="w-5 h-5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-white">Электронный билет</span>
+                          <span className="text-[10px] text-[#c4c7c8]">
+                            {event.is_free ? 'Вход по регистрации' : 'Входной билет • Оплачено'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          telegram.hapticImpact('light');
+                          onEventClick(event);
+                        }}
+                        className="py-1.5 px-3 rounded-full bg-[#353437] text-white font-medium text-xs active:scale-95 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center gap-0.5"
+                      >
+                        <span>Показать</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
           )}
-        </div>
+        </section>
       )}
 
-      {/* TAB: INTERESTED */}
-      {activeTab === 'interested' && (
-        <div className="space-y-3">
+      {/* 5. Filter Panel: "Хочу пойти" (Wishlist) */}
+      {activeFilter === 'wishlist' && (
+        <section className="flex flex-col gap-2.5">
           {isLoadingInterested ? (
-            <div className="py-16 text-center text-xs text-gray-400">Загрузка сохранённых событий...</div>
+            <div className="py-14 text-center text-xs text-[#c4c7c8]">Загрузка списка желаемого...</div>
           ) : activeInterested.length === 0 ? (
-            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-pink-500/10 text-pink-400 flex items-center justify-center mx-auto text-xl">
-                ❤️
+            <div className="py-12 px-4 text-center rounded-[24px] bg-[#201f22] border border-white/5 space-y-3 shadow-lg">
+              <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto border border-white/15">
+                <Heart className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Нет сохранённых событий</div>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Сохраняйте интересные предстоящие события, чтобы вернуться к ним позже
+                <h3 className="font-bold text-sm text-white">Список желаемого пуст</h3>
+                <p className="text-xs text-[#c4c7c8] max-w-xs mx-auto">
+                  Нажимайте «Хочу» на карточках афиши, чтобы сохранять интересующие события
                 </p>
               </div>
               <button
                 onClick={onExplore}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
+                type="button"
+                className="px-5 py-2.5 rounded-full bg-white text-[#1a1c1c] text-xs font-semibold shadow-md active:scale-95 transition-all"
               >
                 Смотреть афишу
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {activeInterested.map((event) => (
-                <EventCard
+            activeInterested.map((event) => {
+              const eventDate = new Date(event.start_at);
+              const formattedDate = eventDate.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+              });
+              const priceText = event.is_free
+                ? 'Бесплатно'
+                : event.price_amount
+                  ? `от ${event.price_amount} ₽`
+                  : 'Вход свободный';
+
+              return (
+                <article
                   key={event.id}
-                  event={event}
                   onClick={() => onEventClick(event)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB: CREATED EVENTS (Personal Creations) */}
-      {activeTab === 'created' && (
-        <div className="space-y-3">
-          {upcomingCreatedEvents.length === 0 ? (
-            pastCreatedEvents.length > 0 ? (
-              <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                  ⏳
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold text-white">Все созданные события завершились</div>
-                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                    Они сохранены в архиве вкладки «Прошедшие» ({pastCreatedEvents.length})
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
-                  <button
-                    onClick={() => handleTabChange('history')}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 btn-press"
-                  >
-                    Смотреть в прошедших ({pastCreatedEvents.length})
-                  </button>
-                  {onOpenCreateEvent && (
-                    <button
-                      onClick={onOpenCreateEvent}
-                      className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
-                    >
-                      Создать новое
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                  📅
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold text-white">Нет созданных событий</div>
-                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                    Здесь отображаются актуальные мероприятия, опубликованные вами
-                  </p>
-                </div>
-                {onOpenCreateEvent && (
-                  <button
-                    onClick={onOpenCreateEvent}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
-                  >
-                    Создать событие
-                  </button>
-                )}
-              </div>
-            )
-          ) : (
-            <div className="space-y-4">
-              <div className="text-[11px] text-gray-400 px-1">
-                Предстоящие мероприятия, опубликованные вами
-              </div>
-              {upcomingCreatedEvents.map((event) => {
-                const interestCount = event.interest_count || 0;
-
-                return (
-                  <div key={event.id} className="space-y-2">
-                    <div className="hover:opacity-95 transition-opacity">
-                      <EventCard
-                        event={event}
-                        onClick={() => onEventClick(event)}
+                  className="p-3 rounded-2xl bg-[#201f22] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-white/5 bg-[#121215]">
+                      <SafeImage
+                        src={event.cover_image_url}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
                       />
                     </div>
-                    {/* Contextual Pro Trigger Banner for author */}
-                    {interestCount > 0 && (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          telegram.hapticImpact('light');
-                          if (onOpenBroadcastComposer) {
-                            onOpenBroadcastComposer(event.id, event.organization_id);
-                          } else if (isOrganizer) {
-                            onOpenOrganizerWorkspace();
-                          } else {
-                            onOpenCreateOrg();
-                          }
-                        }}
-                        className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#171B29] border border-purple-500/25 flex items-center justify-between gap-2.5 cursor-pointer hover:border-purple-500/40 transition-all text-xs"
-                      >
-                        <div className="flex items-center space-x-2 min-w-0">
-                          <span className="text-base shrink-0">🔥</span>
-                          <div className="min-w-0">
-                            <span className="text-white font-medium">
-                              <strong className="text-purple-300 font-semibold">{interestCount}</strong> {interestCount === 1 ? 'человек хочет' : 'человек хотят'} пойти
-                            </span>
-                            <div className="text-[11px] text-gray-400 truncate">
-                              Напишите им, чтобы напомнить о событии или предложить скидку
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-purple-500/30 transition-all flex items-center gap-1"
-                        >
-                          <span>Написать им</span>
-                          <span className="text-xs">→</span>
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex flex-col min-w-0 space-y-0.5">
+                      <span className="text-[11px] font-bold text-[#4edea3] uppercase tracking-wide">
+                        {formattedDate}
+                      </span>
+                      <span className="text-sm font-semibold text-white truncate">
+                        {event.title}
+                      </span>
+                      <span className="text-xs text-[#c4c7c8] truncate">
+                        {event.venue_name || event.city_name} • {priceText}
+                      </span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      telegram.hapticImpact('light');
+                      onEventClick(event);
+                    }}
+                    className="w-9 h-9 rounded-full bg-[#00a572] text-[#00311f] flex items-center justify-center active:scale-95 transition-transform shrink-0 shadow-sm"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                  </button>
+                </article>
+              );
+            })
           )}
-        </div>
+        </section>
       )}
 
-      {/* TAB: HISTORY */}
-      {activeTab === 'history' && (
-        <div className="space-y-3">
-          {pastEvents.length === 0 ? (
-            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto text-xl">
-                ⏳
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Нет прошедших событий</div>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Здесь сохраняется архив событий из ваших планов и закладок после их завершения
-                </p>
-              </div>
+      {/* 6. Quick Navigation: Subscriptions Section matching Stitch */}
+      <section className="rounded-[24px] bg-[#1c1b1e] p-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] border border-white/5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-[#4edea3]" />
+            <h4 className="text-sm font-bold text-white">Мои подписки</h4>
+          </div>
+          {subscriptions.length > 0 && (
+            <button
+              onClick={() => {
+                telegram.hapticImpact('light');
+                setShowAllSubscriptions(!showAllSubscriptions);
+              }}
+              type="button"
+              className="text-[#c4c7c8] hover:text-white text-xs font-semibold flex items-center gap-0.5 transition-colors"
+            >
+              <span>{showAllSubscriptions ? 'Свернуть' : `Все ${subscriptions.length}`}</span>
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showAllSubscriptions ? 'rotate-90' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        {subscriptions.length === 0 ? (
+          <div className="py-2 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white">Нет активных подписок</span>
+              <span className="text-[11px] text-[#c4c7c8]">
+                Подписывайтесь на заведения, чтобы первыми узнавать о событиях
+              </span>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-[11px] text-gray-400 px-1">
-                Архив прошедших событий из ваших планов и закладок
-              </div>
-              {pastEvents.map((event) => (
-                <div key={event.id} className="opacity-80 hover:opacity-100 transition-opacity">
-                  <EventCard
-                    event={event}
-                    onClick={() => onEventClick(event)}
+          </div>
+        ) : !showAllSubscriptions ? (
+          <div
+            onClick={() => {
+              telegram.hapticImpact('light');
+              setShowAllSubscriptions(true);
+            }}
+            className="flex items-center gap-3 py-1 cursor-pointer"
+          >
+            {/* Avatars preview row matching Stitch */}
+            <div className="flex -space-x-2.5 overflow-hidden shrink-0">
+              {subscriptions.slice(0, 4).map((sub, i) => (
+                <div
+                  key={sub.id || i}
+                  className="inline-block h-9 w-9 rounded-full bg-[#39393b] p-0.5 shadow-md border border-[#1c1b1e]"
+                >
+                  <SafeAvatar
+                    src={sub.organization.avatar_url}
+                    name={sub.organization.name}
+                    className="h-full w-full rounded-full object-cover"
                   />
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB: SUBSCRIPTIONS */}
-      {activeTab === 'subscriptions' && (
-        <div className="space-y-3">
-          {isLoadingSubscriptions ? (
-            <div className="py-16 text-center text-xs text-gray-400">Загрузка подписок...</div>
-          ) : subscriptions.length === 0 ? (
-            <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3">
-              <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto text-xl">
-                🏛
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-white">Нет активных подписок</div>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Подписывайтесь на места и организаторов, чтобы не пропускать новые события
-                </p>
-              </div>
-              <button
-                onClick={onExplore}
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow hover:bg-indigo-500 btn-press"
-              >
-                Найти места
-              </button>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-medium text-white truncate">Афиши без спама</span>
+              <span className="text-[11px] text-[#c4c7c8] truncate">
+                Оповещения о закрытых продажах
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              {subscriptions.map((sub) => {
-                const org = sub.organization;
-                return (
-                  <div
-                    key={sub.id}
-                    onClick={() => onOrgClick(org.id)}
-                    className="p-3.5 rounded-2xl bg-[#141724] border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer flex items-center justify-between group card-press"
-                  >
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl overflow-hidden border border-indigo-500/30 flex items-center justify-center shrink-0">
-                        <SafeAvatar
-                          src={org.avatar_url}
-                          name={org.name}
-                          className="w-full h-full object-cover"
-                        />
+          </div>
+        ) : (
+          <div className="space-y-2 pt-1">
+            {subscriptions.map((sub) => {
+              const org = sub.organization;
+              return (
+                <div
+                  key={sub.id}
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    onOrgClick(org.id);
+                  }}
+                  className="p-3 rounded-2xl bg-[#201f22] border border-white/5 hover:border-white/15 transition-all cursor-pointer flex items-center justify-between group active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center shrink-0 bg-[#141416]">
+                      <SafeAvatar
+                        src={org.avatar_url}
+                        name={org.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-xs text-white truncate">
+                          {org.name}
+                        </span>
+                        {org.is_verified && (
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
+                        )}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center space-x-1.5">
-                          <span className="font-semibold text-xs text-white group-hover:text-indigo-300 transition-colors truncate">
-                            {org.name}
-                          </span>
-                          {org.is_verified && (
-                            <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 text-[11px] text-gray-400">
-                          <span className="text-indigo-300">{org.category}</span>
-                          <span>•</span>
-                          <span>{formatFollowers(org.followers_count || 0)}</span>
-                        </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-[#c4c7c8]">
+                        <span className="text-[#4edea3]">{org.category}</span>
+                        <span>•</span>
+                        <span>{formatFollowers(org.followers_count || 0)}</span>
                       </div>
                     </div>
-
-                    <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all shrink-0" />
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-      </div>
 
-      {/* 5. Non-Organizer Subtle CTA Banner at Bottom */}
-      {!isOrganizer && (
-        <div className="pt-2">
-          <div className="p-3.5 rounded-2xl bg-[#141724]/70 border border-white/5 flex items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="text-xs font-semibold text-gray-300">Организуете мероприятия?</div>
-              <div className="text-[11px] text-gray-500">Создайте профиль заведения или клуба</div>
-            </div>
-            <button
-              onClick={() => {
-                telegram.hapticImpact('light');
-                onOpenCreateOrg();
-              }}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-indigo-300 border border-white/10 text-xs font-medium shrink-0 btn-press"
-            >
-              Создать профиль
-            </button>
+                  <ChevronRight className="w-4 h-4 text-[#8e9192] group-hover:text-white transition-all shrink-0" />
+                </div>
+              );
+            })}
           </div>
-        </div>
-      )}
-        </>
-      )}
+        )}
+      </section>
     </div>
   );
 };

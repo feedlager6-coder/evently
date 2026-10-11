@@ -342,7 +342,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-white/5">
           <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+            <div className="p-2 rounded-xl bg-[#10b981]/15 text-[#4edea3]">
               {initialEvent ? <Edit className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
             </div>
             <div>
@@ -379,7 +379,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs shadow-lg hover:bg-indigo-500 transition-colors btn-press"
+              className="px-6 py-2.5 rounded-xl bg-white text-[#1a1c1c] font-bold text-xs shadow-md active:scale-95 transition-colors btn-press"
             >
               Отлично, понятно
             </button>
@@ -395,7 +395,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
             {/* Organizer selector */}
             {myOrganizations && myOrganizations.length > 0 && (
-              <div className="space-y-1.5 p-3 rounded-2xl bg-[#141724] border border-white/5">
+              <div className="space-y-1.5 p-3 rounded-2xl bg-[#1c1b1e] border border-white/5">
                 <label className="text-gray-300 font-medium">Организатор (от чьего имени)</label>
                 <div className="flex flex-wrap gap-2 pt-0.5">
                   <button
@@ -403,8 +403,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     onClick={() => handleSelectOrg(undefined)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all pill-press ${
                       !selectedOrgId
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
+                        ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
+                        : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20'
                     }`}
                   >
                     Личный профиль
@@ -416,8 +416,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       onClick={() => handleSelectOrg(org.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 pill-press ${
                         selectedOrgId === org.id
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                          : 'bg-[#1A1E2E] text-gray-300 border border-white/5 hover:border-white/20'
+                          ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
+                          : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20'
                       }`}
                     >
                       <Building2 className="w-3.5 h-3.5" />
@@ -430,7 +430,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
             {/* Personal organizer contact toggle */}
             {!selectedOrgId && (
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#141724] border border-white/5">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1b1e] border border-white/5">
                 <div className="space-y-0.5 pr-3">
                   <div className="text-gray-200 font-medium">Разрешить связь по мероприятию</div>
                   <div className="text-[11px] text-gray-400">
@@ -441,7 +441,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   type="button"
                   onClick={() => setAllowEventContact(!allowEventContact)}
                   className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
-                    allowEventContact ? 'bg-indigo-600' : 'bg-white/10'
+                    allowEventContact ? 'bg-[#00a572]' : 'bg-white/10'
                   }`}
                 >
                   <div
@@ -461,7 +461,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="например: Концерт в горах или Джазовый вечер"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
                 required
               />
             </div>
@@ -473,7 +473,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <select
                   value={cityId}
                   onChange={(e) => setCityId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
                 >
                   {availableCities.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -488,7 +488,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
                 >
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
@@ -502,14 +502,14 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             {/* Start Date & Time */}
             <div className="space-y-1">
               <label className="text-gray-300 font-medium flex items-center space-x-1.5">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <Calendar className="w-3.5 h-3.5 text-[#4edea3]" />
                 <span>Дата и время начала *</span>
               </label>
               <input
                 type="datetime-local"
                 value={startAt}
                 onChange={(e) => setStartAt(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
                 required
               />
             </div>
@@ -523,7 +523,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   value={venueName}
                   onChange={(e) => setVenueName(e.target.value)}
                   placeholder="Дом культуры или Арена"
-                  className="w-full px-3 py-2 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500"
+                  className="w-full px-3 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
                   required
                 />
               </div>
@@ -558,11 +558,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       }
                     }}
                     placeholder="Начните ввод адреса..."
-                    className="w-full px-3 py-2 pr-7 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500"
+                    className="w-full px-3 py-2 pr-7 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
                     {isLoadingSuggestions ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#4edea3]" />
                     ) : (
                       <MapPin className="w-3.5 h-3.5" />
                     )}
@@ -586,7 +586,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                         onClick={() => handleSelectSuggestion(item)}
                         className="w-full p-2.5 text-left border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors flex items-start space-x-2"
                       >
-                        <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                        <MapPin className="w-3.5 h-3.5 text-[#4edea3] shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-white text-xs truncate">
                             {item.title || item.display_name.split(',')[0]}
@@ -627,7 +627,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     value={priceAmount}
                     onChange={(e) => setPriceAmount(e.target.value)}
                     placeholder="Цена"
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
                   />
                   <span className="text-gray-400 font-semibold px-2">{currency}</span>
                 </div>
@@ -638,7 +638,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <div className="space-y-2 p-3 rounded-xl bg-[#171B2A] border border-white/5">
               <div className="flex items-center justify-between">
                 <label className="text-gray-300 font-medium flex items-center space-x-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+                  <ImageIcon className="w-3.5 h-3.5 text-[#4edea3]" />
                   <span>Обложка мероприятия</span>
                 </label>
 
@@ -654,7 +654,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingImage}
-                  className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-medium text-[11px] transition-colors disabled:opacity-50"
+                  className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-[#353437] text-white border border-white/10 font-medium text-[11px] transition-colors disabled:opacity-50"
                 >
                   {isUploadingImage ? (
                     <>
@@ -705,8 +705,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                       onClick={() => setCoverImageUrl(preset.url)}
                       className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap border transition-all pill-press ${
                         coverImageUrl === preset.url
-                          ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold'
-                          : 'bg-[#1A1E2E] border-white/5 text-gray-400 hover:text-white'
+                          ? 'bg-white/20 border-white text-white font-bold'
+                          : 'bg-[#201f22] border-white/5 text-gray-400 hover:text-white'
                       }`}
                     >
                       {preset.label}
@@ -724,7 +724,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 placeholder="Расскажите подробнее о программе, артистах или формате..."
-                className="w-full px-3.5 py-2 rounded-xl bg-[#1A1E2E] border border-white/10 text-white focus:outline-none focus:border-indigo-500 placeholder-gray-500"
+                className="w-full px-3.5 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
                 required
               />
             </div>
@@ -733,7 +733,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <button
               type="submit"
               disabled={isLoading || isUploadingImage || isDeleting}
-              className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
+              className="w-full py-3 rounded-2xl bg-white text-[#1a1c1c] font-bold text-xs shadow-lg active:scale-95 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -770,7 +770,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       {/* Delete Event Confirmation Modal (Portaled to document.body for true viewport centering) */}
       {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-[#141724] border border-white/10 p-5 space-y-4 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-[#1c1b1e] border border-white/10 p-5 space-y-4 shadow-2xl">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5" />

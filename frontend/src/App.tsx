@@ -793,6 +793,9 @@ export const App: React.FC = () => {
                   setSearchInitialQuery('');
                   setIsSearchOpen(true);
                 }}
+                role="button"
+                tabIndex={0}
+                aria-label="Открыть поиск"
                 className="relative flex items-center w-full h-12 bg-[#18181b]/80 backdrop-blur-md rounded-full border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] hover:border-white/20 transition-all cursor-pointer group px-4 justify-between"
               >
                 <div className="flex items-center min-w-0 flex-1">

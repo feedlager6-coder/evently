@@ -151,13 +151,13 @@ export const CityModal: React.FC<CityModalProps> = ({
       onClick={isMandatory ? undefined : onClose}
     >
       <div 
-        className="w-full max-w-sm max-h-[85vh] rounded-t-[28px] sm:rounded-3xl bg-[#131722] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3 sheet-slide-up"
+        className="w-full max-w-sm max-h-[85vh] rounded-t-[28px] sm:rounded-3xl bg-[#1c1b1e] border border-white/10 p-5 shadow-2xl flex flex-col space-y-3 sheet-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-1">
           <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+            <div className="p-2 rounded-xl bg-[#10b981]/15 text-[#4edea3]">
               <MapPin className="w-5 h-5" />
             </div>
             <div>
@@ -182,16 +182,16 @@ export const CityModal: React.FC<CityModalProps> = ({
         <button
           onClick={handleDetectLocation}
           disabled={isLocating}
-          className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl bg-indigo-600/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/25 hover:border-indigo-500/50 btn-press transition-all font-semibold text-xs disabled:opacity-60"
+          className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl bg-[#2a2a2c] border border-white/10 text-white hover:bg-[#353437] btn-press transition-all font-semibold text-xs disabled:opacity-60"
         >
           {isLocating ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#4edea3]" />
               <span>Определяем город...</span>
             </>
           ) : (
             <>
-              <Navigation className="w-4 h-4 text-indigo-400" />
+              <Navigation className="w-4 h-4 text-[#4edea3]" />
               <span>📍 Определить мой город</span>
             </>
           )}
@@ -226,8 +226,8 @@ export const CityModal: React.FC<CityModalProps> = ({
                     }}
                     className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all flex items-center space-x-1 btn-press ${
                       isSelected
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-[#1C2030] text-gray-300 border border-white/5 hover:border-white/20 hover:text-white'
+                        ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
+                        : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20 hover:text-white'
                     }`}
                   >
                     <span>{CITY_EMOJIS[city.id] || '📍'}</span>
@@ -247,7 +247,7 @@ export const CityModal: React.FC<CityModalProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Поиск города..."
-            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#1C2030] border border-white/8 text-white placeholder-gray-400 text-xs focus:outline-none focus:border-indigo-500/60"
+            className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#201f22] border border-white/8 text-white placeholder-gray-400 text-xs focus:outline-none focus:border-[#4edea3]/60"
           />
         </div>
 
@@ -271,7 +271,7 @@ export const CityModal: React.FC<CityModalProps> = ({
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl border btn-press transition-all ${
                     isSelected
                       ? 'bg-indigo-600/20 border-indigo-500/60 text-white shadow-sm'
-                      : 'bg-[#1C2030]/40 border-white/5 text-gray-300 hover:bg-[#1C2030] hover:text-white'
+                      : 'bg-[#201f22]/40 border-white/5 text-gray-300 hover:bg-[#201f22] hover:text-white'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5">
