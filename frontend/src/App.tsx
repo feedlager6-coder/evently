@@ -33,7 +33,8 @@ import { DiscoveryModal } from './components/DiscoveryModal';
 import { EventCompanyModal } from './components/EventCompanyModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
-import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
+import { SafeImage } from './components/SafeImage';
 
 export const App: React.FC = () => {
   // Navigation & UI state
@@ -767,7 +768,11 @@ export const App: React.FC = () => {
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
-    <div className="min-h-screen bg-[#0B0D13] text-[#F3F4F6] content-safe-bottom selection:bg-indigo-500">
+    <div className="min-h-screen bg-[#08080A] text-[#e5e1e4] content-safe-bottom selection:bg-[#10b981]/30 selection:text-[#4edea3] relative overflow-x-hidden">
+      {/* Ambient Obsidian Glow Orbs matching Stitch */}
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[340px] h-[340px] bg-[#10b981]/6 rounded-full blur-[110px] pointer-events-none -z-10" />
+      <div className="fixed top-[480px] right-0 w-[260px] h-[260px] bg-[#f59e0b]/5 rounded-full blur-[90px] pointer-events-none -z-10" />
+
       {/* Top Header */}
       <Header
         currentCity={currentCity}
@@ -777,24 +782,28 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area based on Tab */}
-      <main className="max-w-lg mx-auto">
+      <main className="max-w-[480px] mx-auto">
         {currentTab === 'feed' && (
-          <div className="space-y-3">
+          <div className="space-y-3 pb-8">
             {/* Prominent Discovery Search Trigger */}
-            <div className="px-4 pt-1">
+            <div className="px-4 pt-1.5">
               <div
                 onClick={() => {
                   telegram.hapticImpact('light');
                   setSearchInitialQuery('');
                   setIsSearchOpen(true);
                 }}
-                className="flex items-center space-x-2.5 px-3.5 py-2.5 rounded-2xl bg-[#131722] border border-white/8 hover:border-indigo-500/40 text-gray-400 text-xs cursor-pointer card-press transition-all shadow-sm group"
+                className="relative flex items-center w-full h-12 bg-[#18181b]/80 backdrop-blur-md rounded-full border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] hover:border-white/20 transition-all cursor-pointer group px-4 justify-between"
               >
-                <Search className="w-4 h-4 text-indigo-400 shrink-0 group-hover:scale-105 transition-transform" />
-                <span className="flex-1 text-gray-300 font-medium">События, места и организации...</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-white/5 text-gray-400 border border-white/5 shrink-0">
-                  {currentCity ? currentCity.name : 'Город'}
-                </span>
+                <div className="flex items-center min-w-0 flex-1">
+                  <Search className="w-4 h-4 text-[#8e9192] mr-2.5 shrink-0 group-hover:text-white transition-colors" />
+                  <span className="text-[#8e9192] text-xs font-normal truncate">
+                    Поиск событий, мест, организаторов...
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e9192] group-hover:text-white transition-colors shrink-0">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
               </div>
             </div>
 
@@ -810,19 +819,19 @@ export const App: React.FC = () => {
             {/* Feed List */}
             <div className="px-4 space-y-4 pt-1">
               {isLoadingEvents ? (
-                <div className="py-20 flex flex-col items-center justify-center space-y-3 text-gray-400">
-                  <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
+                <div className="py-20 flex flex-col items-center justify-center space-y-3 text-[#c4c7c8]">
+                  <Loader2 className="w-7 h-7 animate-spin text-[#10b981]" />
                   <span className="text-xs">Загрузка афиши...</span>
                 </div>
               ) : feedError ? (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex flex-col items-center space-y-2 text-center">
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-[#ffb4ab] text-xs flex flex-col items-center space-y-2 text-center">
                   <div className="flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#ffb4ab]" />
                     <span>{feedError}</span>
                   </div>
                   <button
                     onClick={() => loadFeedEvents()}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium hover:bg-indigo-600/40 transition-colors btn-press"
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white border border-white/15 text-xs font-medium hover:bg-white/20 transition-colors btn-press"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Повторить попытку</span>
@@ -832,13 +841,13 @@ export const App: React.FC = () => {
                 (() => {
                   if (!selectedCityId) {
                     return (
-                      <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3.5">
-                        <div className="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center mx-auto">
+                      <div className="py-14 px-4 text-center rounded-3xl bg-[#1c1b1e] border border-white/8 space-y-3.5 shadow-lg">
+                        <div className="w-12 h-12 rounded-full bg-white/5 text-[#4edea3] flex items-center justify-center mx-auto border border-white/10">
                           <MapPin className="w-6 h-6" />
                         </div>
                         <div className="space-y-1">
                           <h3 className="font-bold text-sm text-white">Город не выбран</h3>
-                          <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                          <p className="text-xs text-[#c4c7c8] max-w-xs mx-auto">
                             Выберите город, чтобы увидеть актуальную афишу мероприятий
                           </p>
                         </div>
@@ -848,7 +857,7 @@ export const App: React.FC = () => {
                             telegram.hapticImpact('light');
                             setIsCityModalOpen(true);
                           }}
-                          className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 shadow-md shadow-indigo-600/25 btn-press transition-all inline-flex items-center space-x-1.5"
+                          className="px-5 py-2.5 rounded-full bg-white text-[#08080a] text-xs font-semibold shadow-md btn-press transition-all inline-flex items-center space-x-1.5"
                         >
                           <MapPin className="w-3.5 h-3.5" />
                           <span>Выбрать город</span>
@@ -863,13 +872,13 @@ export const App: React.FC = () => {
 
                   if (hasActiveFilters) {
                     return (
-                      <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-3.5">
-                        <div className="w-12 h-12 rounded-full bg-white/5 text-gray-400 flex items-center justify-center mx-auto">
+                      <div className="py-14 px-4 text-center rounded-3xl bg-[#1c1b1e] border border-white/8 space-y-3.5 shadow-lg">
+                        <div className="w-12 h-12 rounded-full bg-white/5 text-[#c4c7c8] flex items-center justify-center mx-auto border border-white/10">
                           <Compass className="w-6 h-6" />
                         </div>
                         <div className="space-y-1">
                           <h3 className="font-bold text-sm text-white">Ничего не найдено</h3>
-                          <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                          <p className="text-xs text-[#c4c7c8] max-w-xs mx-auto">
                             По выбранным фильтрам ничего не найдено.
                           </p>
                         </div>
@@ -880,7 +889,7 @@ export const App: React.FC = () => {
                             setDateFilter('all');
                             setSelectedCategoryId(undefined);
                           }}
-                          className="px-4 py-2.5 rounded-xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold hover:bg-indigo-600/30 btn-press transition-all"
+                          className="px-4 py-2 rounded-full bg-white/10 text-white border border-white/15 text-xs font-semibold hover:bg-white/15 btn-press transition-all"
                         >
                           Сбросить фильтры
                         </button>
@@ -890,15 +899,15 @@ export const App: React.FC = () => {
 
                   // Genuine empty city
                   return (
-                    <div className="py-14 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-4">
-                      <div className="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center mx-auto">
+                    <div className="py-14 px-4 text-center rounded-3xl bg-[#1c1b1e] border border-white/8 space-y-4 shadow-lg">
+                      <div className="w-12 h-12 rounded-full bg-white/5 text-[#4edea3] flex items-center justify-center mx-auto border border-white/10">
                         <Calendar className="w-6 h-6" />
                       </div>
                       <div className="space-y-1.5 max-w-xs mx-auto">
                         <h3 className="font-bold text-sm text-white">
                           В г. {cityName} пока нет актуальных событий
                         </h3>
-                        <p className="text-xs text-gray-400 leading-relaxed">
+                        <p className="text-xs text-[#c4c7c8] leading-relaxed">
                           Станьте первым, кто опубликует событие, или выберите другой город.
                         </p>
                       </div>
@@ -910,7 +919,7 @@ export const App: React.FC = () => {
                             setPreselectedOrgForEventCreate(undefined);
                             setIsCreateEventModalOpen(true);
                           }}
-                          className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md shadow-indigo-600/25 transition-all btn-press flex items-center justify-center space-x-1.5"
+                          className="w-full py-2.5 px-4 rounded-full bg-white text-[#08080a] font-semibold text-xs shadow-md transition-all btn-press flex items-center justify-center space-x-1.5"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Создать событие</span>
@@ -921,9 +930,9 @@ export const App: React.FC = () => {
                             telegram.hapticImpact('light');
                             setIsCityModalOpen(true);
                           }}
-                          className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 text-xs font-medium transition-all btn-press flex items-center justify-center space-x-1.5"
+                          className="w-full py-2.5 px-4 rounded-full bg-white/5 hover:bg-white/10 text-[#c4c7c8] hover:text-white border border-white/10 text-xs font-medium transition-all btn-press flex items-center justify-center space-x-1.5"
                         >
-                          <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                          <MapPin className="w-3.5 h-3.5 text-[#8e9192]" />
                           <span>Выбрать другой город</span>
                         </button>
                       </div>
@@ -931,14 +940,123 @@ export const App: React.FC = () => {
                   );
                 })()
               ) : (
-                <div className="space-y-4">
-                  {events.map((event) => (
+                <div className="space-y-6">
+                  {/* 1. Featured Top Hero Event */}
+                  {events.length > 0 && (
                     <EventCard
-                      key={event.id}
-                      event={event}
-                      onClick={() => handleCardClick(event)}
+                      key={`hero-${events[0].id}`}
+                      event={events[0]}
+                      onClick={() => handleCardClick(events[0])}
+                      isHero={true}
                     />
-                  ))}
+                  )}
+
+                  {/* 2. Главное на выходных (Horizontal Weekend Highlights Carousel) */}
+                  {events.length > 1 && (
+                    <section className="space-y-2.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <h2 className="text-[15px] font-extrabold text-white tracking-tight">
+                            Главное на выходных
+                          </h2>
+                          <span className="text-[#10b981] text-xs">▾</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setDateFilter('weekend');
+                          }}
+                          className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-0.5 transition-colors"
+                        >
+                          <span>Все</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Horizontal Swipeable Track */}
+                      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none snap-x">
+                        {events.slice(1, 5).map((weEvent) => {
+                          const weDate = new Date(weEvent.start_at);
+                          const weFormatted = weDate.toLocaleDateString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase();
+                          const wePrice = weEvent.is_free
+                            ? 'Бесплатно'
+                            : weEvent.price_amount
+                              ? `${weEvent.price_amount} ₽`
+                              : 'Вход свободный';
+
+                          return (
+                            <div
+                              key={`we-${weEvent.id}`}
+                              onClick={() => handleCardClick(weEvent)}
+                              className="snap-start shrink-0 w-[210px] h-[220px] rounded-2xl overflow-hidden relative border border-white/10 bg-[#1c1b1e] cursor-pointer group shadow-[0_8px_20px_rgba(0,0,0,0.5)] flex flex-col justify-between p-3 active:scale-[0.98] transition-all"
+                            >
+                              <div className="absolute inset-0 z-0">
+                                <SafeImage
+                                  src={weEvent.cover_image_url}
+                                  alt={weEvent.title}
+                                  loading="eager"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-[#08080a]/50 to-black/35 pointer-events-none" />
+                              </div>
+
+                              <div className="relative z-10 flex items-center justify-between">
+                                <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white font-bold text-[10px] border border-white/10">
+                                  {weFormatted}
+                                </span>
+                                <div className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/90">
+                                  <Bookmark className={`w-3.5 h-3.5 ${weEvent.current_user_interested ? 'fill-white text-white' : 'text-white'}`} />
+                                </div>
+                              </div>
+
+                              <div className="relative z-10 flex flex-col gap-1">
+                                <h3 className="font-bold text-[13px] text-white line-clamp-2 leading-tight">
+                                  {weEvent.title}
+                                </h3>
+                                <span className="text-[10px] text-[#c4c7c8] truncate">
+                                  {weEvent.venue_name}
+                                </span>
+                                <div className="flex items-center justify-between pt-1">
+                                  <span className={`text-xs font-bold ${weEvent.is_free ? 'text-[#4edea3]' : 'text-white'}`}>
+                                    {wePrice}
+                                  </span>
+                                  {weEvent.category_name && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-white font-medium backdrop-blur-sm border border-white/10">
+                                      {weEvent.category_name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* 3. Все события (Vertical Cards) */}
+                  <section className="space-y-3 pt-1">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-[15px] font-extrabold text-white tracking-tight">
+                        Все события
+                      </h2>
+                      <span className="text-xs font-medium text-[#8e9192]">
+                        По дате ▾
+                      </span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {events.slice(1).map((event) => (
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          onClick={() => handleCardClick(event)}
+                          isHero={false}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 </div>
               )}
             </div>
@@ -1205,6 +1323,11 @@ export const App: React.FC = () => {
         currentTab={currentTab}
         onChangeTab={(tab) => setCurrentTab(tab)}
         isAdmin={isAdmin}
+        onOpenSearch={() => {
+          telegram.hapticImpact('light');
+          setSearchInitialQuery('');
+          setIsSearchOpen(true);
+        }}
       />
     </div>
   );

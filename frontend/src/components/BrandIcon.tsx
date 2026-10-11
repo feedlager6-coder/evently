@@ -24,7 +24,7 @@ export const BrandIcon: React.FC<BrandIconProps> = ({
 
   return (
     <div
-      className={`rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0 select-none ${className}`}
+      className={`rounded-xl bg-[#1c1b1e] border border-white/12 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.5)] flex items-center justify-center shrink-0 select-none ${className}`}
       aria-hidden="true"
     >
       <Compass className={iconClassName} />

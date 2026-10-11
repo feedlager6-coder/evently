@@ -1,9 +1,7 @@
 import React from 'react';
 import type { Category, DateFilterType } from '../types';
 import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass } from 'lucide-react';
-
 import { telegram } from '../services/telegram';
-import { AnimatedSegmentedControl } from './AnimatedSegmentedControl';
 
 interface FilterBarProps {
   dateFilter: DateFilterType;
@@ -14,7 +12,7 @@ interface FilterBarProps {
 }
 
 const DATE_OPTIONS: { id: DateFilterType; label: string }[] = [
-  { id: 'all', label: 'Все даты' },
+  { id: 'all', label: 'Все' },
   { id: 'today', label: 'Сегодня' },
   { id: 'tomorrow', label: 'Завтра' },
   { id: 'weekend', label: 'Выходные' },
@@ -38,52 +36,67 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onSelectCategory,
 }) => {
   return (
-    <div className="space-y-3 py-2">
-      {/* Date Quick Segmented Control */}
-      <div className="mx-4">
-        <AnimatedSegmentedControl
-          items={DATE_OPTIONS.map((opt) => ({
-            value: opt.id,
-            label: opt.label,
-          }))}
-          value={dateFilter}
-          onChange={onSelectDate}
-          size="sm"
-        />
+    <div className="space-y-3 pt-1 pb-1">
+      {/* Segmented Date Filter Bar */}
+      <div className="px-4">
+        <div className="flex items-center gap-1 p-1 bg-[#0e0e10]/85 backdrop-blur-xl rounded-full border border-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-x-auto no-scrollbar">
+          {DATE_OPTIONS.map((opt) => {
+            const isSelected = dateFilter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onSelectDate(opt.id);
+                }}
+                className={`flex-1 min-w-[70px] py-2 px-3 rounded-full text-center text-xs transition-all duration-200 ${
+                  isSelected
+                    ? 'bg-[#39393b] text-white font-semibold shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_8px_rgba(0,0,0,0.4)]'
+                    : 'text-[#c4c7c8] hover:text-white font-medium'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Horizontal Category Scroll Pills */}
-      <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar px-4 pb-1">
+      {/* Horizontal Category Chips */}
+      <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 no-scrollbar py-0.5">
         {/* 'All' Category Pill */}
         <button
+          type="button"
           onClick={() => {
             if (selectedCategoryId) telegram.hapticImpact('light');
             onSelectCategory(undefined);
           }}
-          className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all border ${
+          className={`flex items-center gap-1.5 px-4 h-9 rounded-full text-xs shrink-0 transition-all active:scale-95 ${
             !selectedCategoryId
-              ? 'bg-white text-gray-900 border-white shadow-sm'
-              : 'bg-[#161A28] text-gray-300 border-white/8 hover:border-white/20'
+              ? 'bg-white text-[#08080a] font-bold shadow-[0_0_14px_rgba(255,255,255,0.2)]'
+              : 'bg-[#2a2a2c]/60 text-[#c4c7c8] hover:text-white border border-white/5 font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)]'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Все категории</span>
+          <span>Все</span>
         </button>
 
-        {/* Dynamic Category Pills */}
+        {/* Dynamic Category Chips */}
         {categories.map((cat) => {
           const isSelected = selectedCategoryId === cat.id;
           return (
             <button
               key={cat.id}
+              type="button"
               onClick={() => {
                 telegram.hapticImpact('light');
                 onSelectCategory(isSelected ? undefined : cat.id);
               }}
-              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap pill-press transition-all border ${
+              className={`flex items-center gap-1.5 px-4 h-9 rounded-full text-xs shrink-0 transition-all active:scale-95 ${
                 isSelected
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/25'
-                  : 'bg-[#161A28] text-gray-300 border-white/8 hover:border-white/20'
+                  ? 'bg-white text-[#08080a] font-bold shadow-[0_0_14px_rgba(255,255,255,0.2)]'
+                  : 'bg-[#2a2a2c]/60 text-[#c4c7c8] hover:text-white border border-white/5 font-medium shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)]'
               }`}
             >
               <span>{CATEGORY_ICONS[cat.id] || <Sparkles className="w-3.5 h-3.5" />}</span>

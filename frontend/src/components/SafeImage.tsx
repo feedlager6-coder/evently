@@ -16,22 +16,19 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   alt,
   fallbackSrc = DEFAULT_EVENT_FALLBACK,
   className = 'w-full h-full object-cover',
-  loading = 'lazy',
+  loading = 'eager',
 }) => {
   const [currentSrc, setCurrentSrc] = useState<string>(src || fallbackSrc);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     setCurrentSrc(src && src.trim() ? src.trim() : fallbackSrc);
-    setIsLoaded(false);
     setIsError(false);
   }, [src, fallbackSrc]);
 
   const handleError = () => {
     console.warn('[Ivently Media] Image failed to load:', currentSrc);
     if (currentSrc !== fallbackSrc) {
-      // Try fallback source once
       setCurrentSrc(fallbackSrc);
     } else {
       setIsError(true);
@@ -40,8 +37,8 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 
   if (isError) {
     return (
-      <div className={`w-full h-full bg-[#121624] flex items-center justify-center text-indigo-400/40 ${className}`}>
-        <Compass className="w-10 h-10 opacity-30" />
+      <div className={`w-full h-full bg-[#1c1b1e] flex items-center justify-center text-zinc-600 ${className}`}>
+        <Compass className="w-8 h-8 opacity-30 text-white" />
       </div>
     );
   }
@@ -51,9 +48,8 @@ export const SafeImage: React.FC<SafeImageProps> = ({
       src={currentSrc}
       alt={alt}
       loading={loading}
-      onLoad={() => setIsLoaded(true)}
       onError={handleError}
-      className={`${className} transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-60'}`}
+      className={className}
     />
   );
 };

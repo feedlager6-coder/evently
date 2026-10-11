@@ -6,26 +6,30 @@
   }
 
   :root {
-    /* Background Design Tokens */
-    --bg-canvas: #0B0D13;
-    --bg-elevated: #131722;
-    --bg-surface: #191E2E;
-    --bg-glass-nav: rgba(14, 16, 26, 0.88);
+    /* Obsidian Optical Background Tokens */
+    --bg-canvas: #08080A;
+    --bg-surface: #121215;
+    --bg-elevated: #1A1A1F;
+    --bg-card: #1C1B1E;
+    --bg-bright: #39393B;
+    --bg-glass-nav: rgba(14, 14, 16, 0.82);
 
-    /* Border Tokens */
+    /* Border & Specular Tokens */
     --border-subtle: rgba(255, 255, 255, 0.08);
-    --border-active: rgba(99, 102, 241, 0.45);
+    --border-specular: rgba(255, 255, 255, 0.14);
+    --border-active: rgba(255, 255, 255, 0.32);
 
-    /* Brand Accent & Glow Tokens */
-    --brand-primary: #6366F1;
-    --brand-purple: #8B5CF6;
-    --brand-glow: rgba(99, 102, 241, 0.25);
-    --brand-glow-emerald: rgba(16, 185, 129, 0.3);
+    /* Semantic Tokens */
+    --brand-emerald: #10B981;
+    --brand-emerald-dim: #4edea3;
+    --brand-amber: #F59E0B;
+    --brand-glow: rgba(255, 255, 255, 0.12);
+    --brand-glow-emerald: rgba(16, 185, 129, 0.25);
 
     /* Typography Tokens */
     --text-primary: #FFFFFF;
-    --text-secondary: #94A3B8;
-    --text-muted: #64748B;
+    --text-secondary: #C4C7C8;
+    --text-muted: #8E9192;
 
     /* Physics Curves */
     --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
