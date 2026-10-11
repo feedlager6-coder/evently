@@ -88,7 +88,7 @@ export const MySubscriptionsModal: React.FC<MySubscriptionsModalProps> = ({
               <div className="text-xs font-semibold">{error}</div>
               <button
                 onClick={loadSubscriptions}
-                className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white text-xs font-medium hover:bg-white/90 mt-2 btn-press"
+                className="px-4 py-2 rounded-xl bg-white text-black font-bold active:scale-95 text-xs hover:bg-zinc-200 mt-2 btn-press"
               >
                 Повторить попытку
               </button>

@@ -865,9 +865,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   telegram.hapticImpact('light');
                   onOpenCreateEvent();
                 }}
-                className="p-3 rounded-2xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/15 border border-white/10 hover:bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/25 flex items-center justify-center space-x-2 text-xs font-semibold text-[#c4c7c8] transition-all btn-press"
+                className="p-3 rounded-2xl bg-white text-black font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] flex items-center justify-center space-x-2 text-xs transition-all hover:bg-zinc-200 btn-press"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 text-black" />
                 <span>Новое событие</span>
               </button>
 
@@ -884,7 +884,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </div>
 
             {/* Pro Foundation Fake Door Card */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-900/20 via-indigo-900/15 to-[#201f22] border border-white/10 space-y-3">
+            <div className="p-3.5 rounded-2xl bg-[#1c1b1e] border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <div className="w-7 h-7 rounded-xl bg-[#2a2a2c] border border-white/10 flex items-center justify-center text-[#ffb95f] shrink-0">
@@ -921,7 +921,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     telegram.hapticImpact('light');
                     setIsProModalOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-white/10 text-[#ffddb8] font-semibold text-xs transition-all btn-press"
+                  className="px-3 py-1.5 rounded-xl bg-[#ffb95f]/15 hover:bg-[#ffb95f]/25 border border-[#ffb95f]/30 text-[#ffb95f] font-semibold text-xs transition-all btn-press"
                 >
                   {entitlements?.plan === 'pro' ? 'Возможности Pro' : 'Узнать о Pro'}
                 </button>
@@ -1083,7 +1083,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <p className="text-xs text-gray-400">Нет опубликованных предстоящих событий</p>
                   <button
                     onClick={() => onOpenCreateEvent()}
-                    className="px-3 py-1.5 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white text-xs font-medium hover:bg-white/90 btn-press"
+                    className="px-3 py-1.5 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md text-xs hover:bg-zinc-200 btn-press"
                   >
                     Опубликовать анонс
                   </button>
@@ -1157,7 +1157,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                                 setIsProModalOpen(true);
                               }
                             }}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-white/10 text-[11px] text-[#ffddb8] transition-all btn-press gap-2"
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-[#ffb95f]/10 hover:bg-[#ffb95f]/15 border border-[#ffb95f]/25 text-[11px] text-[#ffddb8] transition-all btn-press gap-2"
                           >
                             <div className="min-w-0 pr-1">
                               <span className="text-white font-medium">
@@ -1169,7 +1169,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             </div>
                             <button
                               type="button"
-                              className="px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-white/10 transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-[#ffb95f]/25 text-[#ffb95f] font-semibold text-[11px] shrink-0 border border-white/10 transition-all flex items-center gap-1"
                             >
                               <span>Написать им</span>
                               <span className="text-xs">→</span>
@@ -1194,7 +1194,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 onClick={() => handleFilterChange('upcoming')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   eventFilter === 'upcoming'
-                    ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white shadow-sm'
+                    ? 'bg-white text-black font-bold active:scale-95 shadow-sm'
                     : 'bg-[#201f22] text-gray-400 border border-white/5 hover:text-white'
                 }`}
               >
@@ -1204,7 +1204,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 onClick={() => handleFilterChange('pending')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   eventFilter === 'pending'
-                    ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white shadow-sm'
+                    ? 'bg-white text-black font-bold active:scale-95 shadow-sm'
                     : 'bg-[#201f22] text-gray-400 border border-white/5 hover:text-white'
                 }`}
               >
@@ -1214,7 +1214,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 onClick={() => handleFilterChange('past')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   eventFilter === 'past'
-                    ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white shadow-sm'
+                    ? 'bg-white text-black font-bold active:scale-95 shadow-sm'
                     : 'bg-[#201f22] text-gray-400 border border-white/5 hover:text-white'
                 }`}
               >
@@ -1243,7 +1243,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 {eventFilter === 'upcoming' && (
                   <button
                     onClick={() => onOpenCreateEvent()}
-                    className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white text-xs font-semibold hover:bg-white/90 btn-press"
+                    className="px-4 py-2 rounded-xl bg-white text-black font-bold active:scale-95 text-xs hover:bg-zinc-200 shadow-md btn-press"
                   >
                     Создать событие
                   </button>
@@ -1349,7 +1349,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                               setIsProModalOpen(true);
                             }
                           }}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-white/10 text-[11px] text-[#ffddb8] transition-all btn-press gap-2"
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-[#ffb95f]/10 hover:bg-[#ffb95f]/15 border border-[#ffb95f]/25 text-[11px] text-[#ffddb8] transition-all btn-press gap-2"
                         >
                           <div className="min-w-0 pr-1">
                             <span className="text-white font-medium">
@@ -1361,7 +1361,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           </div>
                           <button
                             type="button"
-                            className="px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-purple-500/30 text-purple-200 font-semibold text-[11px] shrink-0 border border-white/10 transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-[#ffb95f]/25 text-[#ffb95f] font-semibold text-[11px] shrink-0 border border-white/10 transition-all flex items-center gap-1"
                           >
                             <span>Написать им</span>
                             <span className="text-xs">→</span>
@@ -1391,7 +1391,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                     selectedAudienceOrgId === null
-                      ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white shadow-sm'
+                      ? 'bg-white text-black font-bold active:scale-95 shadow-sm'
                       : 'bg-[#201f22] text-gray-400 border border-white/5 hover:text-white'
                   }`}
                 >
@@ -1406,7 +1406,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
                       selectedAudienceOrgId === org.id
-                        ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-white shadow-sm'
+                        ? 'bg-white text-black font-bold active:scale-95 shadow-sm'
                         : 'bg-[#201f22] text-gray-400 border border-white/5 hover:text-white'
                     }`}
                   >
@@ -1653,7 +1653,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <button
                     onClick={handleOpenComposer}
                     disabled={organizations.length === 0}
-                    className="px-3.5 py-2 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-white/90 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-black/40 transition-all btn-press flex items-center justify-center space-x-1.5 shrink-0 self-start sm:self-auto"
+                    className="px-3.5 py-2 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 disabled:opacity-50 text-xs transition-all btn-press flex items-center justify-center space-x-1.5 shrink-0 self-start sm:self-auto"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Создать рассылку</span>
@@ -1680,7 +1680,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </div>
                 <button
                   onClick={onOpenCreateOrg}
-                  className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-white/90 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
+                  className="px-4 py-2 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 text-xs btn-press inline-flex items-center space-x-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Создать организацию</span>
@@ -1689,7 +1689,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             ) : entitlements?.plan === 'pro' ? (
               <div className="p-3.5 rounded-2xl bg-[#201f22] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-purple-400 shadow-sm shadow-purple-500/50" />
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#ffb95f] shadow-sm shadow-[#ffb95f]/40" />
                   <div className="min-w-0 text-xs text-gray-200">
                     <span>
                       Тариф Pro: отправлено <strong className="text-white">{entitlements?.limits?.broadcasts_used_this_month ?? 0}</strong> из {entitlements?.limits?.broadcasts_per_month ?? 20} анонсов в этом месяце
@@ -1712,7 +1712,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#201f22] border border-white/10 space-y-3.5">
+              <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/10 space-y-3.5">
                 {isAdmin && (
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
                     <span className="text-[11px] text-amber-300 font-medium">
@@ -1773,9 +1773,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       telegram.hapticImpact('light');
                       setIsProModalOpen(true);
                     }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#10b981] to-[#00a572] hover:from-[#4edea3] hover:to-[#10b981] text-white font-semibold text-xs transition-all shadow-md shadow-purple-600/25 flex items-center justify-center space-x-2 btn-press"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white text-black font-bold active:scale-95 text-xs transition-all shadow-md hover:bg-zinc-200 flex items-center justify-center space-x-2 btn-press"
                   >
-                    <Sparkles className="w-4 h-4" />
+                    <Sparkles className="w-4 h-4 text-black" />
                     <span>Узнать о возможностях Pro</span>
                   </button>
                 </div>
@@ -1809,7 +1809,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     <button
                       onClick={handleOpenComposer}
                       disabled={organizations.length === 0}
-                      className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-white/90 disabled:opacity-50 text-white text-xs font-semibold btn-press inline-flex items-center space-x-1.5"
+                      className="px-4 py-2 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 disabled:opacity-50 text-xs btn-press inline-flex items-center space-x-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Создать рассылку</span>
@@ -1975,7 +1975,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   }}
                   className={`p-3 rounded-2xl border text-left transition-all ${
                     composerTemplateKey === 'event_announcement'
-                      ? 'bg-purple-600/20 border-purple-500 text-white'
+                      ? 'bg-[#10b981]/15 border-[#10b981]/40 text-white shadow-sm'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
@@ -1996,7 +1996,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   }}
                   className={`p-3 rounded-2xl border text-left transition-all ${
                     composerTemplateKey === 'custom_update'
-                      ? 'bg-purple-600/20 border-purple-500 text-white'
+                      ? 'bg-[#10b981]/15 border-[#10b981]/40 text-white shadow-sm'
                       : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                   }`}
                 >
@@ -2010,7 +2010,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </button>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-white/10 text-[10.5px] text-purple-200/90 leading-snug">
+              <div className="p-2.5 rounded-xl bg-[#ffb95f]/10 border border-[#ffb95f]/25 text-[10.5px] text-[#ffddb8] leading-snug">
                 Рассылка подписчикам в Telegram (тариф Pro). Не чаще 1 раза в 24 часа одному получателю. Сервисные уведомления об изменениях событий отправляются системой автоматически.
               </div>
             </div>
@@ -2107,7 +2107,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     onClick={() => setComposerTargetType('organization_subscribers')}
                     className={`p-2.5 rounded-xl border text-left transition-all ${
                       composerTargetType === 'organization_subscribers'
-                        ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/20 border-[#4edea3] text-white'
+                        ? 'bg-[#10b981]/15 border-[#10b981]/40 text-white shadow-sm'
                         : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                     }`}
                   >
@@ -2119,7 +2119,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     onClick={() => setComposerTargetType('event_interest')}
                     className={`p-2.5 rounded-xl border text-left transition-all ${
                       composerTargetType === 'event_interest'
-                        ? 'bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/20 border-[#4edea3] text-white'
+                        ? 'bg-[#10b981]/15 border-[#10b981]/40 text-white shadow-sm'
                         : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                     }`}
                   >
@@ -2171,7 +2171,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         telegram.hapticImpact('light');
                         setIsProModalOpen(true);
                       }}
-                      className="text-xs font-semibold text-[#ffddb8] hover:text-purple-200 flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-[#2a2a2c] border border-white/10 btn-press"
+                      className="text-xs font-semibold text-[#ffddb8] hover:text-white flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-[#2a2a2c] border border-white/10 btn-press"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-[#ffb95f]" />
                       <span>Узнать о возможностях Pro</span>
@@ -2226,7 +2226,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     dangerouslySetInnerHTML={{ __html: previewData.preview_text }}
                   />
                   <div className="pt-2 border-t border-white/5">
-                    <div className="w-full py-2 px-3 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/30 border border-white/10 text-center text-xs font-semibold text-[#c4c7c8] truncate">
+                    <div className="w-full py-2 px-3 rounded-xl bg-white/10 border border-white/15 text-center text-xs font-semibold text-white truncate">
                       {previewData.preview_button_text}
                     </div>
                   </div>
@@ -2245,7 +2245,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       telegram.hapticImpact('light');
                       setIsProModalOpen(true);
                     }}
-                    className="text-xs font-semibold text-[#ffddb8] hover:text-purple-200 flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-[#2a2a2c] border border-white/10 btn-press"
+                    className="text-xs font-semibold text-[#ffddb8] hover:text-white flex items-center space-x-1.5 py-1 px-2.5 rounded-lg bg-[#2a2a2c] border border-white/10 btn-press"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-[#ffb95f]" />
                     <span>Узнать о возможностях Pro</span>
@@ -2267,7 +2267,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 type="button"
                 onClick={handleSendBroadcast}
                 disabled={!previewData || previewData.eligible_recipients === 0 || isSubmittingBroadcast}
-                className="flex-1 py-2.5 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-white/90 disabled:opacity-40 disabled:hover:bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)] text-xs font-semibold text-white shadow-md shadow-black/40 transition-all btn-press flex items-center justify-center space-x-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 disabled:opacity-40 disabled:hover:bg-white text-xs transition-all btn-press flex items-center justify-center space-x-1.5"
               >
                 {isSubmittingBroadcast ? (
                   <span>Отправка...</span>
@@ -2412,7 +2412,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     dangerouslySetInnerHTML={{ __html: selectedBroadcast.message_text }}
                   />
                   <div className="pt-2 border-t border-white/5">
-                    <div className="w-full py-1.5 px-3 rounded-xl bg-white text-[#1a1c1c] font-bold active:scale-95 shadow-[0_2px_12px_rgba(255,255,255,0.2)]/20 text-center text-xs font-semibold text-[#c4c7c8]">
+                    <div className="w-full py-1.5 px-3 rounded-xl bg-white/10 border border-white/15 text-center text-xs font-semibold text-white">
                       {selectedBroadcast.button_text}
                     </div>
                   </div>
@@ -2458,7 +2458,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
             {/* If Pro is already active */}
             {entitlements?.plan === 'pro' ? (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#201f22] border border-white/10 space-y-3">
+              <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#ffddb8] uppercase tracking-wider flex items-center space-x-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-[#ffb95f]" />
@@ -2493,7 +2493,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <button
                     onClick={handleInitiateProPayment}
                     disabled={isPaying || !(paymentConfig?.payments_enabled ?? false)}
-                    className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold text-xs transition-all btn-press flex items-center justify-center space-x-2"
+                    className="w-full py-2.5 rounded-xl bg-white text-black font-bold active:scale-95 hover:bg-zinc-200 disabled:opacity-50 text-xs transition-all btn-press shadow-md flex items-center justify-center space-x-2"
                   >
                     {isPaying ? (
                       <>
@@ -2513,7 +2513,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               /* Upgrade to Pro Flow */
               <div className="space-y-3 pt-1">
                 {/* Price & Period Badge */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/40 via-purple-900/20 to-[#201f22] border border-white/10 text-center space-y-1">
+                <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/10 text-center space-y-1">
                   <div className="text-2xl font-black text-white tracking-tight">
                     {paymentConfig?.pro_monthly_price_rub ?? 499} ₽
                     <span className="text-xs font-normal text-[#ffddb8] ml-1.5">
@@ -2562,7 +2562,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     value={checkoutEmail}
                     onChange={(e) => setCheckoutEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs placeholder:text-gray-600 focus:outline-none focus:border-[#ffb95f] transition-colors"
                   />
                   <p className="text-[10px] text-gray-500">
                     Для плательщиков НПД электронный чек формируется после зачисления платежа.
@@ -2574,7 +2574,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <button
                     onClick={handleInitiateProPayment}
                     disabled={isPaying}
-                    className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs transition-all btn-press shadow-lg shadow-purple-600/30 flex items-center justify-center space-x-2"
+                    className="w-full py-3 rounded-2xl bg-white text-black font-bold text-xs transition-all btn-press shadow-md hover:bg-zinc-200 disabled:opacity-50 flex items-center justify-center space-x-2"
                   >
                     {isPaying ? (
                       <>
@@ -2663,7 +2663,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     setPaymentPollStatus(null);
                     loadEntitlements();
                   }}
-                  className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors btn-press mt-2"
+                  className="w-full py-2.5 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 text-xs transition-colors btn-press mt-2"
                 >
                   Отлично
                 </button>
@@ -2697,7 +2697,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           .catch(() => setPaymentPollStatus('pending'));
                       }
                     }}
-                    className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold btn-press"
+                    className="flex-1 py-2 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 text-xs btn-press"
                   >
                     Проверить снова
                   </button>
@@ -2726,7 +2726,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       setPaymentPollStatus(null);
                       setIsProModalOpen(true);
                     }}
-                    className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold btn-press"
+                    className="flex-1 py-2 rounded-xl bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200 text-xs btn-press"
                   >
                     Попробовать снова
                   </button>

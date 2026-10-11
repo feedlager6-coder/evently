@@ -2,14 +2,21 @@ import React from 'react';
 import type { EventSummary } from '../types';
 import { Calendar, MapPin, Users, Check, Bookmark } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { telegram } from '../services/telegram';
 
 interface EventCardProps {
   event: EventSummary;
   onClick: () => void;
   isHero?: boolean;
+  onToggleInterest?: (event: EventSummary) => void;
 }
 
-export const EventCard: React.FC<EventCardProps> = ({ event, onClick, isHero = false }) => {
+export const EventCard: React.FC<EventCardProps> = ({
+  event,
+  onClick,
+  isHero = false,
+  onToggleInterest,
+}) => {
   // Format date nicely
   const eventDate = new Date(event.start_at);
   const formattedDate = eventDate.toLocaleDateString('ru-RU', {
@@ -29,6 +36,14 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick, isHero = f
 
   const isPast = eventDate < new Date();
   const isCancelled = event.status === 'cancelled';
+
+  const handleBookmarkClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    telegram.hapticImpact('light');
+    if (onToggleInterest) {
+      onToggleInterest(event);
+    }
+  };
 
   // Hero Card Presentation (First item in feed matching Stitch)
   if (isHero) {
@@ -67,9 +82,14 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick, isHero = f
                   <span>Вы идёте</span>
                 </span>
               ) : null}
-              <div className="w-9 h-9 rounded-full bg-[#0e0e10]/80 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/90 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
+              <button
+                type="button"
+                onClick={handleBookmarkClick}
+                aria-label={event.current_user_interested ? 'Удалить из закладок' : 'В закладки'}
+                className="w-9 h-9 rounded-full bg-[#0e0e10]/80 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/90 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] active:scale-90 transition-transform btn-press"
+              >
                 <Bookmark className={`w-4 h-4 ${event.current_user_interested ? 'fill-white text-white' : 'text-white'}`} />
-              </div>
+              </button>
             </div>
           </div>
 
@@ -169,9 +189,14 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick, isHero = f
                 <span>Идёте</span>
               </span>
             ) : null}
-            <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/80 shadow-sm">
+            <button
+              type="button"
+              onClick={handleBookmarkClick}
+              aria-label={event.current_user_interested ? 'Удалить из закладок' : 'В закладки'}
+              className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/80 shadow-sm active:scale-90 transition-transform btn-press"
+            >
               <Bookmark className={`w-3.5 h-3.5 ${event.current_user_interested ? 'fill-white text-white' : 'text-white'}`} />
-            </div>
+            </button>
           </div>
         </div>
 

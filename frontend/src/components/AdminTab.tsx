@@ -150,13 +150,13 @@ export const AdminTab: React.FC<AdminTabProps> = ({
   return (
     <div className="space-y-4 px-4 py-2">
       {/* Admin Header */}
-      <div className="p-4 rounded-2xl bg-[#171A29] border border-indigo-500/30 flex items-center justify-between">
+      <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/8 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
           <BrandIcon className="w-8 h-8" iconClassName="w-4 h-4 text-white" />
           <div>
             <div className="flex items-center space-x-1.5">
               <h3 className="font-bold text-sm text-white">Панель администратора</h3>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#4edea3]/15 text-[#4edea3] border border-[#4edea3]/25">
                 Admin
               </span>
             </div>
@@ -173,7 +173,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       )}
 
       {/* Admin Section Switcher */}
-      <div className="flex bg-[#141724] p-1 rounded-xl border border-white/5 text-xs">
+      <div className="flex bg-[#201f22] p-1 rounded-xl border border-white/5 text-xs">
         <button
           onClick={() => {
             telegram.hapticSelection();
@@ -181,7 +181,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           }}
           className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press flex items-center justify-center space-x-1.5 ${
             adminSection === 'events'
-              ? 'bg-indigo-600 text-white shadow'
+              ? 'bg-white text-black font-bold shadow-md'
               : 'text-gray-400 hover:text-white'
           }`}
         >
@@ -194,7 +194,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           }}
           className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press flex items-center justify-center space-x-1.5 ${
             adminSection === 'organizations'
-              ? 'bg-indigo-600 text-white shadow'
+              ? 'bg-white text-black font-bold shadow-md'
               : 'text-gray-400 hover:text-white'
           }`}
         >
@@ -207,7 +207,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       {adminSection === 'events' && (
         <div className="space-y-3">
           {/* Status Segmented Control */}
-          <div className="flex bg-[#141724] p-1 rounded-xl border border-white/5 text-xs">
+          <div className="flex bg-[#201f22] p-1 rounded-xl border border-white/5 text-xs">
             <button
               onClick={() => {
                 telegram.hapticSelection();
@@ -215,7 +215,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
               }}
               className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
                 activeStatus === 'pending'
-                  ? 'bg-indigo-600 text-white shadow'
+                  ? 'bg-white text-black font-bold shadow-md'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -228,7 +228,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
               }}
               className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
                 activeStatus === 'published'
-                  ? 'bg-indigo-600 text-white shadow'
+                  ? 'bg-white text-black font-bold shadow-md'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -241,7 +241,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
               }}
               className={`flex-1 py-1.5 font-medium rounded-lg transition-all pill-press ${
                 activeStatus === 'rejected'
-                  ? 'bg-indigo-600 text-white shadow'
+                  ? 'bg-white text-black font-bold shadow-md'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -254,8 +254,8 @@ export const AdminTab: React.FC<AdminTabProps> = ({
             {isLoading ? (
               <div className="py-12 text-center text-xs text-gray-400">Загрузка очереди...</div>
             ) : events.length === 0 ? (
-              <div className="py-12 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-2.5">
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-indigo-400">
+              <div className="py-12 px-4 text-center rounded-2xl bg-[#1c1b1e] border border-white/5 space-y-2.5">
+                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-[#4edea3]">
                   <Compass className="w-5 h-5" />
                 </div>
                 <p className="text-xs text-gray-400">В этой категории нет событий</p>
@@ -275,11 +275,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                   <div
                     key={ev.id}
                     onClick={() => onEventClick(ev)}
-                    className="p-4 rounded-2xl bg-[#141724] border border-white/8 hover:border-white/15 transition-all space-y-3 cursor-pointer"
+                    className="p-4 rounded-2xl bg-[#1c1b1e] border border-white/8 hover:border-white/15 transition-all space-y-3 cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider">
+                        <span className="text-[10px] font-semibold text-[#4edea3] uppercase tracking-wider">
                           {ev.category_name} · {ev.city_name}
                         </span>
                         <h4 className="font-bold text-sm text-white leading-tight mt-0.5">{ev.title}</h4>
@@ -288,7 +288,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
 
                     <div className="flex items-center space-x-3 text-xs text-gray-400">
                       <div className="flex items-center space-x-1">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                        <Calendar className="w-3.5 h-3.5 text-[#ffb95f]" />
                         <span>{dateStr}</span>
                       </div>
                       <div className="flex items-center space-x-1 truncate">
@@ -309,7 +309,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                           type="text"
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-[#141724] border border-white/10 text-white"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[#201f22] border border-white/10 text-white"
                           required
                         />
                         <div className="flex space-x-2">
@@ -385,9 +385,9 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       {/* SECTION 2: ORGANIZATIONS & PRO TESTING */}
       {adminSection === 'organizations' && (
         <div className="space-y-3">
-          <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs space-y-1.5">
-            <div className="flex items-center space-x-1.5 text-purple-300 font-semibold">
-              <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+          <div className="p-3 rounded-xl bg-[#ffb95f]/10 border border-[#ffb95f]/25 text-xs space-y-1.5">
+            <div className="flex items-center space-x-1.5 text-[#ffb95f] font-semibold">
+              <Sparkles className="w-4 h-4 text-[#ffb95f] shrink-0" />
               <span>Тестирование Pro-тарифов</span>
             </div>
             <p className="text-[11px] text-gray-300 leading-snug">
@@ -404,7 +404,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                 value={orgSearchQuery}
                 onChange={(e) => setOrgSearchQuery(e.target.value)}
                 placeholder="Поиск по названию или категории..."
-                className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#141724] border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50"
+                className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#201f22] border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-white/30"
               />
             </div>
             <button
@@ -421,11 +421,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           <div className="space-y-2.5">
             {isLoadingOrgs ? (
               <div className="py-12 text-center text-xs text-gray-400 flex items-center justify-center space-x-2">
-                <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-[#4edea3]" />
                 <span>Загрузка организаций...</span>
               </div>
             ) : filteredOrgs.length === 0 ? (
-              <div className="py-12 px-4 text-center rounded-2xl bg-[#141724] border border-white/5 space-y-2">
+              <div className="py-12 px-4 text-center rounded-2xl bg-[#1c1b1e] border border-white/5 space-y-2">
                 <Building2 className="w-8 h-8 text-gray-500 mx-auto" />
                 <p className="text-xs text-gray-400">
                   {orgSearchQuery.trim() ? 'Организации не найдены по запросу' : 'Список организаций пуст'}
@@ -439,7 +439,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                 return (
                   <div
                     key={org.id}
-                    className="p-3.5 rounded-2xl bg-[#141724] border border-white/8 hover:border-white/15 transition-all space-y-2.5"
+                    className="p-3.5 rounded-2xl bg-[#1c1b1e] border border-white/8 hover:border-white/15 transition-all space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -448,7 +448,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                           <span
                             className={`text-[9.5px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
                               isPro
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-[#ffb95f]/15 text-[#ffb95f] border border-[#ffb95f]/30'
                                 : 'bg-white/10 text-gray-400'
                             }`}
                           >
@@ -466,7 +466,7 @@ export const AdminTab: React.FC<AdminTabProps> = ({
                         className={`px-3 py-1.5 rounded-xl font-semibold text-xs transition-all btn-press shrink-0 flex items-center space-x-1.5 ${
                           isPro
                             ? 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
-                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20'
+                            : 'bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200'
                         }`}
                       >
                         {isToggling ? (

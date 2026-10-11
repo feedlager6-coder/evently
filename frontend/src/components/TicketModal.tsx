@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { EventResponse, EventSummary } from '../types';
 import { telegram } from '../services/telegram';
-import { ArrowLeft, Share2, Check, Download } from 'lucide-react';
+import { ArrowLeft, Share2, Check, Copy } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import QRCode from 'qrcode';
 
 interface TicketModalProps {
   isOpen: boolean;
@@ -20,6 +21,36 @@ export const TicketModal: React.FC<TicketModalProps> = ({
   tierName = 'Входной билет',
 }) => {
   const [copiedToast, setCopiedToast] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+  const generatedTicketNo = event
+    ? ticketNumber || `IVN-${event.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`
+    : '';
+
+  useEffect(() => {
+    if (!event || !isOpen) return;
+
+    const qrPayload = JSON.stringify({
+      ticket_id: generatedTicketNo,
+      event_id: event.id,
+      title: event.title,
+      start_at: event.start_at,
+      venue: event.venue_name,
+      platform: 'ivently_tma_v1',
+    });
+
+    QRCode.toDataURL(qrPayload, {
+      width: 280,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#000000',
+        light: '#ffffff',
+      },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch((err) => console.error('Failed to generate ticket QR code:', err));
+  }, [event, isOpen, generatedTicketNo]);
 
   if (!isOpen || !event) return null;
 
@@ -31,11 +62,21 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     minute: '2-digit',
   });
 
-  const generatedTicketNo = ticketNumber || `IVN-${event.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+  const handleShareTelegram = () => {
+    telegram.hapticImpact('medium');
+    const shareText = `Мой электронный билет на «${event.title}» в Ivently!\n📅 Дата: ${formattedDate}\n📍 Место: ${event.venue_name || 'г. Махачкала'}\n🎟 Номер: ${generatedTicketNo}`;
+    const directEventUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/Ivently_bot?start=event_${event.id}`)}&text=${encodeURIComponent(shareText)}`;
 
-  const handleShareTicket = () => {
+    if (window.Telegram?.WebApp?.openTelegramLink) {
+      window.Telegram.WebApp.openTelegramLink(directEventUrl);
+    } else {
+      window.open(directEventUrl, '_blank');
+    }
+  };
+
+  const handleCopyTicketData = () => {
     telegram.hapticImpact('light');
-    const shareText = `Мой билет на «${event.title}» в Ivently!\nДата: ${formattedDate}\nМесто: ${event.venue_name || 'г. Махачкала'}`;
+    const shareText = `Электронный билет Ivently\nСобытие: «${event.title}»\nБилет №: ${generatedTicketNo}\nДата: ${formattedDate}\nЛокация: ${event.venue_name || 'г. Махачкала'}\nКатегория: ${tierName}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareText);
       setCopiedToast(true);
@@ -63,9 +104,10 @@ export const TicketModal: React.FC<TicketModalProps> = ({
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={handleShareTicket}
+            onClick={handleShareTelegram}
             className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 flex items-center justify-center text-[#c4c7c8] hover:text-white transition-all border border-white/10"
-            title="Поделиться"
+            title="Отправить в Telegram"
+            aria-label="Отправить в Telegram"
           >
             <Share2 className="w-4 h-4" />
           </button>
@@ -73,12 +115,12 @@ export const TicketModal: React.FC<TicketModalProps> = ({
       </header>
 
       {/* Main Ticket Surface Container */}
-      <main className="flex-1 max-w-[420px] w-full mx-auto p-4 flex flex-col justify-between space-y-5 pb-12">
+      <main className="flex-1 max-w-[420px] w-full mx-auto p-4 flex flex-col justify-between space-y-5 pb-[calc(2.5rem+var(--safe-bottom,0px))]">
         {/* Ticket Card matching Stitch Obsidian Optical */}
         <div className="rounded-[28px] relative overflow-hidden flex flex-col bg-[#151518] border border-white/12 shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
           {/* Perforation notches */}
-          <div className="absolute w-6 h-6 rounded-full bg-[#08080a] border border-white/10 left-[-12px] top-[60%] -translate-y-1/2 z-20 pointer-events-none" />
-          <div className="absolute w-6 h-6 rounded-full bg-[#08080a] border border-white/10 right-[-12px] top-[60%] -translate-y-1/2 z-20 pointer-events-none" />
+          <div className="absolute w-6 h-6 rounded-full bg-[#08080a] border border-white/10 left-[-12px] top-[58%] -translate-y-1/2 z-20 pointer-events-none" />
+          <div className="absolute w-6 h-6 rounded-full bg-[#08080a] border border-white/10 right-[-12px] top-[58%] -translate-y-1/2 z-20 pointer-events-none" />
 
           {/* Upper Ticket Part: Event Hero & Info */}
           <div className="p-5 pb-6 space-y-4">
@@ -143,58 +185,42 @@ export const TicketModal: React.FC<TicketModalProps> = ({
 
           {/* Lower Ticket Part: High-Contrast Scanning Surface for Bouncers */}
           <div className="p-6 bg-[#1a1a1e] flex flex-col items-center text-center space-y-3">
-            <div className="w-52 h-52 bg-white rounded-2xl p-4 shadow-2xl flex flex-col items-center justify-center">
-              {/* Scalable SVG High-Contrast QR Pattern */}
-              <svg className="w-full h-full text-black" fill="currentColor" viewBox="0 0 100 100">
-                {/* Finder patterns */}
-                <rect x="5" y="5" width="26" height="26" rx="4" />
-                <rect x="9" y="9" width="18" height="18" rx="2" fill="white" />
-                <rect x="13" y="13" width="10" height="10" rx="1" />
-
-                <rect x="69" y="5" width="26" height="26" rx="4" />
-                <rect x="73" y="9" width="18" height="18" rx="2" fill="white" />
-                <rect x="77" y="13" width="10" height="10" rx="1" />
-
-                <rect x="5" y="69" width="26" height="26" rx="4" />
-                <rect x="9" y="73" width="18" height="18" rx="2" fill="white" />
-                <rect x="13" y="77" width="10" height="10" rx="1" />
-
-                {/* Data blocks */}
-                <rect x="36" y="8" width="6" height="6" />
-                <rect x="46" y="8" width="6" height="6" />
-                <rect x="56" y="14" width="7" height="7" />
-                <rect x="36" y="24" width="7" height="7" />
-                <rect x="48" y="22" width="7" height="7" />
-                <rect x="8" y="36" width="6" height="6" />
-                <rect x="18" y="44" width="6" height="6" />
-                <rect x="36" y="36" width="10" height="10" />
-                <rect x="54" y="36" width="10" height="10" />
-                <rect x="44" y="50" width="12" height="12" />
-                <rect x="72" y="38" width="8" height="8" />
-                <rect x="84" y="48" width="8" height="8" />
-                <rect x="36" y="68" width="6" height="6" />
-                <rect x="48" y="74" width="8" height="8" />
-                <rect x="64" y="68" width="7" height="7" />
-                <rect x="78" y="76" width="8" height="8" />
-                <rect x="68" y="86" width="8" height="8" />
-                <rect x="42" y="86" width="8" height="8" />
-              </svg>
+            <div className="w-52 h-52 bg-white rounded-2xl p-3 shadow-2xl flex flex-col items-center justify-center overflow-hidden">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`QR код билета ${generatedTicketNo}`}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-black/50 text-xs">
+                  Генерация QR...
+                </div>
+              )}
             </div>
-            <p className="text-[11px] text-[#8e9192] max-w-xs">
+            <p className="text-[11px] text-[#8e9192] max-w-xs leading-relaxed">
               Покажите этот QR-код на входе организатору или контролёру мероприятия
             </p>
           </div>
         </div>
 
         {/* Bottom Actions */}
-        <div className="space-y-2.5 pt-2">
+        <div className="space-y-2 pt-1">
           <button
             type="button"
-            onClick={handleShareTicket}
-            className="w-full py-3.5 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-lg"
+            onClick={handleShareTelegram}
+            className="w-full py-3.5 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-lg hover:bg-zinc-200"
           >
-            {copiedToast ? <Check className="w-4 h-4 text-[#10b981]" /> : <Download className="w-4 h-4" />}
-            <span>{copiedToast ? 'Данные билета скопированы!' : 'Сохранить или переслать билет'}</span>
+            <Share2 className="w-4 h-4" />
+            <span>Переслать билет в Telegram</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyTicketData}
+            className="w-full py-3 px-4 rounded-full bg-white/5 hover:bg-white/10 text-white font-medium text-xs flex items-center justify-center gap-2 active:scale-98 transition-all border border-white/10"
+          >
+            {copiedToast ? <Check className="w-4 h-4 text-[#4edea3]" /> : <Copy className="w-4 h-4 text-[#8e9192]" />}
+            <span>{copiedToast ? 'Данные билета скопированы!' : 'Скопировать номер и детали'}</span>
           </button>
         </div>
       </main>

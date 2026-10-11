@@ -230,9 +230,9 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Pinned Header */}
-        <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-[#131724]">
+        <div className="px-5 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-[#1c1b1e]">
           <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/20 text-[#4edea3] flex items-center justify-center shrink-0 border border-white/10">
+            <div className="w-8 h-8 rounded-xl bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center shrink-0 border border-[#10b981]/30">
               <Users className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -254,8 +254,8 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
 
         {/* Toast alert */}
         {toastMessage && (
-          <div className="mx-4 mt-3 px-3.5 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/90 text-white text-xs font-medium flex items-center space-x-2 animate-fade-in shrink-0">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          <div className="mx-4 mt-3 px-3.5 py-2 rounded-xl bg-[#2a2a2c] text-white text-xs font-medium flex items-center space-x-2 border border-white/10 animate-fade-in shrink-0">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 text-[#10b981]" />
             <span>{toastMessage}</span>
           </div>
         )}
@@ -315,7 +315,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                     <button
                       type="submit"
                       disabled={actionLoadingId === 'opt-in'}
-                      className="px-3 py-1 rounded-lg bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-medium text-xs transition-colors"
+                      className="px-3 py-1 rounded-lg bg-white text-black font-bold active:scale-95 text-xs transition-colors hover:bg-zinc-200"
                     >
                       Сохранить
                     </button>
@@ -326,7 +326,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
           ) : (
             <div className="p-3.5 rounded-2xl bg-[#201f22] border border-white/8 space-y-2.5">
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95/20 text-[#4edea3] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center shrink-0 mt-0.5 border border-[#10b981]/30">
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -338,14 +338,14 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
               </div>
 
               {!isUserParticipating ? (
-                <div className="p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/30 text-purple-300 text-xs flex items-center justify-between">
+                <div className="p-2.5 rounded-xl bg-[#2a2a2c] border border-white/10 text-[#c4c7c8] text-xs flex items-center justify-between">
                   <span>Для поиска компании сначала отметьте участие:</span>
                   <button
                     onClick={() => {
                       onClose();
                       onRequireParticipation?.();
                     }}
-                    className="ml-2 px-2.5 py-1 rounded-lg bg-purple-600 text-white font-semibold text-xs shrink-0"
+                    className="ml-2 px-3 py-1.5 rounded-lg bg-[#10b981] text-black font-bold text-xs shrink-0 active:scale-95 transition-transform"
                   >
                     Хочу пойти
                   </button>
@@ -362,7 +362,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                   <button
                     onClick={() => handleOptIn()}
                     disabled={actionLoadingId === 'opt-in'}
-                    className="w-full py-2.5 px-4 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-lg shadow-black/40"
+                    className="w-full py-2.5 px-4 rounded-xl bg-white text-black font-bold active:scale-95 text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-md hover:bg-zinc-200"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>Найти компанию</span>
@@ -464,7 +464,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                       ) : member.relationship_status === 'pending_incoming' ? (
                         <button
                           onClick={() => setActiveTab('requests')}
-                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-black/40 active:scale-[0.99]"
+                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-black font-bold active:scale-95 text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-md hover:bg-zinc-200"
                         >
                           <span>Ответить на запрос</span>
                         </button>
@@ -472,7 +472,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                         <button
                           onClick={() => handleSendRequest(member.profile_id)}
                           disabled={actionLoadingId === member.profile_id}
-                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-md shadow-black/40 disabled:opacity-60 active:scale-[0.99]"
+                          className="w-full sm:w-auto min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white text-black font-bold active:scale-95 text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-md disabled:opacity-60 hover:bg-zinc-200"
                         >
                           <Send className="w-3.5 h-3.5 shrink-0" />
                           <span>Познакомиться</span>
@@ -586,7 +586,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
             <div className="space-y-3">
               {matches.length === 0 ? (
                 <div className="py-10 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-white text-[#1a1c1c] font-semibold active:scale-95/10 mx-auto flex items-center justify-center text-[#4edea3]">
+                  <div className="w-12 h-12 rounded-2xl bg-[#10b981]/15 border border-[#10b981]/30 mx-auto flex items-center justify-center text-[#4edea3]">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div className="text-xs font-semibold text-white">Вы пока не нашли компанию</div>

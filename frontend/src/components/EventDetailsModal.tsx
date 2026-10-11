@@ -268,7 +268,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       )}
 
       {/* Main Scrollable Body */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-[480px] mx-auto pt-16 pb-36 px-4 space-y-5">
+      <main className="flex-1 overflow-y-auto custom-scrollbar w-full max-w-[480px] mx-auto pt-16 pb-[calc(7rem+var(--safe-bottom,0px))] px-4 space-y-5">
         {/* Hero Stage (320px rounded-3xl with scrim & top badges) */}
         <div className="relative w-full rounded-3xl overflow-hidden bg-[#201f22] shadow-xl">
           <div className="w-full h-80 relative">
@@ -565,7 +565,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       </main>
 
       {/* Sticky Bottom Optical Glass Action Dock (Matching Stitch Obsidian Optical) */}
-      <div className="fixed bottom-3 inset-x-0 mx-auto w-full max-w-[480px] px-4 z-50 pointer-events-none">
+      <div className="fixed dock-bottom inset-x-0 mx-auto w-full max-w-[480px] px-4 z-50 pointer-events-none">
         <div className="p-1.5 rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] border border-white/12 flex items-center justify-between gap-2 pointer-events-auto">
           {/* Mutually Exclusive Intent Segmented Toggle Group */}
           <div 

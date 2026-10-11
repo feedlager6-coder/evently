@@ -358,7 +358,9 @@ export const App: React.FC = () => {
         } else {
           const defaultCity = effectiveCities.some((c) => c.id === 'makhachkala') ? 'makhachkala' : (effectiveCities[0]?.id || 'makhachkala');
           setSelectedCityId(defaultCity);
-          setIsCityModalOpen(false);
+          if (!isDeepLinkActiveRef.current) {
+            setIsCityModalOpen(true);
+          }
         }
       } catch (err: any) {
         console.error('Failed to initialize app metadata:', err);
@@ -748,6 +750,20 @@ export const App: React.FC = () => {
     }
   };
 
+  // Real-device UX: memoized weekend events (Saturday & Sunday) for horizontal highlight carousel
+  const weekendEvents = React.useMemo(() => {
+    return events.filter((ev) => {
+      const d = new Date(ev.start_at);
+      const day = d.getDay(); // 0 = Sunday, 6 = Saturday
+      return day === 0 || day === 6;
+    });
+  }, [events]);
+
+  const carouselEvents = React.useMemo(() => {
+    if (weekendEvents.length > 0) return weekendEvents.slice(0, 8);
+    return events.slice(1, 6);
+  }, [weekendEvents, events]);
+
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
@@ -935,11 +951,12 @@ export const App: React.FC = () => {
                       event={events[0]}
                       onClick={() => handleCardClick(events[0])}
                       isHero={true}
+                      onToggleInterest={(ev) => handleToggleInterest(ev.id, Boolean(ev.current_user_interested))}
                     />
                   )}
 
                   {/* 2. Главное на выходных (Horizontal Weekend Highlights Carousel) */}
-                  {events.length > 1 && (
+                  {dateFilter === 'all' && carouselEvents.length > 0 && (
                     <section className="space-y-2.5 pt-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
@@ -961,9 +978,9 @@ export const App: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* Horizontal Swipeable Track */}
-                      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none snap-x">
-                        {events.slice(1, 5).map((weEvent) => {
+                      {/* Horizontal Swipeable Track with touch-action safety against TMA pull-down dismiss */}
+                      <div className="horizontal-carousel flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none snap-x">
+                        {carouselEvents.map((weEvent) => {
                           const weDate = new Date(weEvent.start_at);
                           const weFormatted = weDate.toLocaleDateString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase();
                           const wePrice = weEvent.is_free
@@ -992,9 +1009,18 @@ export const App: React.FC = () => {
                                 <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white font-bold text-[10px] border border-white/10">
                                   {weFormatted}
                                 </span>
-                                <div className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/90">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    telegram.hapticImpact('light');
+                                    handleToggleInterest(weEvent.id, Boolean(weEvent.current_user_interested));
+                                  }}
+                                  aria-label={weEvent.current_user_interested ? 'Удалить из закладок' : 'В закладки'}
+                                  className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/90 active:scale-90 transition-transform btn-press"
+                                >
                                   <Bookmark className={`w-3.5 h-3.5 ${weEvent.current_user_interested ? 'fill-white text-white' : 'text-white'}`} />
-                                </div>
+                                </button>
                               </div>
 
                               <div className="relative z-10 flex flex-col gap-1">
@@ -1040,6 +1066,7 @@ export const App: React.FC = () => {
                           event={event}
                           onClick={() => handleCardClick(event)}
                           isHero={false}
+                          onToggleInterest={(ev) => handleToggleInterest(ev.id, Boolean(ev.current_user_interested))}
                         />
                       ))}
                     </div>

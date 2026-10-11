@@ -215,7 +215,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               <div className="text-sm font-semibold">{error}</div>
               <button
                 onClick={loadData}
-                className="px-4 py-2 rounded-xl bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white text-xs font-medium hover:bg-white/90 mt-2 btn-press"
+                className="px-4 py-2 rounded-xl bg-white text-black font-bold active:scale-95 text-xs hover:bg-zinc-200 mt-2 btn-press"
               >
                 Повторить попытку
               </button>
@@ -234,8 +234,8 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     />
                   </div>
                   {org.is_verified && (
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white text-[#1a1c1c] font-semibold active:scale-95 text-white flex items-center justify-center shadow">
-                      <ShieldCheck className="w-3.5 h-3.5" />
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#10b981] text-black flex items-center justify-center shadow">
+                      <ShieldCheck className="w-3.5 h-3.5 stroke-[2.5]" />
                     </div>
                   )}
                 </div>
@@ -270,7 +270,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       </button>
                       <button
                         onClick={() => onOpenCreateEvent?.(org.id)}
-                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-black/40 border border-white/10 btn-press text-center leading-tight"
+                        className="w-full min-h-[44px] py-2.5 px-2.5 rounded-xl bg-white text-black font-bold active:scale-95 text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md border border-white/10 btn-press text-center leading-tight"
                       >
                         <Plus className="w-3.5 h-3.5 shrink-0" />
                         <span>Создать событие</span>
@@ -283,7 +283,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       className={`w-full py-3 px-6 rounded-2xl font-bold text-xs flex items-center justify-center space-x-2 transition-all duration-300 shadow-lg ${
                         org.is_subscribed
                           ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 shadow-emerald-500/10'
-                          : 'bg-white text-[#1a1c1c] active:scale-95 shadow-md text-white shadow-black/40'
+                          : 'bg-white text-black font-bold active:scale-95 shadow-md hover:bg-zinc-200'
                       } btn-press disabled:opacity-75`}
                     >
                       {isSubscribing ? (

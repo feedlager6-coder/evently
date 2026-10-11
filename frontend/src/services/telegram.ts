@@ -41,6 +41,10 @@ declare global {
         ready: () => void;
         expand: () => void;
         close: () => void;
+        disableVerticalSwipes?: () => void;
+        enableVerticalSwipes?: () => void;
+        enableClosingConfirmation?: () => void;
+        disableClosingConfirmation?: () => void;
         openTelegramLink: (url: string) => void;
         openLink: (url: string) => void;
         onEvent?: (eventType: string, eventHandler: () => void) => void;
@@ -269,6 +273,8 @@ export const telegram = {
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.disableVerticalSwipes?.();
+        window.Telegram.WebApp.enableClosingConfirmation?.();
       }
     } catch {
       // Ignored outside Telegram
