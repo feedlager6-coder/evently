@@ -154,6 +154,7 @@ export const App: React.FC = () => {
   const [isSubscriptionsModalOpen, setIsSubscriptionsModalOpen] = useState(false);
   const [preselectedOrgForEventCreate, setPreselectedOrgForEventCreate] = useState<string | undefined>(undefined);
   const [editingEventData, setEditingEventData] = useState<EventResponse | null>(null);
+  const [editingDraftData, setEditingDraftData] = useState<any | null>(null);
 
   // Admin tab state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -817,14 +818,16 @@ export const App: React.FC = () => {
       <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[340px] h-[340px] bg-[#10b981]/6 rounded-full blur-[110px] pointer-events-none -z-10" />
       <div className="fixed top-[480px] right-0 w-[260px] h-[260px] bg-[#f59e0b]/5 rounded-full blur-[90px] pointer-events-none -z-10" />
 
-      {/* Top Header */}
-      <Header
-        currentCity={currentCity}
-        onOpenCityModal={() => setIsCityModalOpen(true)}
-        user={user}
-        isAdmin={isAdmin}
-        onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
-      />
+      {/* Top Header (only when not in Organizer Workspace) */}
+      {!isOrganizerWorkspaceOpen && (
+        <Header
+          currentCity={currentCity}
+          onOpenCityModal={() => setIsCityModalOpen(true)}
+          user={user}
+          isAdmin={isAdmin}
+          onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+        />
+      )}
 
       {/* Main Content Area based on Tab */}
       <main className="max-w-[480px] mx-auto">
@@ -1141,8 +1144,10 @@ export const App: React.FC = () => {
               organizations={myOrganizations}
               events={organizerEvents}
               isLoading={isLoadingOrganizer || isLoadingMyOrganizations}
-              onOpenCreateEvent={(orgId) => {
+              onOpenCreateEvent={(orgId, draft) => {
                 setPreselectedOrgForEventCreate(orgId);
+                setEditingDraftData(draft || null);
+                setEditingEventData(null);
                 setIsCreateEventModalOpen(true);
               }}
               onOpenCreateOrg={() => {
@@ -1299,6 +1304,7 @@ export const App: React.FC = () => {
         onClose={() => {
           setPreselectedOrgForEventCreate(undefined);
           setEditingEventData(null);
+          setEditingDraftData(null);
           setIsCreateEventModalOpen(false);
         }}
         cities={cities}
@@ -1307,8 +1313,20 @@ export const App: React.FC = () => {
         myOrganizations={myOrganizations}
         initialOrganizationId={preselectedOrgForEventCreate}
         initialEvent={editingEventData}
+        initialDraft={editingDraftData}
+        onSaveDraft={(draft) => {
+          try {
+            const saved = localStorage.getItem('ivently_event_drafts');
+            const existing: any[] = saved ? JSON.parse(saved) : [];
+            const updated = [draft, ...existing.filter((d: any) => d.id !== draft.id)];
+            localStorage.setItem('ivently_event_drafts', JSON.stringify(updated));
+          } catch (e) {
+            console.warn('Draft save error', e);
+          }
+        }}
         onEventUpdated={(updatedEvent) => {
           setEditingEventData(null);
+          setEditingDraftData(null);
           setIsCreateEventModalOpen(false);
           setSelectedEventDetails(updatedEvent);
           loadFeedEvents();
@@ -1318,6 +1336,7 @@ export const App: React.FC = () => {
         onEventCreated={() => {
           setPreselectedOrgForEventCreate(undefined);
           setEditingEventData(null);
+          setEditingDraftData(null);
           setIsCreateEventModalOpen(false);
           loadFeedEvents();
           loadOrganizerEvents();

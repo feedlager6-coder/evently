@@ -377,6 +377,7 @@ export interface BroadcastItem {
   created_at: string;
   started_at?: string | null;
   completed_at?: string | null;
+  is_silent?: boolean;
 }
 
 export interface BroadcastDetail extends BroadcastItem {
@@ -411,6 +412,7 @@ export interface BroadcastCreateRequest {
   template_key: BroadcastTemplateKey;
   event_id?: string | null;
   custom_text?: string | null;
+  is_silent?: boolean;
 }
 
 export interface AudienceGrowthMetrics {

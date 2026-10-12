@@ -1,23 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import type { City, Category, EventCreatePayload, LocationSuggestion, OrganizationSummary, EventResponse } from '../types';
-import { api, DEFAULT_CITIES } from '../services/api';
+import { api } from '../services/api';
 import { telegram } from '../services/telegram';
 import { 
   X, 
-  Calendar, 
-  PlusCircle, 
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
-  Image as ImageIcon, 
-  Upload, 
   MapPin, 
-  Check,
-  Building2,
-  Edit,
-  Trash2,
-  AlertTriangle
+  Eye
 } from 'lucide-react';
 
 interface CreateEventModalProps {
@@ -32,6 +23,8 @@ interface CreateEventModalProps {
   initialEvent?: EventResponse | null;
   onEventUpdated?: (ev: EventResponse) => void;
   onEventDeleted?: (eventId: string) => void;
+  onSaveDraft?: (draftData: any) => void;
+  initialDraft?: any;
 }
 
 const PRESET_IMAGES = [
@@ -42,32 +35,45 @@ const PRESET_IMAGES = [
   { label: 'Арт', url: 'https://images.unsplash.com/photo-1508997449629-303059a039c0?w=800' },
 ];
 
+const STANDARD_CATEGORIES = [
+  { id: 'concerts', name: 'Концерты' },
+  { id: 'parties', name: 'Вечеринки' },
+  { id: 'lectures', name: 'Лекции' },
+  { id: 'exhibitions', name: 'Выставки' },
+  { id: 'sport', name: 'Спорт' },
+  { id: 'other', name: 'Другое' },
+];
+
 export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   isOpen,
   onClose,
   cities,
-  categories,
+  categories: _categories,
   defaultCityId,
   onEventCreated,
-  myOrganizations = [],
+  myOrganizations: _myOrganizations = [],
   initialOrganizationId,
   initialEvent,
   onEventUpdated,
-  onEventDeleted,
+  onEventDeleted: _onEventDeleted,
+  onSaveDraft,
+  initialDraft,
 }) => {
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(initialOrganizationId);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [cityId, setCityId] = useState(defaultCityId || (cities && cities[0]?.id) || '');
+  const [cityId, setCityId] = useState(defaultCityId || (cities && cities[0]?.id) || 'makhachkala');
   const [categoryId, setCategoryId] = useState('concerts');
   
-  // Tomorrow at 19:00 default start date
+  // Tomorrow at 20:00 default start date
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(19, 0, 0, 0);
-  const defaultDateStr = tomorrow.toISOString().slice(0, 16);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const defaultDateOnly = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+  const defaultTimeOnly = '20:00';
 
-  const [startAt, setStartAt] = useState(defaultDateStr);
+  const [eventDate, setEventDate] = useState(defaultDateOnly);
+  const [eventTime, setEventTime] = useState(defaultTimeOnly);
   const [venueName, setVenueName] = useState('');
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
@@ -75,15 +81,14 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   
   // Address autocomplete state
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Pricing state
   const [isFree, setIsFree] = useState(false);
-  const [priceAmount, setPriceAmount] = useState<string>('500');
+  const [priceAmount, setPriceAmount] = useState<string>('1200');
   
   // Cover image state
-  const [coverImageUrl, setCoverImageUrl] = useState(PRESET_IMAGES[0].url);
+  const [coverImageUrl, setCoverImageUrl] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,37 +96,38 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   // Privacy / contact permission state
   const [allowEventContact, setAllowEventContact] = useState(false);
 
-  // Form submission & deletion state
+  // Form submission & state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Synchronize form when initialEvent or isOpen changes
+  // Live preview sheet
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+
+  // Synchronize form when initialEvent, initialDraft or isOpen changes
   useEffect(() => {
     if (!isOpen) {
       setSuccess(false);
       setError(null);
-      setShowDeleteConfirm(false);
-      setDeleteError(null);
+      setIsPreviewOpen(false);
+      setDraftNotice(null);
       return;
     }
 
     if (initialEvent) {
       setTitle(initialEvent.title || '');
       setDescription(initialEvent.description || '');
-      setCityId(initialEvent.city_id || defaultCityId || (cities && cities[0]?.id) || '');
+      setCityId(initialEvent.city_id || defaultCityId || 'makhachkala');
       setCategoryId(initialEvent.category_id || 'concerts');
       if (initialEvent.start_at) {
         try {
           const d = new Date(initialEvent.start_at);
-          const pad = (n: number) => n.toString().padStart(2, '0');
-          const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-          setStartAt(localStr);
+          setEventDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+          setEventTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
         } catch {
-          setStartAt(defaultDateStr);
+          setEventDate(defaultDateOnly);
+          setEventTime(defaultTimeOnly);
         }
       }
       setVenueName(initialEvent.venue_name || '');
@@ -129,60 +135,45 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setLatitude(initialEvent.latitude);
       setLongitude(initialEvent.longitude);
       setIsFree(initialEvent.is_free ?? (initialEvent.price_amount == null || initialEvent.price_amount === 0));
-      setPriceAmount(initialEvent.price_amount != null ? String(initialEvent.price_amount) : '500');
+      setPriceAmount(initialEvent.price_amount != null ? String(initialEvent.price_amount) : '1200');
       setCoverImageUrl(initialEvent.cover_image_url || PRESET_IMAGES[0].url);
       setSelectedOrgId(initialEvent.organization_id || undefined);
       setAllowEventContact(Boolean(initialEvent.allow_event_contact));
+    } else if (initialDraft) {
+      setTitle(initialDraft.title || '');
+      setDescription(initialDraft.description || '');
+      setCityId(initialDraft.city_id || defaultCityId || 'makhachkala');
+      setCategoryId(initialDraft.category_id || 'concerts');
+      setEventDate(initialDraft.eventDate || defaultDateOnly);
+      setEventTime(initialDraft.eventTime || defaultTimeOnly);
+      setVenueName(initialDraft.venue_name || '');
+      setAddress(initialDraft.address || '');
+      setIsFree(Boolean(initialDraft.is_free));
+      setPriceAmount(initialDraft.price_amount != null ? String(initialDraft.price_amount) : '1200');
+      setCoverImageUrl(initialDraft.cover_image_url || '');
+      setSelectedOrgId(initialDraft.organization_id || initialOrganizationId);
     } else {
       setTitle('');
       setDescription('');
-      setCityId(defaultCityId || (cities && cities[0]?.id) || '');
+      setCityId(defaultCityId || 'makhachkala');
       setCategoryId('concerts');
-      setStartAt(defaultDateStr);
+      setEventDate(defaultDateOnly);
+      setEventTime(defaultTimeOnly);
       setVenueName('');
       setAddress('');
       setLatitude(undefined);
       setLongitude(undefined);
       setIsFree(false);
-      setPriceAmount('500');
-      setCoverImageUrl(PRESET_IMAGES[0].url);
+      setPriceAmount('1200');
+      setCoverImageUrl('');
       setSelectedOrgId(initialOrganizationId);
       setAllowEventContact(false);
     }
-  }, [isOpen, initialEvent, defaultCityId, initialOrganizationId]);
-
-
-  const handleSelectOrg = (orgId: string | undefined) => {
-    setSelectedOrgId(orgId);
-    if (orgId) {
-      const org = myOrganizations.find((o) => o.id === orgId);
-      if (org) {
-        if (!venueName.trim()) {
-          setVenueName(org.name);
-        }
-        if (!address.trim() && org.address) {
-          setAddress(org.address);
-        }
-        if (org.city_id) {
-          setCityId(org.city_id);
-        }
-        if (org.latitude && org.longitude && latitude === undefined && longitude === undefined) {
-          setLatitude(org.latitude);
-          setLongitude(org.longitude);
-        }
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (initialOrganizationId) {
-      handleSelectOrg(initialOrganizationId);
-    }
-  }, [initialOrganizationId]);
+  }, [isOpen, initialEvent, initialDraft, defaultCityId, initialOrganizationId]);
 
   // Debounced address search (starts at 2 chars, 300ms)
   useEffect(() => {
-    const trimmed = (address || '').trim().replace(/\.+$/, '');
+    const trimmed = (venueName || address || '').trim().replace(/\.+$/, '');
     if (trimmed.length < 2) {
       setLocationSuggestions([]);
       return;
@@ -190,7 +181,6 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        setIsLoadingSuggestions(true);
         const results = await api.suggestLocations(trimmed, cityId);
         setLocationSuggestions(results);
         if (results.length > 0) {
@@ -198,33 +188,72 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         }
       } catch (err) {
         console.warn('Location suggestion lookup error:', err);
-      } finally {
-        setIsLoadingSuggestions(false);
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [address, cityId]);
-
+  }, [venueName, address, cityId]);
 
   if (!isOpen) return null;
 
-  const availableCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
-  const currentCity = availableCities.find((c) => c.id === cityId);
-  const currency = currentCity?.currency || 'RUB';
+  // Calculate dynamic progress
+  let filledPoints = 1; // base 33% (step 1 info)
+  if (title.trim()) filledPoints += 1;
+  if (venueName.trim() || address.trim()) filledPoints += 1;
+  const progressPercent = Math.min(100, Math.round((filledPoints / 3) * 100));
+
+  const handleSaveDraft = () => {
+    telegram.hapticImpact('medium');
+    const draftData = {
+      id: initialEvent?.id || `draft-${Date.now()}`,
+      title: title.trim() || 'Новое событие (Черновик)',
+      description: description.trim(),
+      category_id: categoryId,
+      city_id: cityId,
+      eventDate,
+      eventTime,
+      start_at: `${eventDate}T${eventTime}:00`,
+      venue_name: venueName.trim() || 'Локация не выбрана',
+      address: address.trim(),
+      is_free: isFree,
+      price_amount: isFree ? 0 : Number(priceAmount) || 0,
+      cover_image_url: coverImageUrl,
+      organization_id: selectedOrgId,
+      status: 'draft',
+      completionRate: progressPercent,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const existingDraftsStr = localStorage.getItem('ivently_event_drafts');
+      const existingDrafts: any[] = existingDraftsStr ? JSON.parse(existingDraftsStr) : [];
+      const updatedDrafts = [draftData, ...existingDrafts.filter((d: any) => d.id !== draftData.id)];
+      localStorage.setItem('ivently_event_drafts', JSON.stringify(updatedDrafts));
+    } catch (e) {
+      console.warn('Failed to save draft to localStorage:', e);
+    }
+
+    if (onSaveDraft) {
+      onSaveDraft(draftData);
+    }
+
+    setDraftNotice('Черновик успешно сохранён!');
+    telegram.hapticSuccess();
+    setTimeout(() => {
+      onClose();
+    }, 600);
+  };
 
   // Handle Cover Photo upload
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setImageUploadError('Размер файла не должен превышать 5 МБ');
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadError('Размер файла не должен превышать 10 МБ');
       return;
     }
 
-    // Validate type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       setImageUploadError('Поддерживаются только форматы JPEG, PNG и WEBP');
@@ -239,7 +268,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       telegram.hapticSuccess();
     } catch (err: any) {
       setImageUploadError(err.message || 'Ошибка загрузки обложки');
-      telegram.hapticError();
+      telegram.hapticNotification('error');
     } finally {
       setIsUploadingImage(false);
     }
@@ -247,12 +276,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   const handleSelectSuggestion = (suggestion: LocationSuggestion) => {
     setAddress(suggestion.address || suggestion.display_name);
-    if (!venueName.trim() && suggestion.title) {
-      setVenueName(suggestion.title);
-    } else if (!venueName.trim()) {
-      const placeName = suggestion.display_name.split(',')[0].trim();
-      setVenueName(placeName);
-    }
+    setVenueName(suggestion.title || suggestion.display_name.split(',')[0].trim());
     setLatitude(suggestion.latitude);
     setLongitude(suggestion.longitude);
     setShowSuggestions(false);
@@ -260,30 +284,16 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     telegram.hapticImpact('light');
   };
 
-
-  const handleDeleteEvent = async () => {
-    if (!initialEvent) return;
-    try {
-      setIsDeleting(true);
-      setDeleteError(null);
-      await api.deleteEvent(initialEvent.id);
-      telegram.hapticSuccess();
-      setShowDeleteConfirm(false);
-      onClose();
-      if (onEventDeleted) {
-        onEventDeleted(initialEvent.id);
-      }
-    } catch (err: any) {
-      setDeleteError(err.message || 'Не удалось удалить мероприятие');
-    } finally {
-      setIsDeleting(false);
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!title.trim()) {
+      setError('Укажите название события');
+      telegram.hapticNotification('error');
+      return;
     }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !description.trim() || !venueName.trim() || !startAt) {
-      setError('Пожалуйста, заполните все обязательные поля');
+    if (!venueName.trim() && !address.trim()) {
+      setError('Укажите площадку или адрес события в Махачкале');
+      telegram.hapticNotification('error');
       return;
     }
 
@@ -292,19 +302,20 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setError(null);
       telegram.hapticImpact('medium');
 
+      const fullStartAt = `${eventDate}T${eventTime}:00`;
       const payload: EventCreatePayload = {
         title: title.trim(),
-        description: description.trim(),
-        city_id: cityId,
+        description: description.trim() || 'Без описания',
+        city_id: cityId || 'makhachkala',
         category_id: categoryId,
-        start_at: new Date(startAt).toISOString(),
-        venue_name: venueName.trim(),
-        address: address.trim() || undefined,
+        start_at: new Date(fullStartAt).toISOString(),
+        venue_name: venueName.trim() || address.trim() || 'Махачкала',
+        address: address.trim() || venueName.trim(),
         latitude: latitude,
         longitude: longitude,
         price_amount: isFree ? undefined : Number(priceAmount) || 0,
-        price_currency: isFree ? undefined : currency,
-        cover_image_url: coverImageUrl.trim() || undefined,
+        price_currency: 'RUB',
+        cover_image_url: coverImageUrl.trim() || PRESET_IMAGES[0].url,
         organization_id: selectedOrgId || undefined,
         allow_event_contact: !selectedOrgId ? allowEventContact : false,
       };
@@ -323,503 +334,487 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         onEventCreated();
       }
     } catch (err: any) {
-      setError(err.message || 'Ошибка сохранения мероприятия');
+      setError(err.message || 'Ошибка отправки события на модерацию');
+      telegram.hapticNotification('error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isOpen) return null;
+  const selectedCategoryName = STANDARD_CATEGORIES.find((c) => c.id === categoryId)?.name || 'Событие';
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in pb-32 pb-safe">
-      <div 
-        className="w-full max-w-lg mx-auto my-6 rounded-3xl bg-[#1c1b1e] border border-white/10 p-5 shadow-2xl space-y-4 sheet-slide-up pb-8"
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/5">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-[#10b981]/15 text-[#4edea3]">
-              {initialEvent ? <Edit className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">
-                {initialEvent ? 'Редактирование события' : 'Создать мероприятие'}
-              </h3>
-              <p className="text-xs text-gray-400">
-                {initialEvent ? 'Изменение данных мероприятия' : 'Публикация после модерации'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors btn-press"
+    <div className="fixed inset-0 z-[60] bg-[#0d0d0f] flex flex-col overflow-y-auto">
+      {/* Top Navigation Header matching Screen 2 */}
+      <header className="pt-4 px-4 pb-3 flex items-center justify-between glass-header sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <button 
+            type="button"
+            onClick={() => {
+              telegram.hapticImpact('light');
+              onClose();
+            }}
+            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 flex items-center justify-center transition-all border border-white/5 text-neutral-300"
+            aria-label="Закрыть"
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
-
-        {success ? (
-          <div className="py-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="text-lg font-bold text-white">
-                {initialEvent ? 'Изменения сохранены!' : 'Отправлено на модерацию!'}
-              </h4>
-              <p className="text-xs text-gray-300 max-w-xs mx-auto">
-                {initialEvent
-                  ? 'Информация о событии успешно обновлена.'
-                  : 'Ваше событие успешно создано и отправлено администраторам. Как только его одобрят, оно станет доступно в афише Ivently.'}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-white text-[#1a1c1c] font-bold text-xs shadow-md active:scale-95 transition-colors btn-press"
-            >
-              Отлично, понятно
-            </button>
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight">
+              {initialEvent ? 'Редактирование' : 'Новое событие'}
+            </h1>
+            <p className="text-[11px] text-neutral-400">
+              Шаг 1 из 3 • Основная информация
+            </p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            {error && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}</span>
-              </div>
-            )}
+        </div>
+        <button
+          type="button"
+          onClick={handleSaveDraft}
+          className="text-xs font-semibold text-neutral-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/5 transition-colors active:scale-95"
+        >
+          Черновик
+        </button>
+      </header>
 
-            {/* Organizer selector */}
-            {myOrganizations && myOrganizations.length > 0 && (
-              <div className="space-y-1.5 p-3 rounded-2xl bg-[#1c1b1e] border border-white/5">
-                <label className="text-gray-300 font-medium">Организатор (от чьего имени)</label>
-                <div className="flex flex-wrap gap-2 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectOrg(undefined)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all pill-press ${
-                      !selectedOrgId
-                        ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
-                        : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20'
-                    }`}
-                  >
-                    Личный профиль
-                  </button>
-                  {myOrganizations.map((org) => (
-                    <button
-                      key={org.id}
-                      type="button"
-                      onClick={() => handleSelectOrg(org.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center space-x-1.5 pill-press ${
-                        selectedOrgId === org.id
-                          ? 'bg-white text-[#1a1c1c] font-bold shadow-md'
-                          : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20'
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>{org.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Personal organizer contact toggle */}
-            {!selectedOrgId && (
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1b1e] border border-white/5">
-                <div className="space-y-0.5 pr-3">
-                  <div className="text-gray-200 font-medium">Разрешить связь по мероприятию</div>
-                  <div className="text-[11px] text-gray-400">
-                    Позволяет участникам писать вам в Telegram через кнопку «Написать»
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAllowEventContact(!allowEventContact)}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors shrink-0 ${
-                    allowEventContact ? 'bg-[#00a572]' : 'bg-white/10'
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                      allowEventContact ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            )}
-
-            {/* Title */}
-            <div className="space-y-1">
-              <label className="text-gray-300 font-medium">Название события *</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="например: Концерт в горах или Джазовый вечер"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
-                required
-              />
-            </div>
-
-            {/* City & Category Selectors */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-gray-300 font-medium">Город *</label>
-                <select
-                  value={cityId}
-                  onChange={(e) => setCityId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
-                >
-                  {availableCities.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-gray-300 font-medium">Категория *</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Start Date & Time */}
-            <div className="space-y-1">
-              <label className="text-gray-300 font-medium flex items-center space-x-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#4edea3]" />
-                <span>Дата и время начала *</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
-                required
-              />
-            </div>
-
-            {/* Venue & Address with Autocomplete */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-gray-300 font-medium">Место / Площадка *</label>
-                <input
-                  type="text"
-                  value={venueName}
-                  onChange={(e) => setVenueName(e.target.value)}
-                  placeholder="Дом культуры или Арена"
-                  className="w-full px-3 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1 relative">
-                <label className="text-gray-300 font-medium flex items-center justify-between">
-                  <span>Адрес <span className="text-gray-400 font-normal">{selectedOrgId ? '(по умолчанию адрес организации)' : '(опционально)'}</span></span>
-                  {latitude && longitude && (
-                    <span className="text-[10px] text-emerald-400 flex items-center space-x-1">
-                      <Check className="w-2.5 h-2.5" />
-                      <span>Координаты сохранены</span>
-                    </span>
-                  )}
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={address}
-                    onChange={(e) => {
-                      setAddress(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => {
-                      if (locationSuggestions.length > 0) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (locationSuggestions.length > 0) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                    placeholder="Начните ввод адреса..."
-                    className="w-full px-3 py-2 pr-7 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
-                    {isLoadingSuggestions ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#4edea3]" />
-                    ) : (
-                      <MapPin className="w-3.5 h-3.5" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Suggestions Dropdown */}
-                {showSuggestions && locationSuggestions.length > 0 && (
-                  <div 
-                    className="absolute z-50 top-full left-0 right-0 mt-1 rounded-xl bg-[#181C2B] border border-white/10 shadow-2xl overflow-hidden max-h-48 overflow-y-auto custom-scrollbar"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {locationSuggestions.map((item, idx) => (
-                      <button
-                        key={`${item.display_name}-${idx}`}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSelectSuggestion(item);
-                        }}
-                        onClick={() => handleSelectSuggestion(item)}
-                        className="w-full p-2.5 text-left border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors flex items-start space-x-2"
-                      >
-                        <MapPin className="w-3.5 h-3.5 text-[#4edea3] shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-white text-xs truncate">
-                            {item.title || item.display_name.split(',')[0]}
-                          </div>
-                          <div className="text-[10px] text-gray-400 line-clamp-1">
-                            {item.address || item.display_name}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-            {/* Price Config */}
-            <div className="space-y-1 p-3 rounded-xl bg-[#171B2A] border border-white/5">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-200">Бесплатный вход?</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isFree}
-                    onChange={(e) => setIsFree(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
-              </div>
-
-              {!isFree && (
-                <div className="pt-2 flex items-center space-x-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={priceAmount}
-                    onChange={(e) => setPriceAmount(e.target.value)}
-                    placeholder="Цена"
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3]"
-                  />
-                  <span className="text-gray-400 font-semibold px-2">{currency}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Cover Image Upload & Presets */}
-            <div className="space-y-2 p-3 rounded-xl bg-[#171B2A] border border-white/5">
-              <div className="flex items-center justify-between">
-                <label className="text-gray-300 font-medium flex items-center space-x-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#4edea3]" />
-                  <span>Обложка мероприятия</span>
-                </label>
-
-                {/* Upload Button */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingImage}
-                  className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-[#2a2a2c] hover:bg-[#353437] text-white border border-white/10 font-medium text-[11px] transition-colors disabled:opacity-50"
-                >
-                  {isUploadingImage ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Загрузка...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-3 h-3" />
-                      <span>Загрузить фото</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {imageUploadError && (
-                <div className="p-2 rounded-lg bg-red-500/10 text-red-300 text-[10px] flex items-center space-x-1">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
-                  <span>{imageUploadError}</span>
-                </div>
-              )}
-
-              {/* Cover Preview */}
-              {coverImageUrl && (
-                <div className="relative h-24 rounded-lg overflow-hidden border border-white/10">
-                  <img
-                    src={coverImageUrl}
-                    alt="Предпросмотр обложки"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = PRESET_IMAGES[0].url;
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-2">
-                    <span className="text-[10px] text-white/80">Текущая обложка</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Preset buttons */}
-              <div className="space-y-1">
-                <span className="text-[10px] text-gray-400">Или выберите готовую тему:</span>
-                <div className="flex space-x-1.5 overflow-x-auto no-scrollbar pb-1">
-                  {PRESET_IMAGES.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => setCoverImageUrl(preset.url)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap border transition-all pill-press ${
-                        coverImageUrl === preset.url
-                          ? 'bg-white/20 border-white text-white font-bold'
-                          : 'bg-[#201f22] border-white/5 text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1">
-              <label className="text-gray-300 font-medium">Описание события *</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Расскажите подробнее о программе, артистах или формате..."
-                className="w-full px-3.5 py-2 rounded-xl bg-[#201f22] border border-white/10 text-white focus:outline-none focus:border-[#4edea3] placeholder-gray-500"
-                required
-              />
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading || isUploadingImage || isDeleting}
-              className="w-full py-3.5 rounded-2xl bg-white !text-[#131315] font-bold text-xs shadow-lg active:scale-95 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  {initialEvent ? <Check className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
-                  <span>{initialEvent ? 'Сохранить изменения' : 'Отправить на модерацию'}</span>
-                </>
-              )}
-            </button>
-
-            {/* Destructive Delete Button for Organizer */}
-            {initialEvent && (
-              <div className="pt-2 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => {
-                    telegram.hapticNotification('warning');
-                    setShowDeleteConfirm(true);
-                    setDeleteError(null);
-                  }}
-                  disabled={isLoading || isDeleting}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-red-400 hover:text-white hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  <span>Удалить мероприятие</span>
-                </button>
-              </div>
-            )}
-          </form>
-        )}
+      {/* Progress Indicator matching Screen 2 */}
+      <div className="w-full h-1 bg-white/5">
+        <div 
+          className="h-full bg-emerald-400 transition-all duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
       </div>
 
-      {/* Delete Event Confirmation Modal (Portaled to document.body for true viewport centering) */}
-      {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-[#1c1b1e] border border-white/10 p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+      {draftNotice && (
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{draftNotice}</span>
+        </div>
+      )}
+
+      {/* Success View */}
+      {success ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center space-y-5">
+          <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              {initialEvent ? 'Изменения сохранены!' : 'Отправлено на модерацию!'}
+            </h2>
+            <p className="text-xs text-neutral-400 max-w-xs mx-auto leading-relaxed">
+              {initialEvent
+                ? 'Информация о событии успешно обновлена.'
+                : 'Ваше событие успешно создано и отправлено модераторам Ivently. Обычно проверка занимает до 20 минут.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              telegram.hapticImpact('light');
+              onClose();
+            }}
+            className="w-full max-w-xs py-3.5 rounded-2xl bg-white hover:bg-neutral-200 text-black font-bold text-sm transition-all active:scale-[0.98] shadow-lg"
+          >
+            Вернуться в кабинет
+          </button>
+        </div>
+      ) : (
+        /* Form Body matching Screen 2 */
+        <main className="flex-1 px-4 py-4 space-y-4 pb-28">
+          {error && (
+            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 flex items-center space-x-2 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Section 1: Обложка события matching Screen 2 */}
+          <section className="form-section p-4 space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Обложка афиши *
+            </label>
+            
+            {coverImageUrl ? (
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 group bg-neutral-900 aspect-video max-h-48">
+                <img 
+                  src={coverImageUrl} 
+                  alt="Обложка афиши" 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3.5 py-1.5 rounded-xl bg-white text-black font-semibold text-xs shadow-lg active:scale-95"
+                  >
+                    Заменить обложку
+                  </button>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-bold text-white">Удалить мероприятие?</h3>
-                <p className="text-xs text-gray-400 font-medium truncate">{initialEvent?.title}</p>
+            ) : null}
+
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-white/15 hover:border-white/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-white/[0.02]"
+            >
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-neutral-300 mb-2">
+                {isUploadingImage ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                )}
+              </div>
+              <span className="text-xs font-semibold text-white">
+                {isUploadingImage ? 'Загрузка...' : 'Загрузить изображение'}
+              </span>
+              <span className="text-[11px] text-neutral-500 mt-0.5">
+                JPG или PNG до 10 МБ (16:9 или 4:3)
+              </span>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/jpeg,image/png,image/webp" 
+                onChange={handleFileChange}
+                className="hidden" 
+              />
+            </div>
+
+            {imageUploadError && (
+              <p className="text-xs text-red-400">{imageUploadError}</p>
+            )}
+
+            {/* Quick Preset Selector */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-1">
+              {PRESET_IMAGES.map((img) => (
+                <button
+                  key={img.label}
+                  type="button"
+                  onClick={() => {
+                    setCoverImageUrl(img.url);
+                    telegram.hapticImpact('light');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] shrink-0 border transition-all ${
+                    coverImageUrl === img.url
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-semibold'
+                      : 'bg-white/5 text-neutral-400 border-white/5 hover:text-white'
+                  }`}
+                >
+                  {img.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Section 2: Название и категория matching Screen 2 */}
+          <section className="form-section p-4 space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Название события *
+              </label>
+              <input 
+                type="text" 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например: Акустический концерт на закате" 
+                className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-neutral-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Категория *
+              </label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {STANDARD_CATEGORIES.map((cat) => {
+                  const isSelected = categoryId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setCategoryId(cat.id);
+                        telegram.hapticImpact('light');
+                      }}
+                      className={`py-2 px-2.5 rounded-xl font-medium text-center transition-all ${
+                        isSelected 
+                          ? 'bg-white text-black font-bold shadow-md' 
+                          : 'bg-white/5 text-neutral-300 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Мероприятие пропадет из афиши и поиска. Историческая статистика сохранится.
-            </p>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Описание события
+              </label>
+              <textarea 
+                rows={3} 
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Расскажите о программе, лайн-апе, правилах входа..." 
+                className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-neutral-500 resize-none"
+              />
+            </div>
+          </section>
 
-            {deleteError && (
-              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                {deleteError}
+          {/* Section 3: Время и Локация matching Screen 2 */}
+          <section className="form-section p-4 space-y-3.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Дата, время и место
+            </label>
+            
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] text-neutral-400 mb-1">
+                  Дата события *
+                </label>
+                <input 
+                  type="date" 
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="input-field w-full px-3 py-2 rounded-xl text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-neutral-400 mb-1">
+                  Начало *
+                </label>
+                <input 
+                  type="time" 
+                  value={eventTime}
+                  onChange={(e) => setEventTime(e.target.value)}
+                  className="input-field w-full px-3 py-2 rounded-xl text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Площадка в Махачкале *
+              </label>
+              <input 
+                type="text" 
+                value={venueName}
+                onChange={(e) => {
+                  setVenueName(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(locationSuggestions.length > 0)}
+                placeholder="Клуб «Атмосфера», или точный адрес" 
+                className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-neutral-500"
+              />
+              
+              {/* Autocomplete suggestions dropdown */}
+              {showSuggestions && locationSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#17171a] border border-white/10 rounded-2xl p-2 z-50 shadow-2xl max-h-48 overflow-y-auto space-y-1">
+                  {locationSuggestions.map((sug, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectSuggestion(sug)}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-white/5 flex items-start space-x-2 text-xs text-neutral-200 transition-colors"
+                    >
+                      <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-semibold text-white">{sug.title || sug.display_name.split(',')[0]}</div>
+                        <div className="text-[11px] text-neutral-400 line-clamp-1">{sug.address || sug.display_name}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Section 4: Вход и Билеты matching Screen 2 */}
+          <section className="form-section p-4 space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Условия входа
+            </label>
+
+            <div className="flex gap-2">
+              <label 
+                onClick={() => setIsFree(false)}
+                className={`flex-1 p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                  !isFree 
+                    ? 'border-white/20 bg-white/5' 
+                    : 'border-white/5 bg-white/[0.02]'
+                }`}
+              >
+                <div>
+                  <span className="text-xs font-bold text-white block">Платный вход</span>
+                  <span className="text-[11px] text-neutral-400">Фиксированная цена</span>
+                </div>
+                <input 
+                  type="radio" 
+                  name="price_type" 
+                  checked={!isFree} 
+                  onChange={() => setIsFree(false)}
+                  className="accent-emerald-400"
+                />
+              </label>
+
+              <label 
+                onClick={() => setIsFree(true)}
+                className={`flex-1 p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                  isFree 
+                    ? 'border-white/20 bg-white/5' 
+                    : 'border-white/5 bg-white/[0.02]'
+                }`}
+              >
+                <div>
+                  <span className="text-xs font-bold text-white block">Бесплатно</span>
+                  <span className="text-[11px] text-neutral-400">Свободный вход</span>
+                </div>
+                <input 
+                  type="radio" 
+                  name="price_type" 
+                  checked={isFree} 
+                  onChange={() => setIsFree(true)}
+                  className="accent-emerald-400"
+                />
+              </label>
+            </div>
+
+            {!isFree && (
+              <div>
+                <label className="block text-[11px] text-neutral-400 mb-1">
+                  Стоимость билета (₽)
+                </label>
+                <input 
+                  type="number" 
+                  value={priceAmount}
+                  onChange={(e) => setPriceAmount(e.target.value)}
+                  placeholder="1 200" 
+                  className="input-field w-full px-3.5 py-2 rounded-xl text-sm text-white"
+                />
               </div>
             )}
+          </section>
 
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
+          {/* Moderation notice banner matching Screen 2 */}
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex gap-2.5 items-start">
+            <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              После отправки событие попадает на проверку модераторами Ivently. Обычно публикация занимает <span className="text-white font-medium">до 20 минут</span>.
+            </p>
+          </div>
+
+          {/* Action Buttons matching Screen 2 */}
+          <div className="pt-2 space-y-2">
+            <button 
+              type="button"
+              disabled={isLoading}
+              onClick={() => handleSubmit()}
+              className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm transition-all active:scale-[0.98] shadow-lg flex items-center justify-center space-x-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                  <span>Отправка на модерацию...</span>
+                </>
+              ) : (
+                <span>Отправить на модерацию</span>
+              )}
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => {
+                telegram.hapticImpact('light');
+                setIsPreviewOpen(true);
+              }}
+              className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs transition-all border border-white/5 active:scale-98"
+            >
+              Предпросмотр афиши
+            </button>
+          </div>
+        </main>
+      )}
+
+      {/* Live Poster Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-xl flex flex-col p-4 animate-fade-in overflow-y-auto">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div className="flex items-center space-x-2 text-white">
+              <Eye className="w-4 h-4 text-emerald-400" />
+              <span className="font-bold text-sm">Предпросмотр в афише</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(false)}
+              className="p-1.5 rounded-full bg-white/5 text-neutral-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="py-6 max-w-sm mx-auto w-full space-y-4">
+            <div className="rounded-3xl overflow-hidden bg-[#141417] border border-white/10 shadow-2xl space-y-3 pb-4">
+              <div className="relative aspect-video w-full bg-neutral-900">
+                <img 
+                  src={coverImageUrl} 
+                  alt={title || 'Превью'} 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-[10px] font-semibold text-white border border-white/10">
+                  {selectedCategoryName}
+                </div>
+                <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-emerald-500/90 text-black font-bold text-xs shadow-md">
+                  {isFree ? 'Бесплатно' : `${priceAmount || '1 200'} ₽`}
+                </div>
+              </div>
+
+              <div className="px-4 space-y-2">
+                <div className="text-[11px] text-emerald-400 font-semibold">
+                  {eventDate} • {eventTime}
+                </div>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  {title || 'Название события не указано'}
+                </h3>
+                <p className="text-xs text-neutral-400 flex items-center space-x-1">
+                  <MapPin className="w-3.5 h-3.5 shrink-0 text-neutral-500" />
+                  <span>{venueName || 'Махачкала, площадка не указана'}</span>
+                </p>
+                {description && (
+                  <p className="text-xs text-neutral-300 pt-1 line-clamp-3 leading-relaxed border-t border-white/5">
+                    {description}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  telegram.hapticImpact('light');
-                  setShowDeleteConfirm(false);
-                  setDeleteError(null);
+                  setIsPreviewOpen(false);
+                  handleSubmit();
                 }}
-                disabled={isDeleting}
-                className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 transition-colors btn-press"
+                className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-lg active:scale-98"
               >
-                Отмена
+                Отправить на модерацию
               </button>
               <button
                 type="button"
-                onClick={handleDeleteEvent}
-                disabled={isDeleting}
-                className="py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-semibold text-white shadow-lg shadow-red-600/20 transition-all flex items-center justify-center space-x-1.5 btn-press"
+                onClick={() => setIsPreviewOpen(false)}
+                className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs border border-white/5"
               >
-                {isDeleting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <span>Удалить мероприятие</span>
-                )}
+                ← Вернуться к редактированию
               </button>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
