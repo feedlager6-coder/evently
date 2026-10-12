@@ -433,7 +433,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                           {member.attendance_status === 'going' ? (
                             <span className="text-emerald-400 font-medium">● Идёт</span>
                           ) : (
-                            <span className="text-purple-400 font-medium">● Интересуется</span>
+                            <span className="text-[#ffb95f] font-medium">● Интересуется</span>
                           )}
                         </div>
                       </div>
@@ -598,7 +598,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                 matches.map((match) => (
                   <div
                     key={match.match_id}
-                    className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-950/30 to-indigo-950/30 border border-emerald-500/30 space-y-3"
+                    className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-950/30 to-[#1c1b1e] border border-emerald-500/30 space-y-3"
                   >
                     <div className="flex items-center space-x-3 min-w-0">
                       <div className="w-11 h-11 min-w-[44px] min-h-[44px] max-w-[44px] max-h-[44px] rounded-full overflow-hidden shrink-0 border border-emerald-400/40 bg-[#131722]">

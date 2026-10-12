@@ -332,9 +332,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[60] overflow-y-auto p-3 sm:p-4 bg-black/80 backdrop-blur-sm backdrop-fade-in pb-32 pb-safe">
       <div 
-        className="w-full max-w-lg rounded-3xl bg-[#1c1b1e] border border-white/10 p-5 shadow-2xl space-y-4 my-auto sheet-slide-up"
+        className="w-full max-w-lg mx-auto my-6 rounded-3xl bg-[#1c1b1e] border border-white/10 p-5 shadow-2xl space-y-4 sheet-slide-up pb-8"
         onClick={(e) => {
           e.stopPropagation();
         }}
@@ -733,7 +733,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <button
               type="submit"
               disabled={isLoading || isUploadingImage || isDeleting}
-              className="w-full py-3 rounded-2xl bg-white text-[#1a1c1c] font-bold text-xs shadow-lg active:scale-95 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
+              className="w-full py-3.5 rounded-2xl bg-white !text-[#131315] font-bold text-xs shadow-lg active:scale-95 flex items-center justify-center space-x-2 transition-all btn-press disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

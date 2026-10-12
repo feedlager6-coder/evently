@@ -21,6 +21,7 @@ export type EventStatus = 'pending' | 'published' | 'rejected' | 'cancelled' | '
 export interface EventSummary {
   id: string;
   title: string;
+  description?: string;
   cover_image_url?: string;
   category_id: string;
   category_name: string;

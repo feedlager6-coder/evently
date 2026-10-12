@@ -199,9 +199,22 @@
 
 .horizontal-carousel {
   overscroll-behavior-x: contain;
-  overscroll-behavior-y: auto;
-  touch-action: pan-x pan-y;
+  overscroll-behavior-y: contain;
+  overscroll-behavior: contain;
+  touch-action: pan-x;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Guarantee high-contrast text and icons on light buttons across all Telegram WebApp themes */
+.bg-white,
+button.bg-white,
+a.bg-white {
+  color: #131315 !important;
+}
+
+button.bg-white svg,
+a.bg-white svg {
+  color: #131315 !important;
 }
 
 .nav-safe-bottom {

@@ -39,7 +39,7 @@ export const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
           isAnimating
             ? direction === 'up'
               ? 'animate-slide-up-in text-emerald-400 font-semibold'
-              : 'animate-slide-down-in text-indigo-400 font-semibold'
+              : 'animate-slide-down-in text-amber-400 font-semibold'
             : ''
         }`}
       >

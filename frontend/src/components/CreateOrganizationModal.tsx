@@ -250,13 +250,13 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center bg-black/80 backdrop-blur-sm backdrop-fade-in p-0 sm:p-4 pb-20 pb-safe">
       <div
-        className="w-full max-w-lg bg-[#0F121C] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up"
+        className="w-full max-w-lg bg-[#1c1b1e] sm:rounded-3xl rounded-t-[28px] border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh] sheet-slide-up pb-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#141724]/70 backdrop-blur-md shrink-0">
+        <div className="p-4 flex items-center justify-between border-b border-white/5 bg-[#201f22]/80 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors btn-press"
@@ -264,14 +264,14 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             <X className="w-5 h-5" />
           </button>
           <div className="text-sm font-bold text-white flex items-center space-x-2">
-            <Building2 className="w-4 h-4 text-indigo-400" />
+            <Building2 className="w-4 h-4 text-[#4edea3]" />
             <span>{isEditing ? 'Редактировать организацию' : 'Создать организацию'}</span>
           </div>
           <div className="w-9" />
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 no-scrollbar flex-1">
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 no-scrollbar flex-1 pb-16">
           {error && (
             <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -283,19 +283,19 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
           <div className="flex flex-col items-center space-y-2 py-1">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="relative w-20 h-20 rounded-2xl overflow-hidden bg-[#171B29] border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 cursor-pointer flex items-center justify-center group transition-all"
+              className="relative w-20 h-20 rounded-2xl overflow-hidden bg-[#201f22] border-2 border-dashed border-white/15 hover:border-[#4edea3]/50 cursor-pointer flex items-center justify-center group transition-all"
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <div className="flex flex-col items-center space-y-1 text-gray-400 group-hover:text-indigo-300">
+                <div className="flex flex-col items-center space-y-1 text-gray-400 group-hover:text-[#4edea3]">
                   <Upload className="w-5 h-5" />
                   <span className="text-[10px]">Логотип</span>
                 </div>
               )}
               {isUploadingAvatar && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-[#4edea3] animate-spin" />
                 </div>
               )}
             </div>
@@ -309,7 +309,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+              className="text-xs text-[#4edea3] hover:text-[#6ffbbe] font-medium"
             >
               {avatarUrl ? 'Изменить логотип' : '+ Загрузить логотип / фото'}
             </button>
@@ -328,7 +328,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Например: Coffee Lab, Арт-пространство 05, Dance Studio"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
               required
             />
           </div>
@@ -346,8 +346,8 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
                   onClick={() => setCategory(cat)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                     category === cat
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                      : 'bg-[#171B29] text-gray-300 border border-white/5 hover:border-white/20'
+                      ? 'bg-white !text-[#131315] font-bold shadow-md'
+                      : 'bg-[#201f22] text-gray-300 border border-white/5 hover:border-white/20'
                   }`}
                 >
                   {cat}
@@ -362,10 +362,10 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             <select
               value={cityId}
               onChange={(e) => setCityId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs focus:outline-none focus:border-[#4edea3] transition-colors"
             >
               {availableCities.map((c) => (
-                <option key={c.id} value={c.id} className="bg-[#141724] text-white">
+                <option key={c.id} value={c.id} className="bg-[#201f22] text-white">
                   {c.name}
                 </option>
               ))}
@@ -382,10 +382,10 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
                 onChange={(e) => setAddress(e.target.value)}
                 onFocus={() => locationSuggestions.length > 0 && setShowSuggestions(true)}
                 placeholder="Улица, дом (например, ул. Ленина, 12)"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 transition-colors pr-8"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors pr-8"
               />
               {isLoadingSuggestions ? (
-                <Loader2 className="w-4 h-4 text-indigo-400 animate-spin absolute right-2.5 top-1/2 -translate-y-1/2" />
+                <Loader2 className="w-4 h-4 text-[#4edea3] animate-spin absolute right-2.5 top-1/2 -translate-y-1/2" />
               ) : (
                 <MapPin className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
               )}
@@ -393,14 +393,14 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
 
             {/* Suggestions dropdown */}
             {showSuggestions && locationSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-xl bg-[#171B29] border border-white/15 shadow-xl divide-y divide-white/5">
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-xl bg-[#201f22] border border-white/15 shadow-xl divide-y divide-white/5">
                 {locationSuggestions.map((sug, idx) => (
                   <div
                     key={idx}
                     onClick={() => handleSelectSuggestion(sug)}
                     className="p-2.5 hover:bg-white/5 cursor-pointer text-xs text-gray-200 transition-colors flex items-start space-x-2"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 text-[#4edea3] mt-0.5 shrink-0" />
                     <div>
                       {sug.title && <div className="font-semibold text-white">{sug.title}</div>}
                       <div className="text-[11px] text-gray-400">{sug.display_name}</div>
@@ -419,7 +419,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Расскажите о вашей площадке, миссии, формате мероприятий..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors resize-none"
             />
           </div>
 
@@ -433,7 +433,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   placeholder="https://mysite.ru"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
                 />
                 <Globe className="w-4 h-4 text-gray-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
               </div>
@@ -446,7 +446,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
                 value={socialLink}
                 onChange={(e) => setSocialLink(e.target.value)}
                 placeholder="https://t.me/mychannel"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#171B29] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
               />
             </div>
           </div>
@@ -456,14 +456,14 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             <button
               type="submit"
               disabled={isLoading || isUploadingAvatar || isDeleting}
-              className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xl shadow-indigo-600/30 btn-press disabled:opacity-70"
+              className="w-full py-3.5 px-6 rounded-2xl bg-white !text-[#131315] font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xl btn-press disabled:opacity-70 active:scale-95"
             >
               {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin !text-[#131315]" />
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{isEditing ? 'Сохранить изменения' : 'Создать организацию'}</span>
+                  <CheckCircle2 className="w-4 h-4 !text-[#131315]" />
+                  <span className="!text-[#131315]">{isEditing ? 'Сохранить изменения' : 'Создать организацию'}</span>
                 </>
               )}
             </button>
