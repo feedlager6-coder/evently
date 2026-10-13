@@ -110,7 +110,7 @@ async def run_verification():
 
         # Clean up test event rsvps & event
         await session.execute(
-            text("DELETE FROM event_rsvps WHERE event_id = :eid"),
+            text("DELETE FROM event_attendees WHERE event_id = :eid"),
             {"eid": created_event.id}
         )
         await session.execute(
