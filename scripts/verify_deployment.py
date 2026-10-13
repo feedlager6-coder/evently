@@ -4,15 +4,24 @@ import sys
 from pathlib import Path
 
 # Add backend directory to sys.path
+sys.path.insert(0, "/app/backend")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from app.database import AsyncSessionLocal, engine
+from app.database import AsyncSessionLocal
 from sqlalchemy import text
-from app.services.event_service import EventService
-from app.services.organization_service import OrganizationService
+from app.services.event_service import (
+    create_organizer_event,
+    get_event_details,
+    add_event_rsvp,
+    EventValidationError
+)
+from app.services.organization_service import (
+    create_organization,
+    get_organization_by_id_or_slug,
+    update_organization
+)
 from app.schemas.event import EventCreate, EventUpdate
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
-from app.models.user import User
 
 async def run_verification():
     print("=== STARTING END-TO-END PERSONA VERIFICATION ===")
@@ -42,7 +51,6 @@ async def run_verification():
         )
         test_user = user_res.fetchone()
         if not test_user:
-            # Create a test user
             await session.execute(
                 text("INSERT INTO users (id, telegram_id, username, first_name, is_organizer) VALUES ('test-user-1', 99999901, 'testuser', 'Test', true)")
             )
@@ -55,7 +63,6 @@ async def run_verification():
     # 3. Scenario: Solo Author Event with Capacity
     print("\n--- 2. Solo Author Event Creation & Capacity ---")
     async with AsyncSessionLocal() as session:
-        event_service = EventService(session)
         payload = EventCreate(
             title="Тестовый Воркшоп Solo Автора",
             description="Интенсив по дизайну для начинающих",
@@ -66,27 +73,25 @@ async def run_verification():
             address="ул. Расула Гамзатова, 45",
             price_amount=500,
             price_currency="RUB",
-            capacity=2, # limit of 2 attendees
-            organization_id=None, # Solo author, no org
+            capacity=2,
+            organization_id=None,
             allow_event_contact=True
         )
-        created_event = await event_service.create_organizer_event(user_id, payload)
+        created_event = await create_organizer_event(session, user_id, payload)
         print(f"✓ Created solo event ID: {created_event.id}, capacity: {created_event.capacity}, org_id: {created_event.organization_id}")
         assert created_event.capacity == 2
         assert created_event.organization_id is None
 
         # Verify get details
-        details = await event_service.get_event_details(created_event.id, user_id)
+        details = await get_event_details(session, created_event.id, user_id)
         assert details.capacity == 2
         print(f"✓ Event details returned capacity: {details.capacity}")
 
         # Test RSVP capacity enforcement
         print("\n--- 3. Guest Capacity Enforcement Check ---")
-        # First RSVP
-        rsvp1 = await event_service.add_event_rsvp(created_event.id, user_id)
-        print(f"✓ User 1 RSVP status: {rsvp1['is_going']}, current capacity left: {created_event.capacity - 1}")
+        rsvp1 = await add_event_rsvp(session, created_event.id, user_id)
+        print(f"✓ User 1 RSVP status: {rsvp1['is_going']}")
 
-        # Second RSVP from second user
         user2_res = await session.execute(
             text("SELECT id FROM users WHERE id != :uid LIMIT 1"),
             {"uid": user_id}
@@ -101,10 +106,9 @@ async def run_verification():
         else:
             user2_id = row2[0]
 
-        rsvp2 = await event_service.add_event_rsvp(created_event.id, user2_id)
+        rsvp2 = await add_event_rsvp(session, created_event.id, user2_id)
         print(f"✓ User 2 RSVP status: {rsvp2['is_going']}, capacity now reached (2/2)")
 
-        # Third user RSVP should be rejected because capacity=2 is exhausted
         user3_res = await session.execute(
             text("SELECT id FROM users WHERE id NOT IN (:u1, :u2) LIMIT 1"),
             {"u1": user_id, "u2": user2_id}
@@ -120,9 +124,9 @@ async def run_verification():
             user3_id = row3[0]
 
         try:
-            await event_service.add_event_rsvp(created_event.id, user3_id)
+            await add_event_rsvp(session, created_event.id, user3_id)
             raise AssertionError("Overbooking succeeded! Capacity limit failed.")
-        except Exception as exc:
+        except EventValidationError as exc:
             print(f"✓ Correctly rejected third attendee when capacity reached: {exc}")
 
         # Clean up test event rsvps & event
@@ -140,7 +144,6 @@ async def run_verification():
     # 4. Scenario: Organization Creation with Features Chips
     print("\n--- 4. Organization Owner Features Chips Check ---")
     async with AsyncSessionLocal() as session:
-        org_service = OrganizationService(session)
         org_payload = OrganizationCreate(
             name="Тестовый Клуб Атмосфера 05",
             category="Ночные клубы & Бары",
@@ -150,12 +153,12 @@ async def run_verification():
             features=["FC / DC 18+", "Wi-Fi", "Chillout & Бар", "Звуковая система"],
             social_link="@atmosfera05"
         )
-        created_org = await org_service.create_organization(user_id, org_payload)
+        created_org = await create_organization(session, user_id, org_payload)
         print(f"✓ Created organization: {created_org.name}, features: {created_org.features}")
         assert created_org.features == ["FC / DC 18+", "Wi-Fi", "Chillout & Бар", "Звуковая система"]
 
         # Verify get organization
-        fetched_org = await org_service.get_organization_by_id_or_slug(created_org.id, user_id)
+        fetched_org = await get_organization_by_id_or_slug(session, created_org.id, user_id)
         assert fetched_org.features == ["FC / DC 18+", "Wi-Fi", "Chillout & Бар", "Звуковая система"]
         print(f"✓ Fetched organization features match: {fetched_org.features}")
 
@@ -163,7 +166,7 @@ async def run_verification():
         update_payload = OrganizationUpdate(
             features=["FC / DC 18+", "VIP-ложи", "Безналичный расчет"]
         )
-        updated_org = await org_service.update_organization(created_org.id, user_id, update_payload)
+        updated_org = await update_organization(session, created_org.id, user_id, update_payload)
         assert updated_org.features == ["FC / DC 18+", "VIP-ложи", "Безналичный расчет"]
         print(f"✓ Updated organization features match: {updated_org.features}")
 
