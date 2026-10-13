@@ -83,7 +83,7 @@ async def run_verification():
         # Test RSVP capacity enforcement
         print("\n--- 3. Guest Capacity Enforcement Check ---")
         rsvp1 = await add_event_rsvp(session, created_event.id, user_id)
-        print(f"✓ User 1 RSVP status: {rsvp1['is_going']}")
+        print(f"✓ User 1 RSVP status: {rsvp1[0]}")
 
         user2_res = await session.execute(
             text("SELECT id FROM users WHERE id != :uid LIMIT 1"),
@@ -93,7 +93,7 @@ async def run_verification():
         user2_id = row2[0]
 
         rsvp2 = await add_event_rsvp(session, created_event.id, user2_id)
-        print(f"✓ User 2 RSVP status: {rsvp2['is_going']}, capacity now reached (2/2)")
+        print(f"✓ User 2 RSVP status: {rsvp2[0]}, capacity now reached (2/2)")
 
         user3_res = await session.execute(
             text("SELECT id FROM users WHERE id NOT IN (:u1, :u2) LIMIT 1"),
