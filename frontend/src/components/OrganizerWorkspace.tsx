@@ -131,6 +131,15 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   }, []);
 
+  // Auto-open broadcast wizard when triggered from an event
+  useEffect(() => {
+    if (initialBroadcastEventId) {
+      setSelectedEventTargetId(initialBroadcastEventId);
+      setTargetSegment('event_interest');
+      setIsBroadcastModalOpen(true);
+    }
+  }, [initialBroadcastEventId]);
+
   // Fetch broadcasts & audience on mount for real active organization
   useEffect(() => {
     if (!activeOrg) {
@@ -380,7 +389,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 className="py-2.5 px-3 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 active:scale-95 transition flex items-center justify-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                <span>+ Событие</span>
+                <span>Событие</span>
               </button>
             </div>
           </div>

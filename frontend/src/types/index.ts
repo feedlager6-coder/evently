@@ -34,6 +34,7 @@ export interface EventSummary {
   longitude?: number;
   price_amount?: number;
   price_currency?: string;
+  capacity?: number;
   is_free: boolean;
   status: EventStatus;
   attendee_count: number;
@@ -110,6 +111,7 @@ export interface EventCreatePayload {
   longitude?: number;
   price_amount?: number;
   price_currency?: string;
+  capacity?: number;
   organization_id?: string;
   allow_event_contact?: boolean;
 }
@@ -140,6 +142,7 @@ export interface OrganizationSummary {
   latitude?: number;
   longitude?: number;
   avatar_url?: string;
+  features?: string[];
   status: string;
   is_verified: boolean;
   followers_count: number;
@@ -168,6 +171,7 @@ export interface OrganizationCreatePayload {
   avatar_url?: string;
   website?: string;
   social_link?: string;
+  features?: string[];
 }
 
 export interface OrganizationUpdatePayload {
@@ -181,6 +185,7 @@ export interface OrganizationUpdatePayload {
   avatar_url?: string;
   website?: string;
   social_link?: string;
+  features?: string[];
   status?: string;
 }
 

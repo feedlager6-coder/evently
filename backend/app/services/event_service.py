@@ -236,6 +236,7 @@ async def list_published_events(
                 longitude=event.longitude,
                 price_amount=event.price_amount,
                 price_currency=event.price_currency,
+                capacity=getattr(event, "capacity", None),
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,
@@ -388,6 +389,7 @@ async def get_event_details(
         longitude=event.longitude,
         price_amount=event.price_amount,
         price_currency=event.price_currency,
+        capacity=getattr(event, "capacity", None),
         is_free=(event.price_amount is None or event.price_amount == 0),
         status=event.status,
         organizer_user_id=event.organizer_user_id,
@@ -457,6 +459,15 @@ async def add_event_rsvp(
         )
         count = count_res.scalar() or 0
         return True, count, "Already attending"
+
+    # Check capacity limit if set
+    if event.capacity is not None and event.capacity > 0:
+        current_cnt_res = await session.execute(
+            select(func.count(EventAttendee.user_id)).where(EventAttendee.event_id == event_id)
+        )
+        current_cnt = current_cnt_res.scalar() or 0
+        if current_cnt >= event.capacity:
+            raise EventValidationError("Все места на это мероприятие уже заняты.")
 
     # Insert attendance
     attendee = EventAttendee(event_id=event_id, user_id=user_id)
@@ -753,6 +764,7 @@ async def create_organizer_event(
         longitude=resolved_lng,
         price_amount=data.price_amount,
         price_currency=data.price_currency or "RUB",
+        capacity=data.capacity,
         status=EventStatus.PENDING.value,
         organizer_user_id=organizer_user_id,
         organization_id=org_id,
@@ -852,6 +864,8 @@ async def update_organizer_event(
         event.price_amount = data.price_amount
     if data.price_currency is not None:
         event.price_currency = data.price_currency
+    if data.capacity is not None:
+        event.capacity = data.capacity
 
     if data.category_id is not None and data.category_id.strip():
         cat_res = await session.execute(select(Category).where(Category.id == data.category_id.strip()))
@@ -1033,6 +1047,7 @@ async def get_organizer_events(
                 longitude=event.longitude,
                 price_amount=event.price_amount,
                 price_currency=event.price_currency,
+                capacity=getattr(event, "capacity", None),
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,
@@ -1128,6 +1143,7 @@ async def get_user_personal_events(
                 longitude=event.longitude,
                 price_amount=event.price_amount,
                 price_currency=event.price_currency,
+                capacity=getattr(event, "capacity", None),
                 is_free=(event.price_amount is None or event.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=event.status,

@@ -7,7 +7,6 @@ import {
   Share2,
   Bell,
   Send,
-  SlidersHorizontal,
   Ticket,
   Info,
   MapPin,
@@ -219,6 +218,158 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
     window.open(url, '_blank');
   };
 
+  const now = new Date();
+  const upcomingEvents = events.filter((e) => new Date(e.start_at) >= now);
+  const pastEvents = events.filter((e) => new Date(e.start_at) < now);
+
+  const renderEventCard = (event: EventSummary, isPast: boolean) => {
+    const eventDate = new Date(event.start_at);
+    const formattedDate = eventDate.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).toUpperCase();
+
+    const isFree = Boolean(event.is_free) || (event.price_amount !== null && event.price_amount !== undefined && Number(event.price_amount) === 0);
+    const priceAmount = event.price_amount;
+    const priceFormatted = !isFree && priceAmount ? `${Number(priceAmount)} ₽` : 'Бесплатно';
+    const isBookmarked = bookmarkedEventIds[event.id];
+
+    return (
+      <article
+        key={event.id}
+        onClick={() => {
+          telegram.hapticImpact('light');
+          onClose();
+          onEventClick(event);
+        }}
+        className={`relative overflow-hidden rounded-[24px] bg-[#141417] border border-white/5 shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all active:scale-[0.99] cursor-pointer ${
+          isPast ? 'opacity-80' : ''
+        }`}
+      >
+        {/* Cover Image 16:9 */}
+        <div className="relative h-48 w-full overflow-hidden bg-[#1a1a1f]">
+          <SafeImage
+            src={event.cover_image_url}
+            alt={event.title}
+            className={`w-full h-full object-cover ${isPast ? 'grayscale-[20%]' : ''}`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#141417] via-[#141417]/30 to-transparent" />
+
+          {/* Top Overlays: Date chip on left, Bookmark icon on right */}
+          <div className="absolute top-3 left-3 flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full bg-[#08080A]/85 backdrop-blur-md text-white font-bold text-[11px] border border-white/10 shadow-sm">
+              {formattedDate}
+            </span>
+            {isPast && (
+              <span className="px-2 py-0.5 rounded-full bg-neutral-800/90 text-neutral-400 font-bold text-[10px] border border-white/10">
+                Завершено
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={(e) => handleToggleBookmark(e, event.id)}
+            type="button"
+            className="w-8 h-8 rounded-full bg-[#08080A]/70 backdrop-blur-md border border-white/10 flex items-center justify-center text-white absolute top-3 right-3 active:scale-90 transition-transform"
+            title="В закладки"
+          >
+            <Bookmark
+              className={`w-4 h-4 ${
+                isBookmarked ? 'fill-[#4edea3] text-[#4edea3]' : 'text-neutral-300'
+              }`}
+            />
+          </button>
+
+          {/* Pill on Image */}
+          <div className="absolute bottom-3 left-3">
+            {isPast ? (
+              <span className="px-3 py-1 rounded-full bg-[#201f22]/90 backdrop-blur-md text-neutral-400 font-medium text-[11px] border border-white/10">
+                Событие завершено
+              </span>
+            ) : isFree ? (
+              <span className="px-3 py-1 rounded-full bg-[#201f22]/90 backdrop-blur-md text-white font-bold text-[11px] border border-white/10">
+                Вход свободный
+              </span>
+            ) : event.capacity ? (
+              <span className="px-3 py-1 rounded-full bg-[#00a572] text-[#00311f] font-bold text-[11px] flex items-center gap-1.5 shadow-md">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00311f]" />
+                <span>{event.capacity} мест</span>
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full bg-[#201f22]/90 backdrop-blur-md text-[#4edea3] font-bold text-[11px] border border-white/10 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3]" />
+                <span>Регистрация открыта</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Card Body */}
+        <div className="p-3.5 space-y-3">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white tracking-tight line-clamp-1">
+              {event.title}
+            </h3>
+            <div className="flex items-center gap-1.5 text-neutral-400 text-xs">
+              <MapPin className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
+              <span className="truncate">
+                {event.venue_name || org?.name || 'Локация уточняется'} • {event.city_name || org?.city_name || 'Махачкала'}
+              </span>
+            </div>
+          </div>
+
+          {/* Footer Action Row */}
+          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
+                {isPast ? 'Статус' : isFree ? 'Регистрация' : 'Стоимость входа'}
+              </span>
+              <span
+                className={`text-sm font-extrabold ${
+                  isPast ? 'text-neutral-400' : isFree ? 'text-[#4edea3]' : 'text-white'
+                }`}
+              >
+                {isPast ? 'Завершено' : isFree ? 'Бесплатно' : `от ${priceFormatted}`}
+              </span>
+            </div>
+
+            {!isPast && !isFree ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  telegram.hapticImpact('light');
+                  onClose();
+                  onEventClick(event);
+                }}
+                className="px-4 py-2 rounded-full bg-[#4edea3] text-[#00311f] font-extrabold text-xs flex items-center gap-1 shadow-md active:scale-95 transition-transform"
+              >
+                <span>Купить билет</span>
+                <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  telegram.hapticImpact('light');
+                  onClose();
+                  onEventClick(event);
+                }}
+                className="px-4 py-2 rounded-full bg-[#201f22] text-white font-bold text-xs flex items-center gap-1 border border-white/10 active:scale-95 transition-transform hover:bg-[#25252a]"
+              >
+                <span>Подробнее</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-[60] bg-[#08080A] overflow-y-auto overflow-x-hidden flex flex-col no-scrollbar">
       {/* Ambient Top Emerald Radial Glow Spot */}
@@ -363,19 +514,19 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 <span>{org.city_name || 'Махачкала'}</span>
               </div>
 
-              {/* 3. Action Buttons Row: [Подписаться], [Написать], [Настройки/Фильтр] */}
-              <div className="w-full mt-5 grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+              {/* 3. Action Buttons Row: [Подписаться], [Написать], [Редактировать] */}
+              <div className="w-full mt-5 flex items-center justify-center gap-2">
                 {/* Subscribe Button */}
                 <button
                   onClick={handleToggleSubscribe}
                   disabled={isSubscribing || org.is_owner}
                   type="button"
-                  className={`py-2.5 px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md ${
+                  className={`h-10 min-w-[140px] px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md ${
                     org.is_owner
-                      ? 'bg-[#2a2a2e] text-neutral-400 cursor-default opacity-80'
+                      ? 'bg-[#2a2a2e] text-neutral-400 cursor-default opacity-80 border border-transparent'
                       : org.is_subscribed
                       ? 'bg-[#201f22] text-[#4edea3] border border-[#10b981]/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                      : 'bg-white text-[#1a1c1c] shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-neutral-100'
+                      : 'bg-white text-[#1a1c1c] border border-transparent shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-neutral-100'
                   }`}
                 >
                   {isSubscribing ? (
@@ -394,69 +545,81 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </button>
 
                 {/* Direct Message (Send / Telegram) Button */}
-                <button
-                  onClick={handleOpenContact}
-                  type="button"
-                  className="py-2.5 px-4 rounded-full bg-[#1c1c20] border border-white/10 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all hover:bg-[#25252a] shadow-sm"
-                >
-                  <Send className="w-3.5 h-3.5 text-[#4edea3]" />
-                  <span>Написать</span>
-                </button>
-
-                {/* Options / Action Button */}
-                <button
-                  onClick={() => {
-                    telegram.hapticImpact('light');
-                    if (org.is_owner) {
+                {org.social_link ? (
+                  <button
+                    onClick={handleOpenContact}
+                    type="button"
+                    className="h-10 px-4 flex-1 rounded-full bg-[#1c1c20] border border-white/10 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all hover:bg-[#25252a] shadow-sm"
+                  >
+                    <Send className="w-3.5 h-3.5 text-[#4edea3]" />
+                    <span>Написать</span>
+                  </button>
+                ) : org.is_owner ? (
+                  <button
+                    onClick={() => {
+                      telegram.hapticImpact('light');
                       onEditOrg?.(org);
-                    } else {
-                      handleShare();
-                    }
-                  }}
-                  type="button"
-                  className="w-10 h-10 rounded-full bg-[#1c1c20] border border-white/10 flex items-center justify-center text-neutral-300 active:scale-95 transition-all hover:text-white"
-                  title="Опции"
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                </button>
+                    }}
+                    type="button"
+                    className="h-10 px-4 flex-1 rounded-full bg-[#1c1c20] border border-white/10 text-neutral-300 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all hover:bg-[#25252a] shadow-sm"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#4edea3]" />
+                    <span>Указать контакт</span>
+                  </button>
+                ) : null}
+
+                {/* Owner Edit Button */}
+                {org.is_owner && (
+                  <button
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      onEditOrg?.(org);
+                    }}
+                    type="button"
+                    className="w-10 h-10 shrink-0 rounded-full bg-[#1c1c20] border border-white/10 flex items-center justify-center text-neutral-300 active:scale-95 transition-all hover:text-white"
+                    title="Редактировать профиль"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </section>
 
-            {/* 4. Bento Grid: Key Organization Metrics (3 Columns) */}
+            {/* 4. Bento Grid: Real Organization Metrics */}
             <section className="px-4 grid grid-cols-3 gap-2">
               {/* Metric 1: Followers */}
               <div className="p-3 rounded-2xl bg-[#141417] border border-white/5 flex flex-col items-center justify-center text-center shadow-sm">
                 <span className="text-base font-extrabold text-white tracking-tight">
                   {org.followers_count >= 1000
                     ? `${(org.followers_count / 1000).toFixed(1).replace('.0', '')}k`
-                    : org.followers_count || '3 420'}
+                    : org.followers_count ?? 0}
                 </span>
-                <span className="text-[10px] font-bold text-[#4edea3] mt-0.5 flex items-center gap-0.5">
-                  <span>+12%</span>
-                  <span>↗</span>
+                <span className="text-[10px] font-bold text-[#4edea3] mt-0.5">
+                  Аудитория
                 </span>
                 <span className="text-[11px] text-neutral-400 mt-1">Подписчиков</span>
               </div>
 
-              {/* Metric 2: Events */}
+              {/* Metric 2: Upcoming Events */}
               <div className="p-3 rounded-2xl bg-[#141417] border border-white/5 flex flex-col items-center justify-center text-center shadow-sm">
                 <span className="text-base font-extrabold text-white tracking-tight">
-                  {events.length > 0 ? events.length : org.events_count || 18}
+                  {upcomingEvents.length}
                 </span>
-                <span className="text-[10px] font-medium text-neutral-500 mt-0.5">
-                  Сезон {new Date().getFullYear()}
+                <span className="text-[10px] font-medium text-neutral-400 mt-0.5">
+                  В афише
                 </span>
-                <span className="text-[11px] text-neutral-400 mt-1">Событий</span>
+                <span className="text-[11px] text-neutral-400 mt-1">Ближайших</span>
               </div>
 
-              {/* Metric 3: Rating */}
+              {/* Metric 3: Total Events */}
               <div className="p-3 rounded-2xl bg-[#141417] border border-white/5 flex flex-col items-center justify-center text-center shadow-sm">
-                <span className="text-base font-extrabold text-white tracking-tight flex items-center gap-1">
-                  <span>4.9</span>
-                  <span className="text-[#ffb95f] text-sm">☆</span>
+                <span className="text-base font-extrabold text-white tracking-tight">
+                  {events.length}
                 </span>
-                <span className="text-[10px] font-medium text-neutral-500 mt-0.5">248 отзывов</span>
-                <span className="text-[11px] text-neutral-400 mt-1">Рейтинг</span>
+                <span className="text-[10px] font-medium text-neutral-400 mt-0.5">
+                  {pastEvents.length > 0 ? `${pastEvents.length} архив` : 'Всего'}
+                </span>
+                <span className="text-[11px] text-neutral-400 mt-1">Всего событий</span>
               </div>
             </section>
 
@@ -517,19 +680,19 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
             {/* 6. TAB CONTENT: АФИША */}
             {activeTab === 'afisha' && (
-              <section className="px-4 space-y-3">
+              <section className="px-4 space-y-4">
                 {/* Subtitle row */}
                 <div className="flex items-center justify-between px-1">
                   <span className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase">
                     БЛИЖАЙШИЕ СОБЫТИЯ
                   </span>
                   <span className="text-xs font-semibold text-[#4edea3]">
-                    {events.length} {events.length === 1 ? 'анонс' : events.length >= 2 && events.length <= 4 ? 'анонса' : 'анонсов'}
+                    {upcomingEvents.length} {upcomingEvents.length === 1 ? 'анонс' : upcomingEvents.length >= 2 && upcomingEvents.length <= 4 ? 'анонса' : 'анонсов'}
                   </span>
                 </div>
 
-                {events.length === 0 ? (
-                  <div className="py-14 px-4 text-center rounded-[24px] bg-[#141417] border border-white/5 space-y-3 shadow-lg">
+                {upcomingEvents.length === 0 ? (
+                  <div className="py-12 px-4 text-center rounded-[24px] bg-[#141417] border border-white/5 space-y-3 shadow-lg">
                     <div className="w-12 h-12 rounded-full bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center mx-auto border border-[#10b981]/25">
                       <Ticket className="w-6 h-6" />
                     </div>
@@ -561,137 +724,26 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                     )}
                   </div>
                 ) : (
-                  events.map((event) => {
-                    const eventDate = new Date(event.start_at);
-                    const formattedDate = eventDate.toLocaleDateString('ru-RU', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }).toUpperCase();
+                  <div className="space-y-3">
+                    {upcomingEvents.map((event) => renderEventCard(event, false))}
+                  </div>
+                )}
 
-                    const isFree = Boolean(event.is_free) || (event.price_amount !== null && event.price_amount !== undefined && Number(event.price_amount) === 0);
-                    const priceAmount = event.price_amount;
-                    const priceFormatted = !isFree && priceAmount ? `${Number(priceAmount)} ₽` : 'Бесплатно';
-                    const isBookmarked = bookmarkedEventIds[event.id];
-
-                    return (
-                      <article
-                        key={event.id}
-                        onClick={() => {
-                          telegram.hapticImpact('light');
-                          onClose();
-                          onEventClick(event);
-                        }}
-                        className="relative overflow-hidden rounded-[24px] bg-[#141417] border border-white/5 shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all active:scale-[0.99] cursor-pointer"
-                      >
-                        {/* Cover Image 16:9 */}
-                        <div className="relative h-48 w-full overflow-hidden bg-[#1a1a1f]">
-                          <SafeImage
-                            src={event.cover_image_url}
-                            alt={event.title}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#141417] via-[#141417]/30 to-transparent" />
-
-                          {/* Top Overlays: Date chip on left, Bookmark icon on right */}
-                          <div className="absolute top-3 left-3">
-                            <span className="px-3 py-1 rounded-full bg-[#08080A]/85 backdrop-blur-md text-white font-bold text-[11px] border border-white/10 shadow-sm">
-                              {formattedDate}
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={(e) => handleToggleBookmark(e, event.id)}
-                            type="button"
-                            className="w-8 h-8 rounded-full bg-[#08080A]/70 backdrop-blur-md border border-white/10 flex items-center justify-center text-white absolute top-3 right-3 active:scale-90 transition-transform"
-                            title="В закладки"
-                          >
-                            <Bookmark
-                              className={`w-4 h-4 ${
-                                isBookmarked ? 'fill-[#4edea3] text-[#4edea3]' : 'text-neutral-300'
-                              }`}
-                            />
-                          </button>
-
-                          {/* Pill on Image: ticket count or free entry */}
-                          <div className="absolute bottom-3 left-3">
-                            {isFree ? (
-                              <span className="px-3 py-1 rounded-full bg-[#201f22]/90 backdrop-blur-md text-white font-bold text-[11px] border border-white/10">
-                                Вход свободный
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1 rounded-full bg-[#00a572] text-[#00311f] font-bold text-[11px] flex items-center gap-1.5 shadow-md">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#00311f]" />
-                                <span>142 билета осталось</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Card Body */}
-                        <div className="p-3.5 space-y-3">
-                          <div className="space-y-1">
-                            <h3 className="text-base font-bold text-white tracking-tight line-clamp-1">
-                              {event.title}
-                            </h3>
-                            <div className="flex items-center gap-1.5 text-neutral-400 text-xs">
-                              <MapPin className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
-                              <span className="truncate">
-                                {event.venue_name || 'Клуб «Атмосфера»'} • {event.city_name || 'Махачкала'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Footer Action Row: Price & Buy / Details Button */}
-                          <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
-                                {isFree ? 'Регистрация' : 'Стоимость входа'}
-                              </span>
-                              <span
-                                className={`text-sm font-extrabold ${
-                                  isFree ? 'text-[#4edea3]' : 'text-white'
-                                }`}
-                              >
-                                {isFree ? 'Бесплатно' : `от ${priceFormatted}`}
-                              </span>
-                            </div>
-
-                            {!isFree ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  telegram.hapticImpact('light');
-                                  onClose();
-                                  onEventClick(event);
-                                }}
-                                className="px-4 py-2 rounded-full bg-[#4edea3] text-[#00311f] font-extrabold text-xs flex items-center gap-1 shadow-md active:scale-95 transition-transform"
-                              >
-                                <span>Купить билет</span>
-                                <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  telegram.hapticImpact('light');
-                                  onClose();
-                                  onEventClick(event);
-                                }}
-                                className="px-4 py-2 rounded-full bg-[#201f22] text-white font-bold text-xs flex items-center gap-1 border border-white/10 active:scale-95 transition-transform hover:bg-[#25252a]"
-                              >
-                                <span>Подробнее</span>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })
+                {/* Past / Archived Events */}
+                {pastEvents.length > 0 && (
+                  <div className="pt-4 border-t border-white/5 space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[11px] font-bold tracking-wider text-neutral-500 uppercase">
+                        ПРОШЕДШИЕ СОБЫТИЯ
+                      </span>
+                      <span className="text-xs font-medium text-neutral-500">
+                        {pastEvents.length} в архиве
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {pastEvents.map((event) => renderEventCard(event, true))}
+                    </div>
+                  </div>
                 )}
               </section>
             )}
@@ -783,30 +835,41 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                   </div>
                 </div>
 
-                {/* Venue Rules & Specs */}
-                <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2.5 shadow-sm">
-                  <div className="text-xs font-bold text-white uppercase tracking-wider">
-                    Характеристики и правила
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                      <span className="text-[10px] text-neutral-500">Возрастной ценз</span>
-                      <span className="font-bold text-white">FC / DC 18+</span>
+                {/* Venue Rules & Features */}
+                {org.features && org.features.length > 0 ? (
+                  <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2.5 shadow-sm">
+                    <div className="text-xs font-bold text-white uppercase tracking-wider">
+                      Особенности и удобства
                     </div>
-                    <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                      <span className="text-[10px] text-neutral-500">Звуковая система</span>
-                      <span className="font-bold text-white">Funktion-One Audio</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                      <span className="text-[10px] text-neutral-500">Оплата на баре</span>
-                      <span className="font-bold text-white">Безналичный расчет</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                      <span className="text-[10px] text-neutral-500">Гардероб & Chill</span>
-                      <span className="font-bold text-white">Доступны гостям</span>
+                    <div className="flex flex-wrap gap-2">
+                      {org.features.map((feat, idx) => (
+                        <div
+                          key={idx}
+                          className="px-3 py-1.5 rounded-xl bg-[#08080A] border border-white/5 text-xs text-neutral-200 flex items-center gap-1.5"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3]" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2.5 shadow-sm">
+                    <div className="text-xs font-bold text-white uppercase tracking-wider">
+                      Характеристики и правила
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
+                        <span className="text-[10px] text-neutral-500">Возрастной ценз</span>
+                        <span className="font-bold text-white">FC / DC 18+</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
+                        <span className="text-[10px] text-neutral-500">Оплата на баре</span>
+                        <span className="font-bold text-white">Безналичный расчет</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Footer Signature */}
                 <div className="py-4 text-center text-[10px] text-neutral-500 tracking-wider uppercase">

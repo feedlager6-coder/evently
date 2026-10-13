@@ -34,6 +34,7 @@ class Event(Base):
     longitude = Column(Float, nullable=True)
     price_amount = Column(Float, nullable=True)
     price_currency = Column(String(10), nullable=True)
+    capacity = Column(Integer, nullable=True)
     status = Column(String(20), nullable=False, default=EventStatus.PENDING.value, index=True)
     organizer_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)

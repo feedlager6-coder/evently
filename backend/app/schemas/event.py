@@ -16,6 +16,7 @@ class EventCreate(BaseModel):
     longitude: Optional[float] = Field(None, description="Venue longitude")
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price (null if free)")
     price_currency: Optional[str] = Field(None, max_length=10, description="Price currency (e.g. RUB)")
+    capacity: Optional[int] = Field(None, ge=1, description="Event capacity / ticket limit")
     organization_id: Optional[str] = Field(None, description="Optional organization ID")
     allow_event_contact: bool = Field(False, description="Allow attendees to contact organizer via Telegram")
 
@@ -40,6 +41,7 @@ class EventUpdate(BaseModel):
     longitude: Optional[float] = Field(None, description="Venue longitude")
     price_amount: Optional[float] = Field(None, ge=0, description="Admission price")
     price_currency: Optional[str] = Field(None, max_length=10, description="Price currency")
+    capacity: Optional[int] = Field(None, ge=1, description="Event capacity / ticket limit")
     category_id: Optional[str] = Field(None, description="Category ID")
     city_id: Optional[str] = Field(None, description="City ID")
     organization_id: Optional[str] = Field(None, description="Organization ID (or empty string/null to detach)")
@@ -70,6 +72,7 @@ class EventSummary(BaseModel):
     longitude: Optional[float] = None
     price_amount: Optional[float] = None
     price_currency: Optional[str] = None
+    capacity: Optional[int] = None
     is_free: bool = True
     attendee_count: int = 0
     status: str

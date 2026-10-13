@@ -83,9 +83,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Pricing state
+  // Pricing & Capacity state
   const [isFree, setIsFree] = useState(false);
   const [priceAmount, setPriceAmount] = useState<string>('1200');
+  const [capacity, setCapacity] = useState<string>('');
   
   // Cover image state
   const [coverImageUrl, setCoverImageUrl] = useState<string>('');
@@ -136,6 +137,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setLongitude(initialEvent.longitude);
       setIsFree(initialEvent.is_free ?? (initialEvent.price_amount == null || initialEvent.price_amount === 0));
       setPriceAmount(initialEvent.price_amount != null ? String(initialEvent.price_amount) : '1200');
+      setCapacity(initialEvent.capacity != null ? String(initialEvent.capacity) : '');
       setCoverImageUrl(initialEvent.cover_image_url || PRESET_IMAGES[0].url);
       setSelectedOrgId(initialEvent.organization_id || undefined);
       setAllowEventContact(Boolean(initialEvent.allow_event_contact));
@@ -150,6 +152,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setAddress(initialDraft.address || '');
       setIsFree(Boolean(initialDraft.is_free));
       setPriceAmount(initialDraft.price_amount != null ? String(initialDraft.price_amount) : '1200');
+      setCapacity(initialDraft.capacity != null ? String(initialDraft.capacity) : '');
       setCoverImageUrl(initialDraft.cover_image_url || '');
       setSelectedOrgId(initialDraft.organization_id || initialOrganizationId);
     } else {
@@ -165,6 +168,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setLongitude(undefined);
       setIsFree(false);
       setPriceAmount('1200');
+      setCapacity('');
       setCoverImageUrl('');
       setSelectedOrgId(initialOrganizationId);
       setAllowEventContact(false);
@@ -217,6 +221,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       address: address.trim(),
       is_free: isFree,
       price_amount: isFree ? 0 : Number(priceAmount) || 0,
+      capacity: capacity ? Math.max(1, parseInt(capacity, 10)) : undefined,
       cover_image_url: coverImageUrl,
       organization_id: selectedOrgId,
       status: 'draft',
@@ -315,6 +320,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         longitude: longitude,
         price_amount: isFree ? undefined : Number(priceAmount) || 0,
         price_currency: 'RUB',
+        capacity: capacity ? Math.max(1, parseInt(capacity, 10)) : undefined,
         cover_image_url: coverImageUrl.trim() || PRESET_IMAGES[0].url,
         organization_id: selectedOrgId || undefined,
         allow_event_contact: !selectedOrgId ? allowEventContact : false,
@@ -698,6 +704,23 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 />
               </div>
             )}
+
+            <div className="pt-2 border-t border-white/5">
+              <label className="block text-[11px] text-neutral-400 mb-1">
+                Лимит мест / количество билетов (необязательно)
+              </label>
+              <input 
+                type="number"
+                min="1"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="Например, 50 (если ограничено)" 
+                className="input-field w-full px-3.5 py-2 rounded-xl text-sm text-white"
+              />
+              <p className="text-[10px] text-neutral-500 mt-1">
+                Оставьте пустым, если количество участников не ограничено
+              </p>
+            </div>
           </section>
 
           {/* Moderation notice banner matching Screen 2 */}

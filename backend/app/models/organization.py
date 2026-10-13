@@ -46,6 +46,7 @@ class Organization(Base):
     avatar_url = Column(String(1024), nullable=True)
     website = Column(String(1024), nullable=True)
     social_link = Column(String(1024), nullable=True)
+    features = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default=OrganizationStatus.ACTIVE.value, index=True)
     is_verified = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

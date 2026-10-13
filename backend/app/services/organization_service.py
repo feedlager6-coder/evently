@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 import logging
@@ -7,6 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete, update
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
+
+def parse_features(features_raw: Optional[str]) -> List[str]:
+    if not features_raw:
+        return []
+    try:
+        data = json.loads(features_raw)
+        if isinstance(data, list):
+            return [str(x) for x in data if x]
+    except Exception:
+        pass
+    return []
 
 from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
@@ -112,6 +124,7 @@ async def create_organization(
         avatar_url=data.avatar_url,
         website=data.website.strip() if data.website else None,
         social_link=data.social_link.strip() if data.social_link else None,
+        features=json.dumps(data.features, ensure_ascii=False) if data.features else None,
         status=OrganizationStatus.ACTIVE.value,
         is_verified=False
     )
@@ -133,6 +146,7 @@ async def create_organization(
         avatar_url=org.avatar_url,
         website=org.website,
         social_link=org.social_link,
+        features=parse_features(org.features),
         status=org.status,
         is_verified=org.is_verified,
         followers_count=0,
@@ -185,6 +199,7 @@ async def get_organization_by_id_or_slug(
         avatar_url=org.avatar_url,
         website=org.website,
         social_link=org.social_link,
+        features=parse_features(org.features),
         status=org.status,
         is_verified=org.is_verified,
         followers_count=followers_count,
@@ -242,6 +257,8 @@ async def update_organization(
         org.website = data.website.strip() if data.website else None
     if data.social_link is not None:
         org.social_link = data.social_link.strip() if data.social_link else None
+    if data.features is not None:
+        org.features = json.dumps(data.features, ensure_ascii=False) if data.features else None
     if data.status is not None:
         org.status = data.status
 
@@ -283,6 +300,7 @@ async def list_user_organizations(
                 latitude=org.latitude,
                 longitude=org.longitude,
                 avatar_url=org.avatar_url,
+                features=parse_features(org.features),
                 status=org.status,
                 is_verified=org.is_verified,
                 followers_count=followers_count,
@@ -367,6 +385,7 @@ async def list_organization_events(
                 longitude=ev.longitude,
                 price_amount=ev.price_amount,
                 price_currency=ev.price_currency,
+                capacity=getattr(ev, "capacity", None),
                 is_free=(ev.price_amount is None or ev.price_amount == 0),
                 attendee_count=att_count or 0,
                 status=ev.status,

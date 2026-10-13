@@ -1268,6 +1268,10 @@ export const App: React.FC = () => {
           setIsCompanyModalOpen(true);
         }}
         onOpenBroadcastComposer={handleOpenBroadcastComposerFromEvent}
+        onOpenCreateOrg={() => {
+          setIsDetailsOpen(false);
+          setIsCreateOrgModalOpen(true);
+        }}
         onOpenTicket={(ev) => {
           setTicketEvent(ev);
           setIsTicketModalOpen(true);

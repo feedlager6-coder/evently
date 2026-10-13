@@ -14,6 +14,7 @@ class OrganizationCreate(BaseModel):
     avatar_url: Optional[str] = Field(None, max_length=1024, description="Avatar image URL")
     website: Optional[str] = Field(None, max_length=1024, description="Website URL")
     social_link: Optional[str] = Field(None, max_length=1024, description="Social media link or Telegram channel")
+    features: Optional[List[str]] = Field(None, description="Venue rules and features tags")
 
     @field_validator("avatar_url")
     @classmethod
@@ -36,6 +37,7 @@ class OrganizationUpdate(BaseModel):
     avatar_url: Optional[str] = Field(None, max_length=1024)
     website: Optional[str] = Field(None, max_length=1024)
     social_link: Optional[str] = Field(None, max_length=1024)
+    features: Optional[List[str]] = Field(None)
     status: Optional[str] = Field(None, pattern="^(active|disabled)$")
 
 
@@ -50,6 +52,7 @@ class OrganizationSummary(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     avatar_url: Optional[str] = None
+    features: Optional[List[str]] = None
     status: str = "active"
     is_verified: bool = False
     followers_count: int = 0

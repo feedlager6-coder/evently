@@ -22,6 +22,19 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+const AVAILABLE_FEATURES = [
+  'FC / DC 18+',
+  'Безналичный расчет',
+  'Wi-Fi',
+  'Гардероб',
+  'Парковка',
+  'Chillout & Бар',
+  'Звуковая система',
+  'Кальянная зона',
+  'Фотозона',
+  'VIP-ложи',
+];
+
 interface CreateOrganizationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -53,6 +66,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
   const [avatarUrl, setAvatarUrl] = useState('');
   const [website, setWebsite] = useState('');
   const [socialLink, setSocialLink] = useState('');
+  const [features, setFeatures] = useState<string[]>([]);
 
   // Address autocomplete state
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
@@ -107,6 +121,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
       setAvatarUrl(initialData.avatar_url || '');
       setWebsite(initialData.website || '');
       setSocialLink(initialData.social_link || '');
+      setFeatures(initialData.features || []);
     } else {
       setName('');
       setCategory(ORGANIZATION_CATEGORIES[0]);
@@ -118,12 +133,20 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
       setAvatarUrl('');
       setWebsite('');
       setSocialLink('');
+      setFeatures([]);
     }
     setError(null);
     setShowSuggestions(false);
     setShowDeleteConfirm(false);
     setDeleteError(null);
   }, [initialData, defaultCityId, isOpen]);
+
+  const toggleFeature = (feat: string) => {
+    telegram.hapticImpact('light');
+    setFeatures((prev) =>
+      prev.includes(feat) ? prev.filter((f) => f !== feat) : [...prev, feat]
+    );
+  };
 
   // Debounced address suggestion lookup
   useEffect(() => {
@@ -219,6 +242,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
           avatar_url: avatarUrl.trim() || undefined,
           website: website.trim() || undefined,
           social_link: socialLink.trim() || undefined,
+          features: features.length > 0 ? features : undefined,
         };
         savedOrg = await api.updateOrganization(initialData.id, payload);
       } else {
@@ -233,6 +257,7 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
           avatar_url: avatarUrl.trim() || undefined,
           website: website.trim() || undefined,
           social_link: socialLink.trim() || undefined,
+          features: features.length > 0 ? features : undefined,
         };
         savedOrg = await api.createOrganization(payload);
       }
@@ -423,6 +448,36 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             />
           </div>
 
+          {/* Features / Amenities */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-300">
+              Особенности площадки / правила
+            </label>
+            <p className="text-[11px] text-gray-400">
+              Выберите теги, которые будут отображаться в профиле площадки в блоке «О нас»
+            </p>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {AVAILABLE_FEATURES.map((feat) => {
+                const isSelected = features.includes(feat);
+                return (
+                  <button
+                    key={feat}
+                    type="button"
+                    onClick={() => toggleFeature(feat)}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      isSelected
+                        ? 'bg-[#4edea3]/20 border border-[#4edea3]/50 text-[#4edea3] font-semibold'
+                        : 'bg-[#201f22] text-gray-400 border border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    {isSelected ? '✓ ' : '+ '}
+                    {feat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Links */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -440,14 +495,17 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-300">Канал / соцсеть</label>
+              <label className="text-xs font-semibold text-gray-300">Telegram для связи / канал</label>
               <input
                 type="text"
                 value={socialLink}
                 onChange={(e) => setSocialLink(e.target.value)}
-                placeholder="https://t.me/mychannel"
+                placeholder="@username или https://t.me/channel"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#201f22] border border-white/10 text-white text-xs placeholder:text-gray-500 focus:outline-none focus:border-[#4edea3] transition-colors"
               />
+              <p className="text-[10px] text-gray-400">
+                Для кнопки «Написать» в профиле
+              </p>
             </div>
           </div>
 

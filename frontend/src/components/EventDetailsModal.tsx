@@ -16,7 +16,9 @@ import {
   ShieldCheck,
   Compass,
   Lock,
-  Handshake
+  Handshake,
+  Building2,
+  X
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
@@ -61,6 +63,7 @@ interface EventDetailsModalProps {
   isOrganizer?: boolean;
   onEditEvent?: (event: EventResponse) => void;
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
+  onOpenCreateOrg?: () => void;
   onOpenTicket?: (event: EventResponse) => void;
 }
 
@@ -77,8 +80,10 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   isOrganizer = false,
   onEditEvent,
   onOpenBroadcastComposer,
+  onOpenCreateOrg,
   onOpenTicket,
 }) => {
+  const [showBroadcastExplainer, setShowBroadcastExplainer] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [isSharePreparing, setIsSharePreparing] = useState(false);
   const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
@@ -551,7 +556,11 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   type="button"
                   onClick={() => {
                     telegram.hapticImpact('light');
-                    onOpenBroadcastComposer(event.id, event.organization_id);
+                    if (!event.organization_id) {
+                      setShowBroadcastExplainer(true);
+                    } else {
+                      onOpenBroadcastComposer(event.id, event.organization_id);
+                    }
                   }}
                   className="py-2.5 px-3 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
                 >
@@ -662,6 +671,69 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           })()}
         </div>
       </div>
+
+      {/* Broadcast Information Modal for Solo Creators */}
+      {showBroadcastExplainer && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-[28px] bg-[#141417] border border-white/10 p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-2xl bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center border border-[#10b981]/25">
+                <Send className="w-5 h-5" />
+              </div>
+              <button
+                onClick={() => setShowBroadcastExplainer(false)}
+                type="button"
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white tracking-tight">
+                Рассылки доступны для брендов
+              </h3>
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                В Telegram рассылки отправляются подписчикам организации. Чтобы собирать базу постоянных подписчиков и делать анонсы в личные сообщения Telegram, создайте организацию и привяжите к ней событие.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-2 text-xs text-neutral-300">
+              <div className="flex items-start gap-2">
+                <span className="text-[#4edea3] font-bold">✓</span>
+                <span>Анонсы подписчикам прямо в Telegram-бот</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-[#4edea3] font-bold">✓</span>
+                <span>База постоянных гостей и аналитика переходов</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('medium');
+                  setShowBroadcastExplainer(false);
+                  onClose();
+                  onOpenCreateOrg?.();
+                }}
+                className="w-full py-3 rounded-full bg-[#10b981] hover:bg-[#059669] text-[#00311f] font-bold text-xs active:scale-95 transition shadow-lg flex items-center justify-center gap-1.5"
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Создать организацию</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastExplainer(false)}
+                className="w-full py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white font-medium text-xs active:scale-95 transition"
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
