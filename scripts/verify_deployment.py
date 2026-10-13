@@ -47,17 +47,10 @@ async def run_verification():
     # 2. Setup Test User
     async with AsyncSessionLocal() as session:
         user_res = await session.execute(
-            text("SELECT id, telegram_id, username FROM users LIMIT 1")
+            text("SELECT id FROM users LIMIT 1")
         )
         test_user = user_res.fetchone()
-        if not test_user:
-            await session.execute(
-                text("INSERT INTO users (id, telegram_id, username, first_name, is_organizer) VALUES ('test-user-1', 99999901, 'testuser', 'Test', true)")
-            )
-            await session.commit()
-            user_id = 'test-user-1'
-        else:
-            user_id = test_user[0]
+        user_id = test_user[0]
         print(f"Using test user ID: {user_id}")
 
     # 3. Scenario: Solo Author Event with Capacity
@@ -77,7 +70,7 @@ async def run_verification():
             organization_id=None,
             allow_event_contact=True
         )
-        created_event = await create_organizer_event(session, user_id, payload)
+        created_event = await create_organizer_event(session, payload, user_id)
         print(f"✓ Created solo event ID: {created_event.id}, capacity: {created_event.capacity}, org_id: {created_event.organization_id}")
         assert created_event.capacity == 2
         assert created_event.organization_id is None
@@ -97,14 +90,7 @@ async def run_verification():
             {"uid": user_id}
         )
         row2 = user2_res.fetchone()
-        if not row2:
-            await session.execute(
-                text("INSERT INTO users (id, telegram_id, username, first_name) VALUES ('test-user-2', 99999902, 'testuser2', 'Guest 2')")
-            )
-            await session.commit()
-            user2_id = 'test-user-2'
-        else:
-            user2_id = row2[0]
+        user2_id = row2[0]
 
         rsvp2 = await add_event_rsvp(session, created_event.id, user2_id)
         print(f"✓ User 2 RSVP status: {rsvp2['is_going']}, capacity now reached (2/2)")
@@ -114,14 +100,7 @@ async def run_verification():
             {"u1": user_id, "u2": user2_id}
         )
         row3 = user3_res.fetchone()
-        if not row3:
-            await session.execute(
-                text("INSERT INTO users (id, telegram_id, username, first_name) VALUES ('test-user-3', 99999903, 'testuser3', 'Guest 3')")
-            )
-            await session.commit()
-            user3_id = 'test-user-3'
-        else:
-            user3_id = row3[0]
+        user3_id = row3[0]
 
         try:
             await add_event_rsvp(session, created_event.id, user3_id)
@@ -153,7 +132,7 @@ async def run_verification():
             features=["FC / DC 18+", "Wi-Fi", "Chillout & Бар", "Звуковая система"],
             social_link="@atmosfera05"
         )
-        created_org = await create_organization(session, user_id, org_payload)
+        created_org = await create_organization(session, org_payload, user_id)
         print(f"✓ Created organization: {created_org.name}, features: {created_org.features}")
         assert created_org.features == ["FC / DC 18+", "Wi-Fi", "Chillout & Бар", "Звуковая система"]
 
@@ -166,7 +145,7 @@ async def run_verification():
         update_payload = OrganizationUpdate(
             features=["FC / DC 18+", "VIP-ложи", "Безналичный расчет"]
         )
-        updated_org = await update_organization(session, created_org.id, user_id, update_payload)
+        updated_org = await update_organization(session, created_org.id, update_payload, user_id)
         assert updated_org.features == ["FC / DC 18+", "VIP-ложи", "Безналичный расчет"]
         print(f"✓ Updated organization features match: {updated_org.features}")
 
