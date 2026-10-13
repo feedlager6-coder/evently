@@ -946,7 +946,7 @@ async def delete_organizer_event(
         raise EventForbiddenError("У вас нет прав для удаления этого мероприятия.")
 
     was_published = (event.status == EventStatus.PUBLISHED.value)
-    is_future = bool(event.start_at and event.start_at > utc_now())
+    is_future = bool(event.start_at and ensure_utc(event.start_at) > utc_now())
     event.status = EventStatus.DELETED.value
     event.updated_at = utc_now()
     await session.commit()
