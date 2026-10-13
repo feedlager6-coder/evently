@@ -133,18 +133,24 @@ async def suggest_locations(
 
     suggestions: List[LocationSuggestion] = []
 
-    # 1. Attempt OpenStreetMap Nominatim lookup
+    # 1. Attempt OpenStreetMap Nominatim lookup with strict 1.5s timeout
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        search_params: dict = {
+            "q": search_q,
+            "format": "jsonv2",
+            "addressdetails": "1",
+            "limit": "5",
+            "countrycodes": "ru",
+        }
+        if city_lat and city_lon:
+            delta = 0.35
+            search_params["viewbox"] = f"{city_lon - delta},{city_lat + delta},{city_lon + delta},{city_lat - delta}"
+            search_params["bounded"] = "1"
+
+        async with httpx.AsyncClient(timeout=1.5) as client:
             resp = await client.get(
                 "https://nominatim.openstreetmap.org/search",
-                params={
-                    "q": search_q,
-                    "format": "jsonv2",
-                    "addressdetails": "1",
-                    "limit": "5",
-                    "countrycodes": "ru",
-                },
+                params=search_params,
                 headers={
                     "User-Agent": "Ivently-App/1.0 (https://t.me/Ivently_bot)",
                     "Accept-Language": "ru",

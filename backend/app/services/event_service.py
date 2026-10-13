@@ -946,11 +946,12 @@ async def delete_organizer_event(
         raise EventForbiddenError("У вас нет прав для удаления этого мероприятия.")
 
     was_published = (event.status == EventStatus.PUBLISHED.value)
+    is_future = bool(event.start_at and event.start_at > utc_now())
     event.status = EventStatus.DELETED.value
     event.updated_at = utc_now()
     await session.commit()
 
-    if was_published:
+    if was_published and is_future:
         try:
             from app.services.notification_service import notify_event_cancelled
             await notify_event_cancelled(event, session)

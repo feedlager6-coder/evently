@@ -39,7 +39,7 @@ import { SafeImage } from './SafeImage';
 import { CheckInScannerModal } from './CheckInScannerModal';
 
 export type WorkspaceTab = 'overview' | 'events' | 'audience' | 'broadcasts';
-export type EventSubFilter = 'all' | 'published' | 'pending' | 'drafts';
+export type EventSubFilter = 'all' | 'published' | 'pending' | 'drafts' | 'finished';
 
 interface OrganizerWorkspaceProps {
   organizations: OrganizationSummary[];
@@ -52,6 +52,7 @@ interface OrganizerWorkspaceProps {
   onOrgClick?: (org: any) => void;
   onEventClick?: (event: EventSummary) => void;
   onOrgDeleted?: () => void;
+  onEventDeleted?: () => void;
   isAdmin?: boolean;
   paymentReturnOrderId?: string | null;
   initialTab?: WorkspaceTab;
@@ -71,6 +72,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onOrgClick: _onOrgClick,
   onEventClick: _onEventClick,
   onOrgDeleted: _onOrgDeleted,
+  onEventDeleted,
   isAdmin: _isAdmin = false,
   paymentReturnOrderId: _paymentReturnOrderId,
   initialTab,
@@ -81,6 +83,36 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab || 'events');
   const [eventFilter, setEventFilter] = useState<EventSubFilter>('all');
+
+  // Local events state to support instant optimistic delete and updates
+  const [localEvents, setLocalEvents] = useState<EventSummary[]>(_events);
+  useEffect(() => {
+    setLocalEvents(_events);
+  }, [_events]);
+
+  // Event deletion state & confirmation
+  const [eventToDelete, setEventToDelete] = useState<EventSummary | null>(null);
+  const [isDeletingEvent, setIsDeletingEvent] = useState<boolean>(false);
+
+  const handleConfirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    try {
+      setIsDeletingEvent(true);
+      telegram.hapticImpact('heavy');
+      await api.deleteEvent(eventToDelete.id);
+      telegram.hapticSuccess();
+      setLocalEvents((prev) => prev.filter((e) => e.id !== eventToDelete.id));
+      setEventToDelete(null);
+      if (onEventDeleted) {
+        onEventDeleted();
+      }
+    } catch (e: any) {
+      telegram.hapticNotification('error');
+      alert(e?.message || 'Не удалось удалить событие');
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
 
   // Broadcasts initialized to empty array (clean slate, no mock broadcasts)
   const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
@@ -182,11 +214,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     loadBroadcasts();
   }, [activeOrg?.id]);
 
-  // Real events filtering (strictly from user's actual events props)
-  const publishedEvents = (_events || [])
+  // 6-hour operational buffer: events remain active for 6 hours after start_at (or until end_at)
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const isEventFinished = (ev: { start_at?: string; end_at?: string }) => {
+    if (!ev.start_at) return false;
+    const startTime = new Date(ev.start_at).getTime();
+    const endTime = ev.end_at ? new Date(ev.end_at).getTime() : startTime + SIX_HOURS_MS;
+    return Date.now() > endTime;
+  };
+
+  const allPublished = (localEvents || [])
     .filter((e) => e.status === 'published')
     .map((ev) => ({
       ...ev,
+      isFinished: isEventFinished(ev),
       dateText: ev.start_at
         ? new Date(ev.start_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
         : 'Дата не указана',
@@ -196,7 +237,12 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       category: (ev as any).category_name || 'Событие',
     }));
 
-  const pendingEvents = (_events || [])
+  const activePublishedEvents = allPublished.filter((e) => !e.isFinished);
+  const finishedEvents = allPublished.filter((e) => e.isFinished);
+  // Active published events available for broadcasts and normal feed actions
+  const publishedEvents = activePublishedEvents;
+
+  const pendingEvents = (localEvents || [])
     .filter((e) => e.status === 'pending')
     .map((ev) => ({
       ...ev,
@@ -316,9 +362,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     ? (audienceData?.total_subscribers ?? activeOrg.followers_count ?? 0)
     : 0;
 
-  const totalEventViews = _events.reduce((sum, e) => sum + ((e as any).views_count ?? (e.attendee_count ? e.attendee_count * 8 : 0)), 0);
-  const totalEventBookmarks = _events.reduce((sum, e) => sum + ((e as any).bookmarks_count ?? e.interest_count ?? 0), 0);
-  const totalEventAttendees = _events.reduce((sum, e) => sum + (e.attendee_count ?? 0), 0);
+  const totalEventViews = localEvents.reduce((sum, e) => sum + ((e as any).views_count ?? (e.attendee_count ? e.attendee_count * 8 : 0)), 0);
+  const totalEventBookmarks = localEvents.reduce((sum, e) => sum + ((e as any).bookmarks_count ?? e.interest_count ?? 0), 0);
+  const totalEventAttendees = localEvents.reduce((sum, e) => sum + (e.attendee_count ?? 0), 0);
 
   // If user has NO organizations created: show clean Solo Creator Mode / Empty State
   if (!activeOrg) {
@@ -384,10 +430,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           {/* Author's Events Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Ваши события ({_events.length})</h3>
+              <h3 className="text-sm font-bold text-white">Ваши события ({localEvents.length})</h3>
             </div>
 
-            {_events.length === 0 ? (
+            {localEvents.length === 0 ? (
               <div className="p-8 rounded-2xl bg-[#141417] border border-white/5 text-center space-y-3">
                 <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-400">
                   <Calendar className="w-5 h-5" />
@@ -408,8 +454,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </div>
             ) : (
               <div className="space-y-2.5">
-                {_events.map((ev) => {
-                  const isPast = ev.start_at ? new Date(ev.start_at).getTime() < Date.now() : false;
+                {localEvents.map((ev) => {
+                  const isPast = isEventFinished(ev);
                   return (
                     <div key={ev.id} className="p-3.5 rounded-2xl bg-[#141417] border border-white/8 space-y-2">
                       <div className="flex items-center justify-between">
@@ -448,10 +494,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             className="flex-1 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
                           >
                             <QrCode className="w-3.5 h-3.5" />
-                            <span>Чек-ин</span>
+                            <span>Сканер</span>
                           </button>
                         )}
-                        {ev.status === 'published' && (
+                        {ev.status === 'published' && !isPast && (
                           <button
                             type="button"
                             onClick={() => {
@@ -493,6 +539,17 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           <Edit3 className="w-3.5 h-3.5 text-neutral-400" />
                           <span>Изменить</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setEventToDelete(ev);
+                          }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/15 text-neutral-400 hover:text-rose-400 font-medium text-center flex items-center justify-center transition-all active:scale-95"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -501,6 +558,48 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             )}
           </div>
         </div>
+
+        {/* Delete Event Confirmation Modal */}
+        {eventToDelete && (
+          <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+            <div className="w-full max-w-sm rounded-3xl bg-[#141417] border border-white/10 p-5 space-y-4 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="text-center space-y-1.5">
+                <h3 className="text-base font-bold text-white">Удалить событие?</h3>
+                <p className="text-xs text-neutral-300 font-medium">«{eventToDelete.title}»</p>
+                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  {eventToDelete.start_at && new Date(eventToDelete.start_at).getTime() < Date.now()
+                    ? 'Событие уже завершено. Оно будет безвозвратно удалено из архива без отправки уведомлений.'
+                    : 'Событие будет снято с публикации и удалено. Зарегистрированные гости получат уведомление об отмене.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  disabled={isDeletingEvent}
+                  onClick={() => setEventToDelete(null)}
+                  className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 font-semibold text-xs active:scale-95 transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingEvent}
+                  onClick={handleConfirmDeleteEvent}
+                  className="py-2.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs active:scale-95 transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-500/20"
+                >
+                  {isDeletingEvent ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span>Удалить</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* CheckIn Scanner Modal */}
         <CheckInScannerModal
@@ -621,78 +720,318 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </header>
 
             <main className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
-              {/* Profile Card */}
-              <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 relative overflow-hidden">
-                <div className="flex items-center gap-3">
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-neutral-800 shrink-0 border border-white/10">
-                    <img
-                      src={activeOrg.avatar_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400'}
-                      alt={activeOrg.name}
-                      className="w-full h-full object-cover"
-                    />
+              {/* Organization Profile Glass Card (Stitch style) */}
+              <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 relative overflow-hidden shadow-xl">
+                <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-neutral-800 shrink-0 border border-white/10 shadow-md">
+                      <img
+                        src={activeOrg.avatar_url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400'}
+                        alt={activeOrg.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-tr from-black/40 to-transparent" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h2 className="text-base font-bold text-white truncate">{activeOrg.name}</h2>
+                        {activeOrg.is_verified && (
+                          <span title="Верифицированный организатор">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsProModalOpen(true)}
+                          className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-500/30 transition active:scale-95"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> PRO
+                        </button>
+                        <span className="text-neutral-400 text-xs">{activeOrg.category || 'Организатор'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <h2 className="text-base font-bold text-white truncate">{activeOrg.name}</h2>
-                      {activeOrg.is_verified && <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />}
+                  <button
+                    type="button"
+                    onClick={() => onEditOrg(activeOrg as OrganizationSummary)}
+                    className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-neutral-300 border border-white/5 active:scale-95 transition shadow-sm"
+                    title="Настройки организации"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Primary Action Deck (Stitch 3-card deck) */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('medium');
+                    onOpenCreateEvent(activeOrg.id);
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white text-black shadow-lg hover:opacity-95 active:scale-95 transition-all"
+                >
+                  <div className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center mb-1">
+                    <Plus className="w-4 h-4 text-black stroke-[2.5]" />
+                  </div>
+                  <span className="text-xs font-bold text-center leading-tight">Создать событие</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    openBroadcastWizard('subscribers');
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#141417] border border-white/8 text-white hover:border-white/15 active:scale-95 transition-all shadow-md"
+                >
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center mb-1 text-emerald-400">
+                    <Send className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-center leading-tight">Рассылка</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setActiveTab('audience');
+                  }}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#141417] border border-white/8 text-white hover:border-white/15 active:scale-95 transition-all shadow-md"
+                >
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mb-1 text-neutral-300">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-center leading-tight">Аудитория</span>
+                </button>
+              </div>
+
+              {/* KPI Metrics Bento Grid */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ключевые показатели</h3>
+                  <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live данные
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Subscribers Bento Card with SVG Sparkline */}
+                  <div className="col-span-2 rounded-2xl bg-[#141417] border border-white/8 p-4 relative overflow-hidden shadow-md">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="text-xs font-medium text-neutral-400">Подписчики бренда</span>
+                        <div className="flex items-baseline gap-2 mt-0.5">
+                          <span className="text-2xl font-extrabold text-white">
+                            {totalContactsCount.toLocaleString('ru-RU')}
+                          </span>
+                          <span className="text-xs font-semibold text-emerald-400 flex items-center gap-0.5">
+                            <TrendingUp className="w-3.5 h-3.5" />
+                            {audienceData?.new_subscribers_30d ? `+${audienceData.new_subscribers_30d} за 30 дн.` : 'прямой контакт'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-400">
+                        <Users className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setIsProModalOpen(true)}
-                        className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-500/30 transition"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> PRO
-                      </button>
-                      <span className="text-neutral-400 text-xs">{activeOrg.category || 'Организатор'}</span>
+
+                    {/* SVG Sparkline Curve */}
+                    <div className="w-full h-10 mt-1">
+                      <svg className="w-full h-full overflow-visible" fill="none" preserveAspectRatio="none" viewBox="0 0 280 40">
+                        <defs>
+                          <linearGradient id="metricGlow" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2" fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="2.5" />
+                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2 L280,40 L0,40 Z" fill="url(#metricGlow)" />
+                        <circle className="animate-ping" cx="280" cy="2" fill="#ffffff" opacity="0.75" r="3.5" />
+                        <circle cx="280" cy="2" fill="#10b981" r="3.5" />
+                      </svg>
                     </div>
+                  </div>
+
+                  {/* Views Metric */}
+                  <div className="col-span-1 rounded-2xl bg-[#141417] border border-white/8 p-3.5 shadow-md">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-neutral-400">Просмотры</span>
+                      <Eye className="w-4 h-4 text-neutral-500" />
+                    </div>
+                    <div className="text-xl font-extrabold text-white">
+                      {totalEventViews > 0 ? totalEventViews.toLocaleString('ru-RU') : '0'}
+                    </div>
+                    <span className="text-[11px] text-emerald-400 flex items-center gap-0.5 mt-0.5 font-medium">
+                      {activePublishedEvents.length} активных в афише
+                    </span>
+                  </div>
+
+                  {/* Bookmarks Metric («Хочу пойти») */}
+                  <div className="col-span-1 rounded-2xl bg-[#141417] border border-white/8 p-3.5 shadow-md">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-neutral-400">В закладках</span>
+                      <Sparkles className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-xl font-extrabold text-white">
+                      {totalEventBookmarks.toLocaleString('ru-RU')}
+                    </div>
+                    <span className="text-[11px] text-neutral-400 mt-0.5 block">
+                      хотят пойти
+                    </span>
+                  </div>
+
+                  {/* RSVPs / Registrations Metric */}
+                  <div className="col-span-1 rounded-2xl bg-[#141417] border border-white/8 p-3.5 shadow-md">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-neutral-400">Билеты / Заявки</span>
+                      <UserCheck className="w-4 h-4 text-neutral-500" />
+                    </div>
+                    <div className="text-xl font-extrabold text-white">
+                      {totalEventAttendees.toLocaleString('ru-RU')}
+                    </div>
+                    <span className="text-[11px] text-emerald-400 mt-0.5 block font-medium">
+                      подтвержденные гости
+                    </span>
+                  </div>
+
+                  {/* Broadcast Quota Metric */}
+                  <div className="col-span-1 rounded-2xl bg-[#141417] border border-white/8 p-3.5 shadow-md">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-neutral-400">Лимит рассылок</span>
+                      <Send className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="text-xl font-extrabold text-white">
+                      {monthlyBroadcastsRemaining} <span className="text-sm font-normal text-neutral-500">из {monthlyQuota}</span>
+                    </div>
+                    <span className="text-[11px] text-neutral-400 mt-0.5 block">
+                      осталось в месяце
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Real KPI Deck */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/8">
-                  <div className="text-[11px] text-neutral-400 font-medium">Просмотры афиши</div>
-                  <div className="text-xl font-extrabold text-white mt-1">
-                    {totalEventViews > 0 ? totalEventViews.toLocaleString('ru-RU') : '0'}
+              {/* Marketing Broadcast Quick Section */}
+              <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 shadow-lg relative overflow-hidden">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-white/5">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                    <Send className="w-4 h-4" />
                   </div>
-                  <div className="text-[10px] text-neutral-400 mt-0.5">
-                    {publishedEvents.length} активных событий
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/8">
-                  <div className="text-[11px] text-neutral-400 font-medium">В закладках</div>
-                  <div className="text-xl font-extrabold text-white mt-1">
-                    {totalEventBookmarks.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[10px] text-neutral-400 mt-0.5">хотят пойти</div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/8">
-                  <div className="text-[11px] text-neutral-400 font-medium">Регистраций / Билетов</div>
-                  <div className="text-xl font-extrabold text-white mt-1">
-                    {totalEventAttendees.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[10px] text-emerald-400 mt-0.5">подтвержденные гости</div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/8">
-                  <div className="text-[11px] text-neutral-400 font-medium">Подписчики бренда</div>
-                  <div className="text-xl font-extrabold text-white mt-1">
-                    {totalContactsCount.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[10px] text-emerald-400 mt-0.5">
-                    {audienceData?.new_subscribers_30d ? `+${audienceData.new_subscribers_30d} за 30 дн.` : 'прямой контакт'}
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white">
+                      {monthlyBroadcastsRemaining > 0
+                        ? `Доступно ${monthlyBroadcastsRemaining} рассылок в Telegram`
+                        : 'Лимит рассылок на этот месяц исчерпан'}
+                    </div>
+                    <p className="text-[11px] text-neutral-400 mt-0.5 leading-relaxed">
+                      Официальный бот Ivently доставляет анонсы прямо в личные чаты подписчиков.
+                    </p>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => openBroadcastWizard('subscribers')}
+                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] border border-emerald-500/20"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Запустить рассылку в Telegram</span>
+                </button>
               </div>
 
-              {/* PRO Upsell / Status Banner */}
+              {/* Active Events Preview Section inside Overview */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
+                    Активные события ({activePublishedEvents.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('events')}
+                    className="text-xs font-semibold text-emerald-400 hover:underline"
+                  >
+                    Все события ↗
+                  </button>
+                </div>
+                {activePublishedEvents.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-[#141417] border border-white/8 text-center space-y-2">
+                    <p className="text-xs font-semibold text-white">Нет активных событий</p>
+                    <p className="text-[11px] text-neutral-400">Опубликуйте мероприятие, чтобы начать прием гостей.</p>
+                    <button
+                      type="button"
+                      onClick={() => onOpenCreateEvent(activeOrg.id)}
+                      className="py-2 px-4 rounded-xl bg-white text-black text-xs font-bold active:scale-95 transition"
+                    >
+                      Создать событие
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {activePublishedEvents.slice(0, 2).map((ev) => (
+                      <div key={ev.id} className="p-3.5 rounded-2xl bg-[#141417] border border-white/8 space-y-2.5">
+                        <div className="flex gap-3 items-start">
+                          <SafeImage
+                            src={ev.cover_image_url}
+                            alt={ev.title}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-white/5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                <span className="w-1 h-1 rounded-full bg-emerald-400" /> В афише
+                              </span>
+                              <span className="text-[11px] text-neutral-400">{ev.dateText}</span>
+                            </div>
+                            <h4 className="text-xs font-bold text-white mt-1 truncate">{ev.title}</h4>
+                            <p className="text-[11px] text-neutral-400 truncate">{ev.venue_name}</p>
+                            <div className="flex items-center gap-2 mt-1 text-[11px]">
+                              <span className="text-neutral-300 font-medium">🎟 {ev.ticketsSold} билетов</span>
+                              <span className="text-neutral-500">•</span>
+                              <span className="text-neutral-400">{ev.bookmarksCount} в закладках</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('light');
+                              setActiveCheckInEvent(ev);
+                            }}
+                            className="py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-center flex items-center justify-center gap-1.5 transition active:scale-95"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Сканер билетов</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('light');
+                              if (onOpenEditEvent) {
+                                onOpenEditEvent(ev as any);
+                              } else {
+                                onOpenCreateEvent(activeOrg.id);
+                              }
+                            }}
+                            className="py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition active:scale-95"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-neutral-400" />
+                            <span>Управление</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* PRO Features Showcase Banner */}
               <div
                 onClick={() => setIsProModalOpen(true)}
-                className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 transition active:scale-[0.99] flex items-center justify-between gap-3"
+                className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 transition active:scale-[0.99] flex items-center justify-between gap-3 shadow-md"
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-white">
@@ -700,7 +1039,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     <span>Возможности Ivently PRO</span>
                   </div>
                   <p className="text-[11px] text-neutral-400">
-                    Рассылки через Telegram-бота, сегментация аудитории и детальная аналитика.
+                    20 рассылок в Telegram, таргетинг на гостей в закладках и бейдж верификации.
                   </p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -761,7 +1100,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       : 'bg-white/5 text-neutral-300 hover:bg-white/10 border border-white/5 font-medium'
                   }`}
                 >
-                  Все ({publishedEvents.length + pendingEvents.length + draftEvents.length})
+                  Все ({activePublishedEvents.length + pendingEvents.length + draftEvents.length + finishedEvents.length})
                 </button>
                 <button
                   type="button"
@@ -775,7 +1114,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       : 'bg-white/5 text-neutral-300 hover:bg-white/10 border border-white/5 font-medium'
                   }`}
                 >
-                  В афише ({publishedEvents.length})
+                  В афише ({activePublishedEvents.length})
                 </button>
                 <button
                   type="button"
@@ -805,102 +1144,110 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 >
                   Черновики ({draftEvents.length})
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setEventFilter('finished');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all ${
+                    eventFilter === 'finished'
+                      ? 'bg-white text-black'
+                      : 'bg-white/5 text-neutral-300 hover:bg-white/10 border border-white/5 font-medium'
+                  }`}
+                >
+                  Завершенные ({finishedEvents.length})
+                </button>
               </div>
             </div>
 
             {/* Event List Content */}
             <main className="flex-1 px-4 py-4 space-y-4 overflow-y-auto pb-36">
-              {/* Published Events */}
+              {/* Published Active Events */}
               {(eventFilter === 'all' || eventFilter === 'published') && (
                 <div className="space-y-3">
-                  {publishedEvents.length === 0 && eventFilter === 'published' && (
+                  {activePublishedEvents.length === 0 && eventFilter === 'published' && (
                     <div className="p-8 rounded-2xl bg-[#131316] border border-white/5 text-center space-y-2">
-                      <p className="text-sm font-bold text-white">Нет опубликованных событий</p>
-                      <p className="text-xs text-neutral-400">Создайте событие и отправьте его на публикацию.</p>
+                      <p className="text-sm font-bold text-white">Нет активных событий в афише</p>
+                      <p className="text-xs text-neutral-400">Создайте новое событие и отправьте его на публикацию.</p>
                       <button
                         type="button"
                         onClick={() => onOpenCreateEvent(activeOrg.id)}
-                        className="mt-2 py-2 px-4 rounded-full bg-white text-black text-xs font-semibold"
+                        className="mt-2 py-2 px-4 rounded-full bg-white text-black text-xs font-semibold active:scale-95 transition"
                       >
                         Создать событие
                       </button>
                     </div>
                   )}
 
-                  {publishedEvents.map((pubEvent) => {
-                    const isPast = pubEvent.start_at ? new Date(pubEvent.start_at).getTime() < Date.now() : false;
-                    return (
-                      <div
-                        key={pubEvent.id}
-                        className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 relative overflow-hidden"
-                      >
-                        <div className="flex gap-3 items-start">
-                          <SafeImage
-                            src={pubEvent.cover_image_url}
-                            alt={pubEvent.title}
-                            className="w-20 h-20 rounded-xl object-cover shrink-0 border border-white/5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              {isPast ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-neutral-400 border border-white/10">
-                                  <Check className="w-3 h-3 text-neutral-400" /> Завершено
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                                  <span className="w-1 h-1 rounded-full bg-emerald-400" /> Опубликовано
-                                </span>
-                              )}
-                              <span className="text-[11px] text-neutral-400">{pubEvent.dateText}</span>
-                            </div>
-                            <h3 className="text-sm font-bold text-white mt-1 truncate">{pubEvent.title}</h3>
-                            <p className="text-xs text-neutral-400 truncate">{pubEvent.venue_name}</p>
-                            <div className="flex items-center gap-2 mt-1.5 text-xs">
-                              <span className="text-neutral-300 font-medium">🎟 {pubEvent.ticketsSold} билетов</span>
-                              <span className="text-neutral-500">•</span>
-                              <span className="text-neutral-400">{pubEvent.bookmarksCount} в закладках</span>
-                            </div>
+                  {activePublishedEvents.map((pubEvent) => (
+                    <div
+                      key={pubEvent.id}
+                      className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 relative overflow-hidden"
+                    >
+                      <div className="flex gap-3 items-start">
+                        <SafeImage
+                          src={pubEvent.cover_image_url}
+                          alt={pubEvent.title}
+                          className="w-20 h-20 rounded-xl object-cover shrink-0 border border-white/5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1 h-1 rounded-full bg-emerald-400" /> В афише
+                            </span>
+                            <span className="text-[11px] text-neutral-400">{pubEvent.dateText}</span>
+                          </div>
+                          <h3 className="text-sm font-bold text-white mt-1 truncate">{pubEvent.title}</h3>
+                          <p className="text-xs text-neutral-400 truncate">{pubEvent.venue_name}</p>
+                          <div className="flex items-center gap-2 mt-1.5 text-xs">
+                            <span className="text-neutral-300 font-medium">🎟 {pubEvent.ticketsSold} билетов</span>
+                            <span className="text-neutral-500">•</span>
+                            <span className="text-neutral-400">{pubEvent.bookmarksCount} в закладках</span>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Gamified Nudge Card if event has bookmarks/interest and is upcoming */}
-                        {!isPast && (pubEvent.bookmarksCount > 0 || (pubEvent.interest_count || 0) > 0) && (
-                          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 flex items-center justify-between gap-3">
-                            <div className="min-w-0 space-y-0.5">
-                              <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
-                                <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                                <span>{pubEvent.bookmarksCount || pubEvent.interest_count} гостей в закладках!</span>
-                              </div>
-                              <p className="text-[11px] text-neutral-400 truncate">
-                                Отправьте им персональный анонс в Telegram
-                              </p>
+                      {/* Gamified Nudge Card if event has bookmarks/interest and is upcoming */}
+                      {(pubEvent.bookmarksCount > 0 || (pubEvent.interest_count || 0) > 0) && (
+                        <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 flex items-center justify-between gap-2.5">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
+                              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{pubEvent.bookmarksCount || pubEvent.interest_count} гостей сохранили событие!</span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                telegram.hapticImpact('medium');
-                                setSelectedEventTargetId(pubEvent.id);
-                                setTargetSegment('event_interest');
-                                setIsBroadcastModalOpen(true);
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shrink-0 transition-all active:scale-95 shadow-sm"
-                            >
-                              Анонс ↗
-                            </button>
+                            <p className="text-[11px] text-neutral-400 truncate">
+                              Отправьте им персональный анонс в Telegram
+                            </p>
                           </div>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('medium');
+                              setSelectedEventTargetId(pubEvent.id);
+                              setTargetSegment('event_interest');
+                              setIsBroadcastModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shrink-0 transition-all active:scale-95 shadow-sm"
+                          >
+                            Анонс ↗
+                          </button>
+                        </div>
+                      )}
 
-                        {/* Contextual Action Buttons */}
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-xs">
+                      {/* Contextual Action Buttons */}
+                      <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-white/5 text-xs">
                         <button
                           type="button"
                           onClick={() => {
                             telegram.hapticImpact('light');
                             setActiveCheckInEvent(pubEvent);
                           }}
-                          className="py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center transition-all active:scale-95"
+                          className="py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-center transition-all active:scale-95 flex items-center justify-center gap-1"
+                          title="Сканер билетов"
                         >
-                          Чек-ин
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span className="truncate">Сканер</span>
                         </button>
                         <button
                           type="button"
@@ -912,22 +1259,103 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                               onOpenCreateEvent(activeOrg.id);
                             }
                           }}
-                          className="py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center transition-all active:scale-95"
+                          className="py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center transition-all active:scale-95 flex items-center justify-center gap-1"
+                          title="Изменить"
                         >
-                          Изменить
+                          <Edit3 className="w-3.5 h-3.5 text-neutral-400" />
+                          <span className="truncate">Изменить</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => openBroadcastWizard('event_interest', pubEvent.id)}
-                          className="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 font-semibold text-center transition-all active:scale-95 flex items-center justify-center gap-1"
+                          className="py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center transition-all active:scale-95 flex items-center justify-center gap-1"
+                          title="Анонс в Telegram"
                         >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Анонс</span>
+                          <Send className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="truncate">Анонс</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setEventToDelete(pubEvent as any);
+                          }}
+                          className="py-2 rounded-xl bg-white/5 hover:bg-rose-500/15 text-neutral-400 hover:text-rose-400 font-medium text-center transition-all active:scale-95 flex items-center justify-center"
+                          title="Удалить событие"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+              )}
+
+              {/* Finished Events */}
+              {(eventFilter === 'all' || eventFilter === 'finished') && (
+                <div className="space-y-3">
+                  {finishedEvents.length === 0 && eventFilter === 'finished' && (
+                    <div className="p-8 rounded-2xl bg-[#131316] border border-white/5 text-center space-y-2">
+                      <p className="text-sm font-bold text-white">Нет завершенных событий</p>
+                      <p className="text-xs text-neutral-400">События старше 6 часов после начала отображаются здесь.</p>
+                    </div>
+                  )}
+
+                  {finishedEvents.map((finEvent) => (
+                    <div
+                      key={finEvent.id}
+                      className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 relative opacity-90"
+                    >
+                      <div className="flex gap-3 items-start">
+                        <SafeImage
+                          src={finEvent.cover_image_url}
+                          alt={finEvent.title}
+                          className="w-16 h-16 rounded-xl object-cover shrink-0 border border-white/5 grayscale-[30%]"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-neutral-400 border border-white/10">
+                              <Check className="w-3 h-3 text-neutral-400" /> Завершено
+                            </span>
+                            <span className="text-[11px] text-neutral-400">{finEvent.dateText}</span>
+                          </div>
+                          <h3 className="text-sm font-bold text-white mt-1 truncate">{finEvent.title}</h3>
+                          <p className="text-xs text-neutral-400 truncate">{finEvent.venue_name}</p>
+                          <div className="flex items-center gap-2 mt-1.5 text-xs text-neutral-400">
+                            <span>🎟 {finEvent.ticketsSold} участников</span>
+                            <span>•</span>
+                            <span>{finEvent.bookmarksCount} в закладках</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Finished Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setActiveCheckInEvent(finEvent);
+                          }}
+                          className="py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Сканер билетов</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setEventToDelete(finEvent as any);
+                          }}
+                          className="py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Удалить событие</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -975,6 +1403,17 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           className="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-medium text-center"
                         >
                           Отозвать
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            setEventToDelete(pend as any);
+                          }}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/15 text-neutral-400 hover:text-rose-400 font-medium text-center flex items-center justify-center transition-all active:scale-95"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -1028,7 +1467,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               )}
 
               {/* Clean Empty State if no events across all filters */}
-              {publishedEvents.length === 0 && pendingEvents.length === 0 && draftEvents.length === 0 && (
+              {activePublishedEvents.length === 0 && finishedEvents.length === 0 && pendingEvents.length === 0 && draftEvents.length === 0 && (
                 <div className="p-8 rounded-3xl bg-[#141417] border border-white/8 text-center space-y-3 my-6">
                   <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-neutral-400">
                     <Calendar className="w-6 h-6" />
@@ -1885,15 +2324,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Продажа билетов и регистрации</span>
+                    <span>Продажа билетов и регистрации гостей</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>QR-сканер на входе для контроля гостей</span>
+                    <span>Сканер билетов на входе для контроля гостей</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
                     <span>1 приветственная рассылка по подписчикам</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Базовая статистика (просмотры, регистрации, закладки)</span>
                   </li>
                 </ul>
               </div>
@@ -1910,23 +2353,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <ul className="text-xs text-neutral-300 space-y-1.5 pt-1">
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>До 20 рассылок в месяц (до 85% открытий в первые 24ч)</span>
+                    <span>20 целевых рассылок в месяц (с прямым пушем в ЛС бота)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Прямой Telegram-анонс гостям «Хочу пойти»</span>
+                    <span>Зелёный бейдж «Верифицированный организатор Ivently»</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Полная воронка конверсий (Просмотры → Клики → Чек-ин)</span>
+                    <span>Таргетинг рассылок по сегменту «Хочу пойти» (гости в закладках)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Золотой статус и приоритет в городской афише</span>
+                    <span>Интерактивный 30-дневный график динамики подписчиков (SVG Sparkline)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Анонимизированная аналитика и экспорт отчетов (152-ФЗ)</span>
+                    <span>Приоритетная модерация событий (~15 минут)</span>
                   </li>
                 </ul>
               </div>
@@ -2019,6 +2462,48 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             >
               Закрыть предпросмотр
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Event Confirmation Modal */}
+      {eventToDelete && (
+        <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-3xl bg-[#141417] border border-white/10 p-5 space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-white">Удалить событие?</h3>
+              <p className="text-xs text-neutral-300 font-medium">«{eventToDelete.title}»</p>
+              <p className="text-[11px] text-neutral-400 leading-relaxed">
+                {eventToDelete.start_at && new Date(eventToDelete.start_at).getTime() < Date.now()
+                  ? 'Событие уже завершено. Оно будет безвозвратно удалено из архива без отправки уведомлений.'
+                  : 'Событие будет снято с публикации и удалено. Зарегистрированные гости получат уведомление об отмене.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                disabled={isDeletingEvent}
+                onClick={() => setEventToDelete(null)}
+                className="py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 font-semibold text-xs active:scale-95 transition"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingEvent}
+                onClick={handleConfirmDeleteEvent}
+                className="py-2.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs active:scale-95 transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-500/20"
+              >
+                {isDeletingEvent ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>Удалить</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

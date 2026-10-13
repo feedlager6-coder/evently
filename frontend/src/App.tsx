@@ -34,6 +34,7 @@ import { EventCompanyModal } from './components/EventCompanyModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { TicketModal } from './components/TicketModal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
+import { CheckInScannerModal } from './components/CheckInScannerModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
@@ -159,9 +160,30 @@ export const App: React.FC = () => {
 
   // Notification Center modal state
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [lastNotificationsReadAt, setLastNotificationsReadAt] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('ivently_last_notifications_read_at') || 0);
+    } catch {
+      return 0;
+    }
+  });
+
+  const markNotificationsAsRead = useCallback(() => {
+    const now = Date.now();
+    try {
+      localStorage.setItem('ivently_last_notifications_read_at', now.toString());
+    } catch {}
+    setLastNotificationsReadAt(now);
+  }, []);
+
   const unreadNotificationsCount = React.useMemo(() => {
     const now = Date.now();
     const next48h = now + 48 * 60 * 60 * 1000;
+    // Suppress green dot if user marked notifications as read recently (within 12h)
+    const isRecentlyRead = lastNotificationsReadAt && (now - lastNotificationsReadAt < 12 * 60 * 60 * 1000);
+    if (isRecentlyRead) {
+      return 0;
+    }
     const hasUpcoming = (attendingEvents || []).some((e) => {
       const t = new Date(e.start_at).getTime();
       return t >= now && t <= next48h;
@@ -170,7 +192,7 @@ export const App: React.FC = () => {
       return t >= now && t <= next48h;
     });
     return hasUpcoming ? 1 : 0;
-  }, [attendingEvents, interestedEvents]);
+  }, [attendingEvents, interestedEvents, lastNotificationsReadAt]);
 
   // Admin tab state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -187,6 +209,7 @@ export const App: React.FC = () => {
   // Electronic Ticket Modal state
   const [ticketEvent, setTicketEvent] = useState<EventResponse | EventSummary | null>(null);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [activeScannerEvent, setActiveScannerEvent] = useState<any | null>(null);
   const [organizerInitialFilter, setOrganizerInitialFilter] = useState<'going' | 'wishlist' | 'created'>('going');
 
   // Unified Discovery search state
@@ -867,8 +890,10 @@ export const App: React.FC = () => {
           onOpenCityModal={() => setIsCityModalOpen(true)}
           user={user}
           isAdmin={isAdmin}
-          onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
-          onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+          onOpenNotifications={() => {
+            markNotificationsAsRead();
+            setIsNotificationCenterOpen(true);
+          }}
           unreadCount={unreadNotificationsCount}
         />
       )}
@@ -1205,10 +1230,18 @@ export const App: React.FC = () => {
                 setIsCreateOrgModalOpen(true);
               }}
               onOrgClick={(org) => openOrgById(org.id)}
-              onEventClick={(ev) => openEventById(ev.id, 'organizer')}
               onOrgDeleted={() => {
                 loadPersonalHub(true);
                 loadFeedEvents();
+              }}
+              onEventDeleted={() => {
+                loadPersonalHub(true);
+                loadFeedEvents();
+              }}
+              onOpenEditEvent={(ev) => {
+                setEditingDraftData(null);
+                setEditingEventData(ev as any);
+                setIsCreateEventModalOpen(true);
               }}
             />
           ) : (
@@ -1313,6 +1346,9 @@ export const App: React.FC = () => {
         onOpenTicket={(ev) => {
           setTicketEvent(ev);
           setIsTicketModalOpen(true);
+        }}
+        onOpenScanner={(ev) => {
+          setActiveScannerEvent(ev);
         }}
       />
 
@@ -1536,6 +1572,14 @@ export const App: React.FC = () => {
           setCurrentTab('organizer');
           setIsOrganizerWorkspaceOpen(true);
         }}
+        onMarkAllRead={markNotificationsAsRead}
+      />
+
+      {/* Global Check-in Ticket Scanner Modal */}
+      <CheckInScannerModal
+        isOpen={Boolean(activeScannerEvent)}
+        onClose={() => setActiveScannerEvent(null)}
+        event={activeScannerEvent}
       />
 
       {/* Bottom Navigation — only render when no full-screen sheet or workspace is active */}

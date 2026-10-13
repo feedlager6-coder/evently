@@ -568,6 +568,7 @@ export const api = {
     return res.json();
   },
 
+
   async getOrganizerEvents(): Promise<EventSummary[]> {
     const res = await fetchWithTimeout(`${API_BASE}/organizer/events`, {
       headers: getAuthHeaders(),

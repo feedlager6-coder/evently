@@ -145,7 +145,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
         <div className="flex items-center space-x-2 text-white min-w-0">
           <QrCode className="w-5 h-5 text-emerald-400 shrink-0" />
           <div className="min-w-0">
-            <h2 className="font-bold text-sm truncate">Чек-ин билетов</h2>
+            <h2 className="font-bold text-sm truncate">Контроль билетов</h2>
             <p className="text-[11px] text-neutral-400 truncate">{event.title}</p>
           </div>
         </div>
@@ -175,7 +175,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
           </div>
 
           <div className="space-y-0.5">
-            <div className="text-[11px] text-emerald-400 font-medium">Прошли чек-ин</div>
+            <div className="text-[11px] text-emerald-400 font-medium">Проверено на входе</div>
             <div className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span>{verifiedCount}</span>
@@ -194,7 +194,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
             className="w-full py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
           >
             <Camera className="w-5 h-5 stroke-[2.2]" />
-            <span>Открыть сканер камеры</span>
+            <span>📷 Сканировать QR-код билета</span>
           </button>
 
           {scannerNotice && (
@@ -208,7 +208,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
         <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3">
           <div className="flex items-center justify-between">
             <label htmlFor="ticket-code-input" className="text-xs font-bold text-neutral-300">
-              Ручной ввод номера билета
+              Ручная проверка по номеру билета
             </label>
             <span className="text-[10px] text-neutral-500">Пример: IVN-9821</span>
           </div>

@@ -22,10 +22,10 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
     clean = url.strip()
     if clean.startswith("http://") or clean.startswith("https://"):
         return clean
-    public_host = settings.effective_public_host
-    if public_host and clean.startswith("/"):
+    public_host = settings.effective_public_host or "https://iventlyapp.ru"
+    if clean.startswith("/"):
         return f"{public_host}{clean}"
-    return fallback
+    return f"{public_host}/{clean}"
 
 
 def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -> str:

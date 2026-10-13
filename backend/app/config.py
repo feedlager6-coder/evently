@@ -154,8 +154,8 @@ class Settings(BaseSettings):
         )
         if not host:
             if self.APP_ENV == "production":
-                return "https://ivently.up.railway.app"
-            return None
+                return "https://iventlyapp.ru"
+            return "https://iventlyapp.ru"
         host = host.strip().strip("'\"").strip()
         if not host.startswith("http://") and not host.startswith("https://"):
             host = f"https://{host}"

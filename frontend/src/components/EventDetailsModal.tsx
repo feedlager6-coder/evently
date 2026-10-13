@@ -65,6 +65,7 @@ interface EventDetailsModalProps {
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
   onOpenCreateOrg?: () => void;
   onOpenTicket?: (event: EventResponse) => void;
+  onOpenScanner?: (event: EventResponse) => void;
 }
 
 export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
@@ -82,10 +83,10 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   onOpenBroadcastComposer,
   onOpenCreateOrg,
   onOpenTicket,
+  onOpenScanner,
 }) => {
   const [showBroadcastExplainer, setShowBroadcastExplainer] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  const [isSharePreparing, setIsSharePreparing] = useState(false);
   const [companyMembersCount, setCompanyMembersCount] = useState<number>(0);
   const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
 
@@ -169,69 +170,55 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       ? `${Number(priceAmount) % 1 === 0 ? Number(priceAmount) : priceAmount} ₽`
       : 'Вход свободный';
 
-  const handleShare = async () => {
-    if (isSharePreparing) return;
+  // System Share for Header: Web Share API -> Clipboard copy (for WhatsApp, VK, SMS)
+  const handleSystemShare = async () => {
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
     const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
     const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
     const shareMessage = `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:\n${shareUrl}`;
 
-    // 1. Primary mechanism: Telegram Mini Apps shareMessage (WebApp >= 8.0)
-    if (telegram.canShareMessage()) {
-      setIsSharePreparing(true);
-      try {
-        const prep = await api.prepareEventShare(event.id);
-        const sent = await telegram.sharePreparedMessage(prep.prepared_message_id);
-        if (sent) {
-          telegram.hapticSuccess();
-        }
-        return;
-      } catch (prepErr) {
-        console.warn('prepareEventShare failed, falling back to Web Share / Clipboard:', prepErr);
-      } finally {
-        setIsSharePreparing(false);
-      }
-    }
-
-    // 2. Web Share API fallback
-    let shared = false;
     if (navigator.share) {
       try {
         await navigator.share({
           title: `Пойдём вместе на «${event.title}»!`,
-          text: `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:`,
+          text: `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие:`,
           url: shareUrl,
         });
-        shared = true;
         return;
       } catch (err: any) {
         if (err.name === 'AbortError') return;
       }
     }
 
-    // 3. Clipboard copy fallback
-    if (!shared) {
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(shareMessage);
-        } else {
-          const textArea = document.createElement('textarea');
-          textArea.value = shareMessage;
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-        }
-        setShareToast('Ссылка на событие скопирована!');
-        telegram.hapticSuccess();
-        setTimeout(() => {
-          setShareToast(null);
-        }, 2500);
-      } catch (copyErr) {
-        console.warn('Clipboard copy failed:', copyErr);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareMessage);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = shareMessage;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
       }
+      setShareToast('Ссылка скопирована!');
+      telegram.hapticSuccess();
+      setTimeout(() => setShareToast(null), 2500);
+    } catch (copyErr) {
+      console.warn('Clipboard copy failed:', copyErr);
     }
+  };
+
+  // Telegram Native Share for Hero Card: opens Telegram share sheet with 'Избранное' at top
+  const handleTelegramNativeShare = () => {
+    telegram.hapticImpact('light');
+    const botUsername = api.getBotUsername();
+    const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
+    const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
+    const shareText = `Пойдём вместе на «${event.title}»!\n🗓 ${formattedFullDate}\n📍 ${venueLabel}`;
+    const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+    telegram.openTelegramLink(telegramShareUrl);
   };
 
   const handleGoingClick = async () => {
@@ -276,10 +263,10 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleShare}
-              disabled={isSharePreparing}
+              onClick={handleSystemShare}
               className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#c4c7c8] hover:text-white active:scale-95 transition-all"
-              aria-label="Поделиться"
+              aria-label="Системный шеринг"
+              title="Поделиться через другие приложения"
             >
               <Share2 className="w-4 h-4" />
             </button>
@@ -323,12 +310,13 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleShare}
-                  disabled={isSharePreparing}
-                  className="w-10 h-10 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center text-[#c4c7c8] hover:text-white active:scale-95 transition-all shadow-md"
-                  aria-label="Поделиться"
+                  onClick={handleTelegramNativeShare}
+                  className="h-9 px-3 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center gap-1.5 text-[#c4c7c8] hover:text-white active:scale-95 transition-all shadow-md"
+                  aria-label="Поделиться в Telegram"
+                  title="Отправить в Telegram чаты и Избранное"
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5 text-[#4edea3]" />
+                  <span className="text-xs font-semibold text-white">В Telegram</span>
                 </button>
                 {onToggleInterest && (
                   <button
@@ -563,18 +551,31 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 Инструменты организатора
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid ${onOpenScanner ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
               <button
                 type="button"
                 onClick={() => {
                   telegram.hapticImpact('light');
                   onEditEvent?.(event);
                 }}
-                className="py-2.5 px-3 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                className="py-2.5 px-2 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
               >
                 <Edit className="w-3.5 h-3.5" />
-                <span>Редактировать</span>
+                <span>Изменить</span>
               </button>
+              {onOpenScanner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    onOpenScanner(event);
+                  }}
+                  className="py-2.5 px-2 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                >
+                  <Ticket className="w-3.5 h-3.5 text-[#10b981]" />
+                  <span>Сканер</span>
+                </button>
+              )}
               {onOpenBroadcastComposer && (
                 <button
                   type="button"
@@ -586,13 +587,43 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                       onOpenBroadcastComposer(event.id, event.organization_id);
                     }
                   }}
-                  className="py-2.5 px-3 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                  className="py-2.5 px-2 rounded-xl bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
                 >
                   <Send className="w-3.5 h-3.5 text-[#4edea3]" />
                   <span>Рассылка</span>
                 </button>
               )}
             </div>
+
+            {/* Gamified Nudge Card for Bookmarkers */}
+            {Boolean(event.interest_count && event.interest_count > 0 && onOpenBroadcastComposer) && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <span>🔥</span>
+                    <span>{event.interest_count} в закладках «Хочу пойти»</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-300 leading-snug">
+                  Отправьте персональный анонс или напоминание прямо в Telegram, чтобы превратить интерес в продажи билетов.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    if (!event.organization_id) {
+                      setShowBroadcastExplainer(true);
+                    } else {
+                      onOpenBroadcastComposer?.(event.id, event.organization_id);
+                    }
+                  }}
+                  className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Отправить анонс в Telegram ↗</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

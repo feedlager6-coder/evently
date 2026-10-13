@@ -106,6 +106,29 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
 
+  // Event deletion confirmation state
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteEvent = async () => {
+    if (!initialEvent) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteEvent(initialEvent.id);
+      telegram.hapticSuccess();
+      setIsDeleteConfirmOpen(false);
+      onClose();
+      if (_onEventDeleted) {
+        _onEventDeleted(initialEvent.id);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ошибка удаления события');
+      telegram.hapticNotification('error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Synchronize form when initialEvent, initialDraft or isOpen changes
   useEffect(() => {
     if (!isOpen) {
@@ -281,7 +304,9 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   const handleSelectSuggestion = (suggestion: LocationSuggestion) => {
     setAddress(suggestion.address || suggestion.display_name);
-    setVenueName(suggestion.title || suggestion.display_name.split(',')[0].trim());
+    if (!venueName.trim()) {
+      setVenueName(suggestion.title || suggestion.display_name.split(',')[0].trim());
+    }
     setLatitude(suggestion.latitude);
     setLongitude(suggestion.longitude);
     setShowSuggestions(false);
@@ -348,6 +373,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   const selectedCategoryName = STANDARD_CATEGORIES.find((c) => c.id === categoryId)?.name || 'Событие';
+  const currentCityName = cities.find((c) => c.id === cityId)?.name || 'городе';
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#0d0d0f] flex flex-col overflow-y-auto">
@@ -602,19 +628,35 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               </div>
             </div>
 
-            <div className="relative">
+            {/* Field 1: Venue Name */}
+            <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                Площадка в Махачкале *
+                Площадка в г. {currentCityName} *
               </label>
               <input 
                 type="text" 
                 value={venueName}
+                onChange={(e) => setVenueName(e.target.value)}
+                placeholder="Клуб «Атмосфера», Арт-пространство или Сквер" 
+                className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-neutral-500"
+              />
+            </div>
+
+            {/* Field 2: Street Address with autocomplete */}
+            <div className="relative">
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center justify-between">
+                <span>Адрес (улица, дом)</span>
+                <span className="text-[10px] text-neutral-500">Автопоиск или ручной ввод</span>
+              </label>
+              <input 
+                type="text" 
+                value={address}
                 onChange={(e) => {
-                  setVenueName(e.target.value);
+                  setAddress(e.target.value);
                   setShowSuggestions(true);
                 }}
                 onFocus={() => setShowSuggestions(locationSuggestions.length > 0)}
-                placeholder="Клуб «Атмосфера», или точный адрес" 
+                placeholder="Например: ул. Ленина, 14" 
                 className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-neutral-500"
               />
               
@@ -761,6 +803,20 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             >
               Предпросмотр афиши
             </button>
+
+            {initialEvent && (
+              <button 
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('medium');
+                  setIsDeleteConfirmOpen(true);
+                }}
+                disabled={isDeleting}
+                className="w-full py-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-xs transition-all border border-rose-500/20 active:scale-98 flex items-center justify-center gap-1.5"
+              >
+                <span>Удалить событие</span>
+              </button>
+            )}
           </div>
         </main>
       )}
@@ -834,6 +890,40 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 className="w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs border border-white/5"
               >
                 ← Вернуться к редактированию
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event Deletion Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#141417] border border-white/10 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+              <X className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white">Удалить событие?</h3>
+              <p className="text-xs text-neutral-400 leading-relaxed">
+                Это действие необратимо. Событие будет снято с афиши и переведено в архив.
+              </p>
+            </div>
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={handleDeleteEvent}
+                disabled={isDeleting}
+                className="w-full py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs active:scale-95 transition"
+              >
+                {isDeleting ? 'Удаление...' : 'Да, удалить'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs transition"
+              >
+                Отмена
               </button>
             </div>
           </div>

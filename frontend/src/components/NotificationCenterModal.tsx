@@ -19,6 +19,7 @@ interface NotificationCenterModalProps {
   organizerEvents?: EventSummary[];
   onEventClick?: (event: EventSummary) => void;
   onOpenOrganizerWorkspace?: () => void;
+  onMarkAllRead?: () => void;
 }
 
 export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
@@ -29,6 +30,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
   organizerEvents = [],
   onEventClick,
   onOpenOrganizerWorkspace,
+  onMarkAllRead,
 }) => {
   const [filter, setFilter] = useState<'all' | 'events' | 'organizer'>('all');
   const [isMarkedRead, setIsMarkedRead] = useState(false);
@@ -59,6 +61,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
       localStorage.setItem('ivently_last_notifications_read_at', Date.now().toString());
     } catch {}
     setIsMarkedRead(true);
+    onMarkAllRead?.();
   };
 
   const hasAnyItems =
