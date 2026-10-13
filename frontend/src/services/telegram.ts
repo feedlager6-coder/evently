@@ -47,6 +47,8 @@ declare global {
         disableClosingConfirmation?: () => void;
         openTelegramLink: (url: string) => void;
         openLink: (url: string) => void;
+        showScanQrPopup?: (params: { text?: string }, callback?: (text: string) => boolean | void) => void;
+        closeScanQrPopup?: () => void;
         onEvent?: (eventType: string, eventHandler: () => void) => void;
         offEvent?: (eventType: string, eventHandler: () => void) => void;
       };
@@ -352,6 +354,31 @@ export const telegram = {
       // Ignored outside Telegram
     }
     window.open(url, '_blank');
+  },
+
+  showScanQrPopup(params: { text?: string }, callback: (text: string) => boolean | void): void {
+    try {
+      if (window.Telegram?.WebApp?.showScanQrPopup) {
+        window.Telegram.WebApp.showScanQrPopup(params, callback);
+        return;
+      }
+    } catch (e) {
+      console.warn('Telegram showScanQrPopup error:', e);
+    }
+  },
+
+  closeScanQrPopup(): void {
+    try {
+      if (window.Telegram?.WebApp?.closeScanQrPopup) {
+        window.Telegram.WebApp.closeScanQrPopup();
+      }
+    } catch (e) {
+      console.warn('Telegram closeScanQrPopup error:', e);
+    }
+  },
+
+  isScanQrAvailable(): boolean {
+    return Boolean(window.Telegram?.WebApp?.showScanQrPopup);
   },
 
   canShareMessage(): boolean {

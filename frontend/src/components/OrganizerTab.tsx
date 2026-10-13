@@ -16,6 +16,7 @@ import {
   MapPin,
   Users,
   CheckCircle2,
+  Check,
   ShieldCheck,
   ShoppingBag,
   Bell
@@ -99,16 +100,16 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-72 h-32 bg-[#10b981]/10 blur-[90px] rounded-full pointer-events-none -z-10" />
 
       {/* 1. Header Area matching Stitch Obsidian Optical */}
-      <header className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Мои события</h1>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#2a2a2c] text-[#4edea3] text-[11px] font-bold tracking-wide shadow-sm">
+      <header className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">Мои события</h1>
+          <span className="shrink-0 inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full bg-[#2a2a2c] text-[#4edea3] text-[11px] font-bold tracking-wide border border-white/5 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
-            PRO Клуб
+            PRO
           </span>
         </div>
-        <div className="flex items-center gap-1.5 bg-[#1c1b1e] px-3 py-1.5 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.06)] border border-white/5">
-          <Ticket className="w-4 h-4 text-[#4edea3]" />
+        <div className="shrink-0 flex items-center gap-1.5 bg-[#1c1b1e] px-3 h-7 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5">
+          <Ticket className="w-3.5 h-3.5 text-[#4edea3]" />
           <span className="text-xs text-white font-semibold">
             {totalTickets} {totalTickets === 1 ? 'билет' : totalTickets >= 2 && totalTickets <= 4 ? 'билета' : 'билетов'}
           </span>
@@ -207,7 +208,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <div className="relative p-1 rounded-full bg-[#0e0e10]/90 backdrop-blur-xl flex items-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_24px_rgba(0,0,0,0.4)] border border-white/5">
           {/* Sliding Pill Indicator */}
           <div
-            className="absolute top-1 bottom-1 left-1 rounded-full bg-[#39393b]/80 backdrop-blur-2xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] transition-transform duration-300 ease-out pointer-events-none"
+            className="absolute top-1 bottom-1 left-1 rounded-full bg-white/[0.12] backdrop-blur-2xl border border-white/20 shadow-[0_2px_12px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-transform duration-300 ease-out pointer-events-none"
             style={{
               width: `calc((100% - 8px) / ${totalFilterTabs})`,
               transform: `translate3d(calc(${activeFilterIndex} * 100%), 0, 0)`,
@@ -219,10 +220,10 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             onClick={() => handleFilterSwitch('going')}
             type="button"
             className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
-              activeFilter === 'going' ? 'text-white' : 'text-[#c4c7c8]'
+              activeFilter === 'going' ? 'text-white font-bold' : 'text-[#c4c7c8] hover:text-white'
             }`}
           >
-            <CheckCircle2 className={`w-4 h-4 ${activeFilter === 'going' ? 'text-[#4edea3]' : 'opacity-60'}`} />
+            <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${activeFilter === 'going' ? 'text-[#4edea3]' : 'opacity-60'}`} />
             <span>Я иду</span>
             <span
               className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -239,11 +240,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             onClick={() => handleFilterSwitch('wishlist')}
             type="button"
             className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
-              activeFilter === 'wishlist' ? 'text-white' : 'text-[#c4c7c8]'
+              activeFilter === 'wishlist' ? 'text-white font-bold' : 'text-[#c4c7c8] hover:text-white'
             }`}
           >
-            <Heart className={`w-4 h-4 ${activeFilter === 'wishlist' ? 'fill-white text-white' : 'opacity-60'}`} />
-            <span>{hasCreatedEvents ? 'Хочу' : 'Хочу пойти'}</span>
+            <Heart className={`w-3.5 h-3.5 shrink-0 ${activeFilter === 'wishlist' ? 'fill-white text-white' : 'opacity-60'}`} />
+            <span>Хочу</span>
             <span
               className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                 activeFilter === 'wishlist'
@@ -260,11 +261,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               onClick={() => handleFilterSwitch('created')}
               type="button"
               className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
-                activeFilter === 'created' ? 'text-white' : 'text-[#c4c7c8]'
+                activeFilter === 'created' ? 'text-white font-bold' : 'text-[#c4c7c8] hover:text-white'
               }`}
             >
-              <Sparkles className={`w-4 h-4 ${activeFilter === 'created' ? 'text-[#ffb95f]' : 'opacity-60'}`} />
-              <span>Созданные</span>
+              <Sparkles className={`w-3.5 h-3.5 shrink-0 ${activeFilter === 'created' ? 'text-[#ffb95f]' : 'opacity-60'}`} />
+              <span>Мои</span>
               <span
                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                   activeFilter === 'created'
@@ -516,26 +517,32 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 minute: '2-digit',
               }).toUpperCase();
 
-              const statusBadge =
-                event.status === 'published' ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/25">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3]" />
-                    Опубликовано
-                  </span>
-                ) : event.status === 'pending' ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#fbbf24] border border-[#f59e0b]/25">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#fbbf24] animate-pulse" />
-                    На модерации
-                  </span>
-                ) : event.status === 'rejected' ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">
-                    Отклонено
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-neutral-300 border border-white/10">
-                    Черновик
-                  </span>
-                );
+              const isPast = event.start_at ? new Date(event.start_at).getTime() < Date.now() : false;
+
+              const statusBadge = isPast ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/5 text-neutral-400 border border-white/10">
+                  <Check className="w-3 h-3 text-neutral-400" />
+                  Завершено
+                </span>
+              ) : event.status === 'published' ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/25">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3]" />
+                  Опубликовано
+                </span>
+              ) : event.status === 'pending' ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#fbbf24] border border-[#f59e0b]/25">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#fbbf24] animate-pulse" />
+                  На модерации
+                </span>
+              ) : event.status === 'rejected' ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                  Отклонено
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-neutral-300 border border-white/10">
+                  Черновик
+                </span>
+              );
 
               return (
                 <article

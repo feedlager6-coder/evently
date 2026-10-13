@@ -36,6 +36,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { CheckInScannerModal } from './CheckInScannerModal';
 
 export type WorkspaceTab = 'overview' | 'events' | 'audience' | 'broadcasts';
 export type EventSubFilter = 'all' | 'published' | 'pending' | 'drafts';
@@ -411,45 +412,145 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </div>
             ) : (
               <div className="space-y-2.5">
-                {_events.map((ev) => (
-                  <div key={ev.id} className="p-3.5 rounded-2xl bg-[#141417] border border-white/8 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
-                        ev.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
-                        ev.status === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'bg-rose-500/15 text-rose-400'
-                      }`}>
-                        {ev.status === 'published' ? 'В афише' : ev.status === 'pending' ? 'На модерации' : 'Отклонено'}
-                      </span>
-                      <span className="text-[11px] text-neutral-400">
-                        {ev.start_at ? new Date(ev.start_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—'}
-                      </span>
-                    </div>
-                    <h4 className="text-sm font-bold text-white truncate">{ev.title}</h4>
-                    <p className="text-xs text-neutral-400 truncate">{ev.venue_name}</p>
-                    <div className="flex gap-2 pt-1 border-t border-white/5 text-xs">
-                      {ev.status === 'published' && (
+                {_events.map((ev) => {
+                  const isPast = ev.start_at ? new Date(ev.start_at).getTime() < Date.now() : false;
+                  return (
+                    <div key={ev.id} className="p-3.5 rounded-2xl bg-[#141417] border border-white/8 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                          isPast ? 'bg-white/5 text-neutral-400 border border-white/10' :
+                          ev.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
+                          ev.status === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'bg-rose-500/15 text-rose-400'
+                        }`}>
+                          {isPast ? (
+                            <>
+                              <Check className="w-3 h-3 text-neutral-400" />
+                              Завершено
+                            </>
+                          ) : ev.status === 'published' ? (
+                            'В афише'
+                          ) : ev.status === 'pending' ? (
+                            'На модерации'
+                          ) : (
+                            'Отклонено'
+                          )}
+                        </span>
+                        <span className="text-[11px] text-neutral-400">
+                          {ev.start_at ? new Date(ev.start_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—'}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white truncate">{ev.title}</h4>
+                      <p className="text-xs text-neutral-400 truncate">{ev.venue_name}</p>
+                      <div className="flex gap-2 pt-1 border-t border-white/5 text-xs">
+                        {(ev.status === 'published' || isPast) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('light');
+                              setActiveCheckInEvent(ev);
+                            }}
+                            className="flex-1 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Чек-ин</span>
+                          </button>
+                        )}
+                        {ev.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('light');
+                              setActivePreviewEvent(ev);
+                            }}
+                            className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Предпросмотр</span>
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => setActiveCheckInEvent(ev)}
-                          className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center"
+                          onClick={() => {
+                            telegram.hapticImpact('light');
+                            if (onOpenEditEvent) {
+                              onOpenEditEvent(ev);
+                            } else {
+                              onOpenCreateEvent(undefined, ev);
+                            }
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
                         >
-                          QR Чек-ин
+                          <Edit3 className="w-3.5 h-3.5 text-neutral-400" />
+                          <span>Изменить</span>
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onOpenEditEvent ? onOpenEditEvent(ev) : onOpenCreateEvent(undefined, ev)}
-                        className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center"
-                      >
-                        Редактировать
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
+
+        {/* CheckIn Scanner Modal */}
+        <CheckInScannerModal
+          isOpen={Boolean(activeCheckInEvent)}
+          onClose={() => setActiveCheckInEvent(null)}
+          event={activeCheckInEvent}
+        />
+
+        {/* Auxiliary Modal: Preview for pending events */}
+        {activePreviewEvent && (
+          <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-xl flex flex-col p-4 animate-fade-in overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 max-w-sm mx-auto w-full">
+              <div className="flex items-center space-x-2 text-white">
+                <Eye className="w-4 h-4 text-amber-400" />
+                <span className="font-bold text-sm">Предпросмотр на модерации</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePreviewEvent(null)}
+                className="p-1.5 rounded-full bg-white/5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-6 max-w-sm mx-auto w-full space-y-4">
+              <div className="rounded-3xl overflow-hidden bg-[#141417] border border-amber-500/20 shadow-2xl space-y-3 pb-4">
+                <div className="relative aspect-video w-full bg-neutral-900">
+                  <SafeImage
+                    src={activePreviewEvent.cover_image_url}
+                    alt={activePreviewEvent.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-amber-500/90 text-black font-bold text-[10px]">
+                    На модерации
+                  </div>
+                </div>
+                <div className="px-4 space-y-2">
+                  <div className="text-[11px] text-amber-400 font-semibold">{activePreviewEvent.dateText}</div>
+                  <h3 className="text-base font-bold text-white tracking-tight">{activePreviewEvent.title}</h3>
+                  <p className="text-xs text-neutral-400 flex items-center space-x-1">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-neutral-500" />
+                    <span>{activePreviewEvent.venue_name}</span>
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                    Заявка отправлена модераторам. Ожидаемое время ответа: ~15 мин.
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActivePreviewEvent(null)}
+                className="w-full py-3 rounded-2xl bg-white text-black font-bold text-xs"
+              >
+                Закрыть предпросмотр
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -716,33 +817,41 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                   )}
 
-                  {publishedEvents.map((pubEvent) => (
-                    <div
-                      key={pubEvent.id}
-                      className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 relative overflow-hidden"
-                    >
-                      <div className="flex gap-3 items-start">
-                        <SafeImage
-                          src={pubEvent.cover_image_url}
-                          alt={pubEvent.title}
-                          className="w-20 h-20 rounded-xl object-cover shrink-0 border border-white/5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                              <span className="w-1 h-1 rounded-full bg-emerald-400" /> Опубликовано
-                            </span>
-                            <span className="text-[11px] text-neutral-400">{pubEvent.dateText}</span>
-                          </div>
-                          <h3 className="text-sm font-bold text-white mt-1 truncate">{pubEvent.title}</h3>
-                          <p className="text-xs text-neutral-400 truncate">{pubEvent.venue_name}</p>
-                          <div className="flex items-center gap-2 mt-1.5 text-xs">
-                            <span className="text-neutral-300 font-medium">🎟 {pubEvent.ticketsSold} билетов</span>
-                            <span className="text-neutral-500">•</span>
-                            <span className="text-neutral-400">{pubEvent.bookmarksCount} в закладках</span>
+                  {publishedEvents.map((pubEvent) => {
+                    const isPast = pubEvent.start_at ? new Date(pubEvent.start_at).getTime() < Date.now() : false;
+                    return (
+                      <div
+                        key={pubEvent.id}
+                        className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-3 relative overflow-hidden"
+                      >
+                        <div className="flex gap-3 items-start">
+                          <SafeImage
+                            src={pubEvent.cover_image_url}
+                            alt={pubEvent.title}
+                            className="w-20 h-20 rounded-xl object-cover shrink-0 border border-white/5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              {isPast ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-neutral-400 border border-white/10">
+                                  <Check className="w-3 h-3 text-neutral-400" /> Завершено
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                  <span className="w-1 h-1 rounded-full bg-emerald-400" /> Опубликовано
+                                </span>
+                              )}
+                              <span className="text-[11px] text-neutral-400">{pubEvent.dateText}</span>
+                            </div>
+                            <h3 className="text-sm font-bold text-white mt-1 truncate">{pubEvent.title}</h3>
+                            <p className="text-xs text-neutral-400 truncate">{pubEvent.venue_name}</p>
+                            <div className="flex items-center gap-2 mt-1.5 text-xs">
+                              <span className="text-neutral-300 font-medium">🎟 {pubEvent.ticketsSold} билетов</span>
+                              <span className="text-neutral-500">•</span>
+                              <span className="text-neutral-400">{pubEvent.bookmarksCount} в закладках</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
                       {/* Contextual Action Buttons */}
                       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-xs">
@@ -780,7 +889,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         </button>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
 
@@ -1769,58 +1879,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       {/* =========================================================================
           AUXILIARY MODAL: ЧЕК-ИН (CHECK-IN SCANNER)
       ========================================================================= */}
-      {activeCheckInEvent && (
-        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-xl flex flex-col p-4 animate-fade-in overflow-y-auto">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 max-w-sm mx-auto w-full">
-            <div className="flex items-center space-x-2 text-white">
-              <QrCode className="w-5 h-5 text-emerald-400" />
-              <span className="font-bold text-sm truncate max-w-[240px]">Чек-ин • {activeCheckInEvent.title}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveCheckInEvent(null)}
-              className="p-1.5 rounded-full bg-white/5 text-neutral-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="py-6 max-w-sm mx-auto w-full space-y-4 text-center">
-            <div className="p-6 rounded-3xl bg-[#141417] border border-white/10 space-y-4">
-              <div className="w-48 h-48 mx-auto bg-white p-3 rounded-2xl flex items-center justify-center shadow-lg">
-                <QrCode className="w-40 h-40 text-black" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Сканер билетов Ivently</h3>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Наведите камеру на QR-код электронного билета гостя в приложении Telegram
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-left pt-2 border-t border-white/5 text-xs">
-                <div>
-                  <span className="text-neutral-500 block">Зарегистрировано:</span>
-                  <span className="text-white font-bold">{activeCheckInEvent.ticketsSold || 0} чел.</span>
-                </div>
-                <div>
-                  <span className="text-neutral-500 block">Вход:</span>
-                  <span className="text-emerald-400 font-bold">Готов к сканированию</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                telegram.hapticSuccess();
-                alert('Гость подтвержден! Билет №IV-9821 действителен.');
-              }}
-              className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm shadow-lg active:scale-95"
-            >
-              Тестовое сканирование
-            </button>
-          </div>
-        </div>
-      )}
+      <CheckInScannerModal
+        isOpen={Boolean(activeCheckInEvent)}
+        onClose={() => setActiveCheckInEvent(null)}
+        event={activeCheckInEvent}
+      />
 
       {/* =========================================================================
           AUXILIARY MODAL: ПРЕДПРОСМОТР СОБЫТИЯ НА МОДЕРАЦИИ

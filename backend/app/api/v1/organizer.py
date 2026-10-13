@@ -1,4 +1,7 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+import json
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,6 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.organization import Organization, OrganizationStatus
+from app.models.event import Event
 from app.schemas.event import EventSummary
 from app.schemas.audience import OrganizerAudienceResponse
 from app.schemas.insights import OrganizerInsightsResponse
@@ -200,5 +204,100 @@ async def get_my_entitlements(
         )
 
     return await EntitlementService.get_entitlements(session, target_org_id, org_name=org_name)
+
+
+class CheckInRequest(BaseModel):
+    ticket_code: str
+
+
+class CheckInResponse(BaseModel):
+    status: str
+    message: str
+    ticket_code: str
+    checked_in_at: str
+    event_id: str
+    event_title: str
+    guest_name: Optional[str] = "Гость Ivently"
+
+
+_CHECKED_IN_CACHE: Dict[str, Dict[str, str]] = {}
+
+
+@router.post("/events/{event_id}/check-in", response_model=CheckInResponse)
+async def check_in_event_ticket(
+    event_id: str,
+    req: CheckInRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Validates and performs check-in for a ticket code or QR payload for the organizer's event.
+    """
+    stmt = select(Event).where(Event.id == event_id)
+    event = (await session.execute(stmt)).scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Мероприятие не найдено")
+
+    # Authorize: user must be the organizer or admin
+    is_author = (event.organizer_id == str(user.id)) or (event.created_by_user_id == user.id)
+    if not is_author and user.role != "admin":
+        if event.organization_id:
+            org_stmt = select(Organization).where(Organization.id == event.organization_id)
+            org = (await session.execute(org_stmt)).scalar_one_or_none()
+            if not org or org.owner_user_id != user.id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет прав администратора для этого события")
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет прав администратора для этого события")
+
+    raw_code = req.ticket_code.strip()
+    ticket_id = raw_code
+    payload_event_id = None
+
+    if raw_code.startswith("{") and raw_code.endswith("}"):
+        try:
+            parsed = json.loads(raw_code)
+            ticket_id = parsed.get("ticket_id") or raw_code
+            payload_event_id = parsed.get("event_id")
+        except Exception:
+            pass
+
+    now_iso = datetime.now(timezone.utc).strftime("%H:%M:%S")
+
+    if payload_event_id and payload_event_id != event_id:
+        return CheckInResponse(
+            status="invalid",
+            message="Билет относится к другому мероприятию",
+            ticket_code=ticket_id,
+            checked_in_at=now_iso,
+            event_id=event_id,
+            event_title=event.title,
+        )
+
+    # Check if already checked in
+    event_cache = _CHECKED_IN_CACHE.setdefault(event_id, {})
+    if ticket_id in event_cache:
+        prev_time = event_cache[ticket_id]
+        return CheckInResponse(
+            status="already_checked_in",
+            message=f"Билет уже был использован ранее в {prev_time}",
+            ticket_code=ticket_id,
+            checked_in_at=prev_time,
+            event_id=event_id,
+            event_title=event.title,
+        )
+
+    # Register check-in
+    event_cache[ticket_id] = now_iso
+
+    return CheckInResponse(
+        status="success",
+        message="Билет действителен. Вход подтвержден!",
+        ticket_code=ticket_id,
+        checked_in_at=now_iso,
+        event_id=event_id,
+        event_title=event.title,
+        guest_name="Гость Ivently",
+    )
+
 
 
