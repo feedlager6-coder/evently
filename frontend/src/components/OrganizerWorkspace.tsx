@@ -447,6 +447,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             <span>Чек-ин</span>
                           </button>
                         )}
+                        {ev.status === 'published' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              telegram.hapticImpact('light');
+                              alert('Чтобы запустить рассылку в Telegram, создайте профиль организатора или бренд (это бесплатно). Бот будет отправлять анонсы от имени вашего профиля.');
+                              onOpenCreateOrg();
+                            }}
+                            className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                          >
+                            <Send className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Рассылка</span>
+                          </button>
+                        )}
                         {ev.status === 'pending' && (
                           <button
                             type="button"
@@ -1872,10 +1886,22 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                telegram.hapticSuccess();
-                alert('Подписка PRO активирована в демонстрационном режиме!');
-                setIsProModalOpen(false);
+              onClick={async () => {
+                if (!activeOrg) {
+                  setIsProModalOpen(false);
+                  onOpenCreateOrg();
+                  return;
+                }
+                try {
+                  telegram.hapticImpact('heavy');
+                  await api.upgradeOrganizationPro(activeOrg.id);
+                  telegram.hapticSuccess();
+                  alert('Тариф PRO успешно активирован! Вам доступны рассылки в Telegram и расширенная аналитика.');
+                  setIsProModalOpen(false);
+                } catch (e: any) {
+                  telegram.hapticNotification('error');
+                  alert(e?.message || 'Ошибка активации PRO');
+                }
               }}
               className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg active:scale-95 transition"
             >

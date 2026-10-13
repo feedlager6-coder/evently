@@ -695,6 +695,20 @@ export const api = {
     return res.json();
   },
 
+  async upgradeOrganizationPro(orgId: string): Promise<OrganizerEntitlementsResponse> {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/organizations/${encodeURIComponent(orgId)}/pro`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Необходима авторизация через Telegram');
+      if (res.status === 403) throw new Error('Нет прав на управление этой организацией');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Ошибка активации PRO'));
+    }
+    return res.json();
+  },
+
   // Organizations & Subscriptions
   async createOrganization(payload: OrganizationCreatePayload): Promise<OrganizationResponse> {
     const res = await fetchWithTimeout(`${API_BASE}/organizations`, {

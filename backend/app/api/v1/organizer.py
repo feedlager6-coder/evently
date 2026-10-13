@@ -206,6 +206,27 @@ async def get_my_entitlements(
     return await EntitlementService.get_entitlements(session, target_org_id, org_name=org_name)
 
 
+@router.post("/organizations/{org_id}/pro", response_model=OrganizerEntitlementsResponse)
+async def upgrade_organization_pro(
+    org_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Activates PRO plan for an organization owned by the current user.
+    Enables broadcasts and extended capabilities.
+    """
+    stmt = select(Organization).where(Organization.id == org_id)
+    org = (await session.execute(stmt)).scalar_one_or_none()
+    if not org or org.status == OrganizationStatus.DELETED.value:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
+    if org.owner_user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не являетесь владельцем этой организации")
+
+    await EntitlementService.set_organization_plan(session, org_id, plan=PlanType.PRO.value)
+    return await EntitlementService.get_entitlements(session, org_id, org_name=org.name)
+
+
 class CheckInRequest(BaseModel):
     ticket_code: str
 

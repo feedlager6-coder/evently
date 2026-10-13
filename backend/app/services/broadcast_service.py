@@ -156,10 +156,15 @@ async def calculate_audience(
         if not event:
             raise HTTPException(status_code=404, detail="Событие не найдено")
         if event.organization_id != organization_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Событие не принадлежит указанной организации"
-            )
+            if event.organizer_user_id == organizer_user_id:
+                if not event.organization_id:
+                    event.organization_id = organization_id
+                    await session.flush()
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Событие не принадлежит указанной организации"
+                )
 
     if target_type == BroadcastTargetType.EVENT_INTEREST.value and not event_id:
         raise HTTPException(
