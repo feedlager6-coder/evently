@@ -469,6 +469,7 @@ export const App: React.FC = () => {
     };
   }, [processStartParam]);
 
+  const feedAbortControllerRef = useRef<AbortController | null>(null);
   const feedRequestIdRef = useRef<number>(0);
   const feedLoadingStartedAtRef = useRef<number>(0);
 
@@ -476,6 +477,12 @@ export const App: React.FC = () => {
   const loadFeedEvents = useCallback(async (silent = false) => {
     const currentRequestId = ++feedRequestIdRef.current;
     feedLoadingStartedAtRef.current = Date.now();
+
+    if (feedAbortControllerRef.current) {
+      feedAbortControllerRef.current.abort();
+    }
+    const ac = new AbortController();
+    feedAbortControllerRef.current = ac;
 
     if (!selectedCityId) {
       setEvents([]);
@@ -491,7 +498,8 @@ export const App: React.FC = () => {
       const res = await api.getEvents(
         selectedCityId,
         selectedCategoryId,
-        dateFilter
+        dateFilter,
+        ac.signal
       );
       if (currentRequestId === feedRequestIdRef.current) {
         setEvents(res.events);

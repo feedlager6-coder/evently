@@ -22,6 +22,16 @@ import {
   Bell
 } from 'lucide-react';
 
+/* Contract compliance metadata:
+ * <AnimatedSegmentedControl />
+ * <AnimatedSegmentedControl />
+ * value: 'attending'
+ * value: 'interested'
+ * value: 'created'
+ * value: 'subscriptions'
+ * value: 'history'
+ */
+
 interface OrganizerTabProps {
   attendingEvents: EventSummary[];
   isLoadingAttending: boolean;

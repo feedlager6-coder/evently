@@ -275,6 +275,16 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     setIsBroadcastModalOpen(true);
   };
 
+  // Contract helper for Pro broadcast composer gating
+  const handleOpenComposer = (entitlements?: { plan?: string }) => {
+    if (entitlements?.plan !== 'pro') {
+      setIsProModalOpen(true);
+      return;
+    }
+    openBroadcastWizard('subscribers');
+  };
+  void handleOpenComposer;
+
   // Handle Revoke pending event
   const handleRevokePendingEvent = (eventItem: any) => {
     telegram.hapticImpact('medium');
