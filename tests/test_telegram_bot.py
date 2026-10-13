@@ -254,6 +254,7 @@ async def test_inline_query_direct_event_lookup(test_session):
     item = resp["results"][0]
     assert item["id"] == f"event_{event.id}"
     assert event.title in item["title"]
-    assert "🧭 Открыть в Mini App" in str(item["reply_markup"])
+    assert "Открыть событие" in str(item["reply_markup"])
+    assert "style" in str(item["reply_markup"])
     assert f"startapp=event_{event.id}" in str(item["reply_markup"])
 

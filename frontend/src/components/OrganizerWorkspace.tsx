@@ -82,16 +82,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab || 'events');
   const [eventFilter, setEventFilter] = useState<EventSubFilter>('all');
 
+  // Broadcasts initialized to empty array (clean slate, no mock broadcasts)
+  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
+  const [_isLoadingBroadcasts, setIsLoadingBroadcasts] = useState<boolean>(false);
+
   // Active organization: strictly user's first organization or null (Clean Slate)
   const activeOrg = organizations[0] || null;
+  const isOrgPro = Boolean(activeOrg?.is_verified || (activeOrg as any)?.plan === 'pro');
+  const monthlyQuota = isOrgPro ? 20 : 1;
+  const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
+  const monthlyBroadcastsRemaining = Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
 
   // Audience & Broadcast Data State
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
   const [_isLoadingAudience, setIsLoadingAudience] = useState<boolean>(false);
-
-  // Broadcasts initialized to empty array (clean slate, no mock broadcasts)
-  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
-  const [_isLoadingBroadcasts, setIsLoadingBroadcasts] = useState<boolean>(false);
 
   // Broadcast Wizard Modal State (Single Clean Screen)
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
@@ -859,8 +863,35 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                           </div>
                         </div>
 
-                      {/* Contextual Action Buttons */}
-                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-xs">
+                        {/* Gamified Nudge Card if event has bookmarks/interest and is upcoming */}
+                        {!isPast && (pubEvent.bookmarksCount > 0 || (pubEvent.interest_count || 0) > 0) && (
+                          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/25 flex items-center justify-between gap-3">
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
+                                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                                <span>{pubEvent.bookmarksCount || pubEvent.interest_count} гостей в закладках!</span>
+                              </div>
+                              <p className="text-[11px] text-neutral-400 truncate">
+                                Отправьте им персональный анонс в Telegram
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                telegram.hapticImpact('medium');
+                                setSelectedEventTargetId(pubEvent.id);
+                                setTargetSegment('event_interest');
+                                setIsBroadcastModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold shrink-0 transition-all active:scale-95 shadow-sm"
+                            >
+                              Анонс ↗
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Contextual Action Buttons */}
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-xs">
                         <button
                           type="button"
                           onClick={() => {
@@ -1390,62 +1421,65 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             UNIFIED FLOATING OPTICAL GLASS DOCK
         ========================================================================= */}
         {!isBroadcastModalOpen && (
-          <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[358px] z-50 rounded-full bg-[rgba(18,18,22,0.85)] backdrop-blur-[20px] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.15)] p-1.5 dock-bottom">
-            <div className="grid grid-cols-4 gap-1 items-center text-xs">
+          <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[360px] z-50 pointer-events-none">
+            <div className="pointer-events-auto relative flex items-center p-1.5 h-16 w-full rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.15),0_12px_36px_rgba(0,0,0,0.75)] select-none">
+              {/* 60 FPS Hardware-Accelerated Sliding Optical Lens Indicator */}
+              <div
+                className="absolute top-1.5 bottom-1.5 left-1.5 rounded-full bg-[#39393b]/80 backdrop-blur-2xl border border-white/15 shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] pointer-events-none"
+                style={{
+                  width: `calc((100% - 12px) / 4)`,
+                  transform: `translate3d(calc(${activeTab === 'overview' ? 0 : activeTab === 'events' ? 1 : activeTab === 'audience' ? 2 : 3} * 100%), 0, 0)`,
+                  transition: 'transform 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+                  willChange: 'transform',
+                }}
+              />
+
               {/* 1. Обзор */}
               <button
                 type="button"
                 onClick={() => handleTabChange('overview')}
-                className={`py-2 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  activeTab === 'overview'
-                    ? 'bg-white/[0.08] text-white border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.4)] rounded-full font-semibold'
-                    : 'text-zinc-400 hover:text-white'
+                className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
+                  activeTab === 'overview' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
               >
-                <LayoutGrid className={`w-5 h-5 ${activeTab === 'overview' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[11px] leading-tight">Обзор</span>
+                <LayoutGrid className={`w-5 h-5 mb-0.5 transition-transform duration-200 ${activeTab === 'overview' ? 'scale-105 text-[#4edea3]' : 'opacity-70'}`} />
+                <span className="text-[11px] font-bold tracking-[0.04em] leading-none">Обзор</span>
               </button>
 
               {/* 2. События */}
               <button
                 type="button"
                 onClick={() => handleTabChange('events')}
-                className={`py-2 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  activeTab === 'events'
-                    ? 'bg-white/[0.08] text-white border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.4)] rounded-full font-semibold'
-                    : 'text-zinc-400 hover:text-white'
+                className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
+                  activeTab === 'events' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
               >
-                <Calendar className={`w-5 h-5 ${activeTab === 'events' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[11px] leading-tight">События</span>
+                <Calendar className={`w-5 h-5 mb-0.5 transition-transform duration-200 ${activeTab === 'events' ? 'scale-105 text-[#4edea3]' : 'opacity-70'}`} />
+                <span className="text-[11px] font-bold tracking-[0.04em] leading-none">События</span>
               </button>
 
               {/* 3. Аудитория */}
               <button
                 type="button"
                 onClick={() => handleTabChange('audience')}
-                className={`py-2 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  activeTab === 'audience'
-                    ? 'bg-white/[0.08] text-white border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.4)] rounded-full font-semibold'
-                    : 'text-zinc-400 hover:text-white'
+                className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
+                  activeTab === 'audience' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
               >
-                <Users className={`w-5 h-5 ${activeTab === 'audience' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[11px] leading-tight">Аудитория</span>
+                <Users className={`w-5 h-5 mb-0.5 transition-transform duration-200 ${activeTab === 'audience' ? 'scale-105 text-[#4edea3]' : 'opacity-70'}`} />
+                <span className="text-[11px] font-bold tracking-[0.04em] leading-none">Аудитория</span>
               </button>
 
               {/* 4. Рассылки */}
               <button
                 type="button"
                 onClick={() => handleTabChange('broadcasts')}
-                className={`py-2 flex flex-col items-center justify-center gap-1 transition-colors ${
-                  activeTab === 'broadcasts'
-                    ? 'bg-white/[0.08] text-white border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_2px_8px_rgba(0,0,0,0.4)] rounded-full font-semibold'
-                    : 'text-zinc-400 hover:text-white'
+                className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
+                  activeTab === 'broadcasts' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
               >
-                <Send className={`w-5 h-5 ${activeTab === 'broadcasts' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[11px] leading-tight">Рассылки</span>
+                <Send className={`w-5 h-5 mb-0.5 transition-transform duration-200 ${activeTab === 'broadcasts' ? 'scale-105 text-[#4edea3]' : 'opacity-70'}`} />
+                <span className="text-[11px] font-bold tracking-[0.04em] leading-none">Рассылки</span>
               </button>
             </div>
           </nav>
@@ -1490,14 +1524,18 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
           {/* Main Content */}
           <main className="flex-1 px-4 py-4 space-y-4 overflow-y-auto pb-32 max-w-[420px] mx-auto w-full">
-            {/* 24h Anti-Fatigue Rule Indicator */}
+            {/* 24h Anti-Fatigue Rule Indicator & Quota */}
             <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex gap-3 items-center">
               <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <div className="text-xs">
-                <span className="font-bold text-white block">Лимит доступен: 1 рассылка</span>
-                <span className="text-neutral-400">Правило 24ч соблюдено. Аудитория готова к приему уведомления.</span>
+                <span className="font-bold text-white block">
+                  Лимит рассылок: Осталось {monthlyBroadcastsRemaining} из {monthlyQuota} ({isOrgPro ? 'PRO' : 'Базовый'})
+                </span>
+                <span className="text-neutral-400">
+                  Прямая доставка в Telegram. Интервал рассылок: раз в 24 часа.
+                </span>
               </div>
             </div>
 
@@ -1547,10 +1585,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 >
                   <div className="space-y-0.5">
                     <span className="text-xs font-bold text-white block">Заинтересованные в событии</span>
-                    <span className="text-[11px] text-neutral-400 block">Пользователи, нажавшие «Хочу пойти»</span>
-                    <span className="text-xs font-semibold text-neutral-300 block pt-1">
-                      Точечный анонс по гостям мероприятия
-                    </span>
+                    <span className="text-[11px] text-neutral-400 block">Пользователи, нажавшие «Хочу пойти» и купившие билеты</span>
+                    {selectedEventTargetId ? (() => {
+                      const selEv = publishedEvents.find(e => e.id === selectedEventTargetId);
+                      const count = selEv ? ((selEv.interest_count || 0) + (selEv.attendee_count || 0)) : 0;
+                      return (
+                        <span className="text-xs font-semibold text-emerald-400 block pt-1">
+                          {count > 0 ? `${count.toLocaleString('ru-RU')} получателей для «${selEv?.title}»` : '0 гостей (пока никто не нажал «Хочу пойти»)'}
+                        </span>
+                      );
+                    })() : (
+                      <span className="text-xs font-medium text-amber-400/90 block pt-1">
+                        Выберите событие ниже для подсчёта гостей
+                      </span>
+                    )}
                   </div>
                   <input
                     type="radio"
@@ -1862,23 +1910,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <ul className="text-xs text-neutral-300 space-y-1.5 pt-1">
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Неограниченные рассылки через бота раз в 24ч</span>
+                    <span>До 20 рассылок в месяц (до 85% открытий в первые 24ч)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Сегментация базы (подписчики, интерес, гости)</span>
+                    <span>Прямой Telegram-анонс гостям «Хочу пойти»</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Детальная конверсионная аналитика переходов</span>
+                    <span>Полная воронка конверсий (Просмотры → Клики → Чек-ин)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Экспорт базы гостей в CSV/Excel</span>
+                    <span>Золотой статус и приоритет в городской афише</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Бейдж верификации организации</span>
+                    <span>Анонимизированная аналитика и экспорт отчетов (152-ФЗ)</span>
                   </li>
                 </ul>
               </div>

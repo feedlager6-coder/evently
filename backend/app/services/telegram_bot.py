@@ -152,15 +152,16 @@ def build_mini_app_button(
 
 def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     """
-    Constructs compliant inline keyboard with official button 'Открыть событие 🧭'.
+    Constructs compliant inline keyboard with official button 'Открыть событие ↗'.
     Uses direct 'url' button for Telegram inline compatibility across all chats.
+    Includes Telegram Bot API 9.4 'style': 'success' for native green styling.
     """
     clean_id = str(event_id).replace("event_", "").strip()
     url = settings.get_event_deep_link(clean_id)
     return {
         "inline_keyboard": [
             [
-                {"text": "Открыть событие 🧭", "url": url}
+                {"text": "Открыть событие ↗", "url": url, "style": "success"}
             ]
         ]
     }
@@ -175,7 +176,7 @@ def build_catalog_inline_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🧭 Открыть Ivently Mini App", "url": mini_app_url}
+                {"text": "🧭 Открыть Ivently", "url": mini_app_url, "style": "success"}
             ]
         ]
     }
@@ -210,15 +211,73 @@ async def check_public_image_validity(url: Optional[str]) -> bool:
     return False
 
 
+def transliterate_text(text: str) -> str:
+    """
+    Transliterates search text between Latin and Cyrillic (e.g. 'chill' <-> 'чилл').
+    Supports common Russian slang, cities ('msk' -> 'москва'), and character-by-character mapping.
+    """
+    if not text:
+        return ""
+    lower = text.strip().lower()
+
+    aliases = {
+        "msk": "москва",
+        "spb": "санкт-петербург",
+        "mcx": "махачкала",
+        "chill": "чилл",
+        "party": "вечеринка",
+        "concert": "концерт",
+        "standup": "стендап",
+        "fest": "фест",
+        "meetup": "митап",
+        "чилл": "chill",
+        "пати": "party",
+        "митап": "meetup",
+    }
+    if lower in aliases:
+        return aliases[lower]
+
+    cyr_to_lat = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+    }
+    lat_to_cyr = {
+        'shch': 'щ', 'yo': 'ё', 'zh': 'ж', 'kh': 'х', 'ts': 'ц', 'ch': 'ч', 'sh': 'ш',
+        'yu': 'ю', 'ya': 'я', 'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д',
+        'e': 'е', 'z': 'з', 'i': 'и', 'y': 'й', 'k': 'к', 'l': 'л', 'm': 'м',
+        'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у',
+        'f': 'ф', 'c': 'к', 'w': 'в', 'j': 'дж', 'x': 'кс', 'h': 'х', 'q': 'к'
+    }
+
+    is_lat = any('a' <= c <= 'z' for c in lower)
+    is_cyr = any('а' <= c <= 'я' or c == 'ё' for c in lower)
+
+    if is_lat and not is_cyr:
+        res = lower
+        for k, v in lat_to_cyr.items():
+            res = res.replace(k, v)
+        return res
+    elif is_cyr and not is_lat:
+        res = lower
+        for k, v in cyr_to_lat.items():
+            res = res.replace(k, v)
+        return res
+
+    return lower
+
+
 def build_event_inline_result(
     event: Any,
     deep_link: Optional[str] = None,
     is_share: bool = False
 ) -> Dict[str, Any]:
     """
-    Builds a compliant InlineQueryResult (Photo with fallback to Article)
-    shared across Share V2 (savePreparedInlineMessage) and Inline Search (answerInlineQuery).
-    When photo is present, produces InlineQueryResultPhoto so Telegram sends the full media card with button into the chat.
+    Builds a compliant InlineQueryResultArticle shared across Share V2 and Inline Search.
+    Guarantees rich display in Telegram popup with thumbnail, title, and venue/date/price subtitle.
+    When sent into chat, renders hero cover photo via link_preview_options with native green button.
     """
     raw_id = getattr(event, "id", "0")
     clean_id = str(raw_id).replace("event_", "").strip()
@@ -230,7 +289,11 @@ def build_event_inline_result(
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "🟢 Открыть событие", "url": deep_link}
+                {
+                    "text": "Открыть событие ↗",
+                    "url": deep_link,
+                    "style": "success"
+                }
             ]
         ]
     }
@@ -255,24 +318,15 @@ def build_event_inline_result(
     photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
     thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
 
-    # For any event with a valid cover image, return InlineQueryResultPhoto so Telegram renders the full photo card in chat
-    if has_cover and photo_url and photo_url.startswith("https://"):
-        return {
-            "type": "photo",
-            "id": result_id,
-            "photo_url": photo_url,
-            "thumbnail_url": thumb_url,
-            "title": f"🎟 {title_str}",
-            "description": description,
-            "caption": caption,
-            "parse_mode": "HTML",
-            "reply_markup": reply_markup
-        }
-
-    # Guaranteed reliable InlineQueryResultArticle for events without cover
     message_text = caption
-    if photo_url and photo_url.startswith("https://"):
+    link_preview_opts: Dict[str, Any] = {"is_disabled": False}
+    if has_cover and photo_url and photo_url.startswith("https://"):
         message_text = f'<a href="{photo_url}">&#8205;</a>{caption}'
+        link_preview_opts = {
+            "url": photo_url,
+            "prefer_large_media": True,
+            "show_above_text": True
+        }
 
     return {
         "type": "article",
@@ -284,9 +338,7 @@ def build_event_inline_result(
         "input_message_content": {
             "message_text": message_text,
             "parse_mode": "HTML",
-            "link_preview_options": {
-                "is_disabled": False
-            }
+            "link_preview_options": link_preview_opts
         },
         "reply_markup": reply_markup
     }
@@ -381,34 +433,49 @@ async def handle_inline_query(
     # 1. Parse structured city/category/date
     parsed = parse_query(query_text, default_city_id=None)
     target_city_id = parsed.city_id
+    target_city_name = None
     search_keyword = None
+
+    alt_text = transliterate_text(query_text) if query_text else ""
 
     # If city not extracted by pattern parser, check if query matches a city name in DB
     if not target_city_id and query_text:
         cleaned = query_text.strip().lower()
+        alt_cleaned = alt_text.lower()
         city_res = await session.execute(
-            select(City).where(or_(City.name.ilike(f"{cleaned}%"), City.id == cleaned)).limit(1)
+            select(City).where(
+                or_(
+                    City.name.ilike(f"{cleaned}%"),
+                    City.id == cleaned,
+                    City.name.ilike(f"{alt_cleaned}%"),
+                    City.id == alt_cleaned,
+                )
+            ).limit(1)
         )
         matched_city = city_res.scalar_one_or_none()
         if matched_city:
             target_city_id = matched_city.id
+            target_city_name = matched_city.name
         else:
             search_keyword = query_text
-    elif not target_city_id:
-        target_city_id = "makhachkala"
+    elif target_city_id:
+        city_res = await session.execute(select(City.name).where(City.id == target_city_id))
+        target_city_name = city_res.scalar_one_or_none()
 
     # Fetch events
-    events, total = await list_published_events(
-        session=session,
-        city_id=target_city_id,
-        category_id=parsed.category_id,
-        date_filter=parsed.date_filter,
-        search_query=search_keyword,
-        limit=10
-    )
-
-    # If no events found in targeted city but a generic keyword was typed, search across all cities
-    if not events and not parsed.city_id and search_keyword:
+    events: List[Any] = []
+    total = 0
+    if target_city_id:
+        events, total = await list_published_events(
+            session=session,
+            city_id=target_city_id,
+            category_id=parsed.category_id,
+            date_filter=parsed.date_filter,
+            search_query=search_keyword,
+            limit=10
+        )
+    else:
+        # Nationwide search across all cities if no city specified
         events, total = await list_published_events(
             session=session,
             city_id=None,
@@ -417,6 +484,23 @@ async def handle_inline_query(
             search_query=search_keyword,
             limit=10
         )
+        # If no events found with keyword and transliterated alternative exists, search with alt
+        if not events and search_keyword and alt_text and alt_text != search_keyword:
+            events, total = await list_published_events(
+                session=session,
+                city_id=None,
+                category_id=parsed.category_id,
+                date_filter=parsed.date_filter,
+                search_query=alt_text,
+                limit=10
+            )
+        # If query is completely empty, fallback to Makhachkala
+        if not events and not query_text:
+            events, total = await list_published_events(
+                session=session,
+                city_id="makhachkala",
+                limit=10
+            )
 
     results: List[Dict[str, Any]] = []
 
@@ -431,7 +515,7 @@ async def handle_inline_query(
             matched_orgs, _ = await discovery_service.search_organizations(
                 session=session,
                 query=query_text,
-                city_id=target_city_id if target_city_id != "makhachkala" or "махачкал" in query_text.lower() else None,
+                city_id=target_city_id if target_city_id else None,
                 limit=3
             )
             for org in matched_orgs:
@@ -456,7 +540,7 @@ async def handle_inline_query(
                     },
                     "reply_markup": {
                         "inline_keyboard": [
-                            [{"text": "🟢 Открыть профиль", "url": org_url}]
+                            [{"text": "Открыть профиль ↗", "url": org_url, "style": "success"}]
                         ]
                     }
                 })
@@ -465,7 +549,7 @@ async def handle_inline_query(
 
     if not results:
         # Graceful empty-state
-        city_display = (target_city_id or "выбранном городе").capitalize()
+        city_display = target_city_name or (target_city_id or "выбранном городе").capitalize()
         empty_thumb = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400"
         display_q = html.escape(query_text or "поиск")
         results.append({
@@ -489,7 +573,6 @@ async def handle_inline_query(
         "inline_query_id": query_id,
         "results": results,
         "cache_time": 30,
-        "cache_time": 30,
         "is_personal": True
     }
 
@@ -512,7 +595,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
         is_event = start_param.startswith("event_") or start_param.startswith("app_event_")
-        main_button_label = "🟢 Открыть событие" if is_event else "🟢 Открыть Ivently"
+        main_button_label = "Открыть событие ↗" if is_event else "🧭 Открыть Ivently"
         welcome_intro = (
             "👋 <b>Событие ждёт вас в Ivently!</b>\n\n"
             "Нажмите кнопку ниже, чтобы открыть карточку события, узнать детали и отметить участие."

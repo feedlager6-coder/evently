@@ -113,7 +113,24 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     }
   }, [isOpen, event]);
 
-  if (!isOpen || !event) return null;
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      setIsAnimatingOut(false);
+    } else if (isRendered) {
+      setIsAnimatingOut(true);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+        setIsAnimatingOut(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isRendered]);
+
+  if (!isRendered || !event) return null;
 
   const eventDate = new Date(event.start_at);
   const isPast = eventDate.getTime() < Date.now();
@@ -230,7 +247,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#131315] text-[#e5e1e4] selection:bg-[#4edea3]/30 overflow-hidden">
+    <div
+      className={`fixed inset-0 z-[60] flex flex-col bg-[#131315] text-[#e5e1e4] selection:bg-[#4edea3]/30 overflow-hidden transition-all duration-200 ease-out ${
+        isAnimatingOut
+          ? 'opacity-0 translate-y-8 pointer-events-none'
+          : 'opacity-100 translate-y-0'
+      }`}
+      style={{ willChange: 'transform, opacity' }}
+    >
       {/* Top Header Bar (Stitch Mobile Stack style) */}
       <header className="fixed top-0 inset-x-0 z-50 pt-safe bg-[#131315]/80 backdrop-blur-xl border-b border-white/5 shadow-[0_1px_12px_rgba(0,0,0,0.4)]">
         <div className="h-14 max-w-[480px] mx-auto px-4 flex items-center justify-between gap-3">

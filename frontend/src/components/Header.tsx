@@ -10,6 +10,8 @@ interface HeaderProps {
   user?: TelegramWebAppUser | null;
   isAdmin: boolean;
   onOpenUserProfile?: () => void;
+  onOpenNotifications?: () => void;
+  unreadCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   isAdmin,
   onOpenUserProfile,
+  onOpenNotifications,
+  unreadCount = 0,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#08080A]/85 backdrop-blur-xl border-b border-white/8 px-4 py-2.5 shadow-[0_1px_12px_rgba(0,0,0,0.4)]">
@@ -56,11 +60,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-2.5 shrink-0">
           <button
             type="button"
+            onClick={onOpenNotifications}
             className="w-9 h-9 rounded-full bg-[#1c1b1e]/80 border border-white/10 hover:border-white/20 flex items-center justify-center text-[#c4c7c8] hover:text-white transition-all active:scale-95 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] relative"
             aria-label="Уведомления"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981]" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981] ring-2 ring-[#1c1b1e]" />
+            )}
           </button>
 
           <button

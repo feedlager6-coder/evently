@@ -72,7 +72,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "🟢 Открыть событие"
+        button_text = "Открыть событие ↗"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.EVENT_UPDATE.value:
@@ -91,7 +91,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "🟢 Подробнее о событии"
+        button_text = "Подробнее о событии ↗"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
@@ -99,7 +99,7 @@ def format_broadcast_content(
             f"🏛 <b>Новости от {safe_org_name}</b>\n\n"
             f"💬 {safe_custom or 'Свежие обновления для подписчиков'}\n"
         )
-        button_text = "🟢 Открыть профиль"
+        button_text = "Открыть профиль ↗"
         button_url = settings.get_organization_deep_link(organization.id)
     else:
         raise HTTPException(status_code=400, detail=f"Неизвестный шаблон рассылки: {template_key}")
@@ -545,7 +545,7 @@ async def dispatch_broadcast(
         attribution_token=broadcast.attribution_token,
     )
 
-    btn: Dict[str, Any] = {"text": button_text}
+    btn: Dict[str, Any] = {"text": button_text, "style": "success"}
     if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
         if event:
             param = f"event_{event.id}"

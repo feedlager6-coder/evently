@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     BROADCAST_RATE_LIMIT_PER_SEC: int = 25
     BROADCAST_FATIGUE_HOURS: int = 24
     BROADCAST_ATTRIBUTION_HOURS: int = 24
-    FREE_BROADCASTS_PER_MONTH: int = 5
+    FREE_BROADCASTS_PER_MONTH: int = 1
     PRO_BROADCASTS_PER_MONTH: int = 20
 
     # Storage Configuration (S3-compatible Object Storage or Persistent Local Volume)

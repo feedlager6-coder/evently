@@ -33,6 +33,7 @@ import { DiscoveryModal } from './components/DiscoveryModal';
 import { EventCompanyModal } from './components/EventCompanyModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { TicketModal } from './components/TicketModal';
+import { NotificationCenterModal } from './components/NotificationCenterModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
@@ -155,6 +156,21 @@ export const App: React.FC = () => {
   const [preselectedOrgForEventCreate, setPreselectedOrgForEventCreate] = useState<string | undefined>(undefined);
   const [editingEventData, setEditingEventData] = useState<EventResponse | null>(null);
   const [editingDraftData, setEditingDraftData] = useState<any | null>(null);
+
+  // Notification Center modal state
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const unreadNotificationsCount = React.useMemo(() => {
+    const now = Date.now();
+    const next48h = now + 48 * 60 * 60 * 1000;
+    const hasUpcoming = (attendingEvents || []).some((e) => {
+      const t = new Date(e.start_at).getTime();
+      return t >= now && t <= next48h;
+    }) || (interestedEvents || []).some((e) => {
+      const t = new Date(e.start_at).getTime();
+      return t >= now && t <= next48h;
+    });
+    return hasUpcoming ? 1 : 0;
+  }, [attendingEvents, interestedEvents]);
 
   // Admin tab state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -434,7 +450,7 @@ export const App: React.FC = () => {
   const feedLoadingStartedAtRef = useRef<number>(0);
 
   // 2. Fetch Discovery Feed Events
-  const loadFeedEvents = useCallback(async () => {
+  const loadFeedEvents = useCallback(async (silent = false) => {
     const currentRequestId = ++feedRequestIdRef.current;
     feedLoadingStartedAtRef.current = Date.now();
 
@@ -445,7 +461,9 @@ export const App: React.FC = () => {
       return;
     }
     try {
-      setIsLoadingEvents(true);
+      if (!silent) {
+        setIsLoadingEvents(true);
+      }
       setFeedError(null);
       const res = await api.getEvents(
         selectedCityId,
@@ -829,7 +847,7 @@ export const App: React.FC = () => {
   const prevTabRef = useRef(currentTab);
   useEffect(() => {
     if (currentTab === 'feed' && prevTabRef.current !== 'feed') {
-      loadFeedEvents();
+      loadFeedEvents(true);
     }
     prevTabRef.current = currentTab;
   }, [currentTab, loadFeedEvents]);
@@ -850,12 +868,14 @@ export const App: React.FC = () => {
           user={user}
           isAdmin={isAdmin}
           onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+          onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+          unreadCount={unreadNotificationsCount}
         />
       )}
 
       {/* Main Content Area based on Tab */}
       <main className="max-w-[480px] mx-auto">
-        {currentTab === 'feed' && (
+        <div className={currentTab === 'feed' ? 'block' : 'hidden'}>
           <div className="space-y-3 pb-8">
             {/* Prominent Discovery Search Trigger */}
             <div className="px-4 pt-1.5">
@@ -1149,7 +1169,7 @@ export const App: React.FC = () => {
               )}
             </div>
           </div>
-        )}
+        </div>
 
         {(currentTab === 'my_events' || currentTab === 'organizer') && (
           isOrganizerWorkspaceOpen ? (
@@ -1498,6 +1518,24 @@ export const App: React.FC = () => {
           setTicketEvent(null);
         }}
         event={ticketEvent}
+      />
+
+      {/* Notification Center Modal */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        attendingEvents={attendingEvents}
+        interestedEvents={interestedEvents}
+        organizerEvents={organizerEvents}
+        onEventClick={(event) => {
+          setIsNotificationCenterOpen(false);
+          handleCardClick(event);
+        }}
+        onOpenOrganizerWorkspace={() => {
+          setIsNotificationCenterOpen(false);
+          setCurrentTab('organizer');
+          setIsOrganizerWorkspaceOpen(true);
+        }}
       />
 
       {/* Bottom Navigation — only render when no full-screen sheet or workspace is active */}

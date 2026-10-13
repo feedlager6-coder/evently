@@ -292,27 +292,25 @@ class EntitlementService:
             return
 
         plan, plan_status, _, _ = await cls.get_organization_plan(session, organization_id)
-        if plan != PlanType.PRO.value:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": "Для отправки рассылок требуется тариф Pro.",
-                    "code": "ENTITLEMENT_REQUIRED",
-                    "capability": "broadcasts_extended",
-                    "required_plan": PlanType.PRO.value,
-                }
-            )
-
+        limit = (
+            settings.PRO_BROADCASTS_PER_MONTH
+            if plan == PlanType.PRO.value
+            else settings.FREE_BROADCASTS_PER_MONTH
+        )
         used = await cls.get_monthly_broadcast_usage(session, organization_id)
-        limit = settings.PRO_BROADCASTS_PER_MONTH
 
         if used >= limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={
-                    "message": f"Достигнут лимит анонсов для тарифа Pro ({limit} в месяц).",
-                    "code": "LIMIT_EXCEEDED",
+                    "message": (
+                        f"Достигнут лимит анонсов для тарифа Pro ({limit} в месяц)."
+                        if plan == PlanType.PRO.value
+                        else f"Достигнут бесплатный лимит рассылок ({limit} в месяц). Для отправки до {settings.PRO_BROADCASTS_PER_MONTH} рассылок перейдите на тариф Pro."
+                    ),
+                    "code": "LIMIT_EXCEEDED" if plan == PlanType.PRO.value else "ENTITLEMENT_REQUIRED",
                     "capability": "broadcasts_extended",
+                    "required_plan": PlanType.PRO.value,
                     "used": used,
                     "limit": limit,
                 }
