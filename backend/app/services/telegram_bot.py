@@ -252,7 +252,8 @@ def build_event_inline_result(
     raw_cover = getattr(event, "cover_image_url", None)
     has_cover = bool(raw_cover and isinstance(raw_cover, str) and raw_cover.strip())
 
-    if has_cover:
+    # For Share V2 with valid external image, use photo result; for Inline Search (@Ivently_bot), ALWAYS use article for rich card UX and 100% send reliability
+    if is_share and has_cover and not str(raw_cover).startswith("/uploads/") and "iventlyapp.ru/uploads" not in str(raw_cover):
         photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
         thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
         return {
@@ -266,21 +267,32 @@ def build_event_inline_result(
             "parse_mode": "HTML",
             "reply_markup": reply_markup
         }
-    else:
-        fallback_thumb = resolve_absolute_image_url(None)
-        return {
-            "type": "article",
-            "id": result_id,
-            "title": f"🎟 {title_str}",
-            "description": description,
-            "thumbnail_url": fallback_thumb,
-            "thumb_url": fallback_thumb,
-            "input_message_content": {
-                "message_text": caption,
-                "parse_mode": "HTML"
-            },
-            "reply_markup": reply_markup
-        }
+
+    # Guaranteed reliable InlineQueryResultArticle for inline queries and uploaded covers
+    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
+    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
+
+    # Prepend hidden zero-width link to enable rich media preview if Telegram can load it, while guaranteeing successful text sending
+    message_text = caption
+    if photo_url and photo_url.startswith("https://"):
+        message_text = f'<a href="{photo_url}">&#8205;</a>{caption}'
+
+    return {
+        "type": "article",
+        "id": result_id,
+        "title": f"🎟 {title_str}",
+        "description": description,
+        "thumbnail_url": thumb_url,
+        "thumb_url": thumb_url,
+        "input_message_content": {
+            "message_text": message_text,
+            "parse_mode": "HTML",
+            "link_preview_options": {
+                "is_disabled": False
+            }
+        },
+        "reply_markup": reply_markup
+    }
 
 
 async def save_prepared_inline_share_message(

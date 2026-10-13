@@ -61,6 +61,7 @@ export interface UserHubData {
   interested: EventSummary[];
   subscriptions: UserSubscriptionItem[];
   created: EventSummary[];
+  created_events?: EventSummary[];
   organizations: OrganizationSummary[];
 }
 

@@ -91,6 +91,7 @@ class UserHubResponse(BaseModel):
     interested: List[EventSummary]
     subscriptions: List[Any]
     created_events: List[EventSummary]
+    created: List[EventSummary] = []
     organizations: List[OrganizationSummary]
 
     model_config = ConfigDict(from_attributes=True)
@@ -117,6 +118,7 @@ async def get_my_hub(
         interested=interested,
         subscriptions=subs,
         created_events=created,
+        created=created,
         organizations=orgs
     )
 

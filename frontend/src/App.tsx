@@ -171,7 +171,7 @@ export const App: React.FC = () => {
   // Electronic Ticket Modal state
   const [ticketEvent, setTicketEvent] = useState<EventResponse | EventSummary | null>(null);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
-  const [organizerInitialFilter, setOrganizerInitialFilter] = useState<'going' | 'wishlist'>('going');
+  const [organizerInitialFilter, setOrganizerInitialFilter] = useState<'going' | 'wishlist' | 'created'>('going');
 
   // Unified Discovery search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -516,7 +516,7 @@ export const App: React.FC = () => {
       setAttendingEvents(hub.attending || []);
       setInterestedEvents(hub.interested || []);
       setUserSubscriptions(hub.subscriptions || []);
-      setOrganizerEvents(hub.created || []);
+      setOrganizerEvents(hub.created_events || hub.created || []);
       setMyOrganizations(hub.organizations || []);
       hasLoadedHubRef.current = true;
     } catch (err) {

@@ -38,8 +38,10 @@ interface OrganizerTabProps {
   onExplore: () => void;
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
   onOpenTicket?: (event: EventSummary) => void;
-  initialFilter?: 'going' | 'wishlist';
+  initialFilter?: 'going' | 'wishlist' | 'created';
 }
+
+export type OrganizerFilterType = 'going' | 'wishlist' | 'created';
 
 export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   attendingEvents,
@@ -60,7 +62,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onOpenTicket,
   initialFilter = 'going',
 }) => {
-  const [activeFilter, setActiveFilter] = useState<'going' | 'wishlist'>(initialFilter);
+  const [activeFilter, setActiveFilter] = useState<OrganizerFilterType>(initialFilter);
   const [showAllSubscriptions, setShowAllSubscriptions] = useState(false);
 
   useEffect(() => {
@@ -72,8 +74,19 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
 
   const totalTickets = activeAttending.length;
+  const hasCreatedEvents = myCreatedEvents.length > 0;
+  const totalFilterTabs = hasCreatedEvents ? 3 : 2;
 
-  const handleFilterSwitch = (filter: 'going' | 'wishlist') => {
+  const activeFilterIndex =
+    activeFilter === 'going'
+      ? 0
+      : activeFilter === 'wishlist'
+      ? 1
+      : hasCreatedEvents
+      ? 2
+      : 0;
+
+  const handleFilterSwitch = (filter: OrganizerFilterType) => {
     if (activeFilter !== filter) {
       telegram.hapticImpact('light');
       setActiveFilter(filter);
@@ -194,9 +207,12 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <div className="relative p-1 rounded-full bg-[#0e0e10]/90 backdrop-blur-xl flex items-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_24px_rgba(0,0,0,0.4)] border border-white/5">
           {/* Sliding Pill Indicator */}
           <div
-            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-[#39393b]/80 backdrop-blur-2xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] transition-transform duration-300 ease-out pointer-events-none ${
-              activeFilter === 'going' ? 'translate-x-0 left-1' : 'translate-x-full left-1'
-            }`}
+            className="absolute top-1 bottom-1 left-1 rounded-full bg-[#39393b]/80 backdrop-blur-2xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-1px_1px_rgba(0,0,0,0.6),0_0_16px_rgba(255,255,255,0.1)] transition-transform duration-300 ease-out pointer-events-none"
+            style={{
+              width: `calc((100% - 8px) / ${totalFilterTabs})`,
+              transform: `translate3d(calc(${activeFilterIndex} * 100%), 0, 0)`,
+              willChange: 'transform',
+            }}
           />
 
           <button
@@ -227,7 +243,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             }`}
           >
             <Heart className={`w-4 h-4 ${activeFilter === 'wishlist' ? 'fill-white text-white' : 'opacity-60'}`} />
-            <span>Хочу пойти</span>
+            <span>{hasCreatedEvents ? 'Хочу' : 'Хочу пойти'}</span>
             <span
               className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                 activeFilter === 'wishlist'
@@ -238,6 +254,28 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               {activeInterested.length}
             </span>
           </button>
+
+          {hasCreatedEvents && (
+            <button
+              onClick={() => handleFilterSwitch('created')}
+              type="button"
+              className={`relative flex-1 py-2 text-center text-xs font-semibold rounded-full transition-colors duration-200 z-10 flex items-center justify-center gap-1.5 ${
+                activeFilter === 'created' ? 'text-white' : 'text-[#c4c7c8]'
+              }`}
+            >
+              <Sparkles className={`w-4 h-4 ${activeFilter === 'created' ? 'text-[#ffb95f]' : 'opacity-60'}`} />
+              <span>Созданные</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeFilter === 'created'
+                    ? 'bg-[#ffb95f]/25 text-[#ffb95f]'
+                    : 'bg-[#2a2a2c] text-[#c4c7c8]'
+                }`}
+              >
+                {myCreatedEvents.length}
+              </span>
+            </button>
+          )}
         </div>
       </section>
 
@@ -436,6 +474,132 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   >
                     <ShoppingBag className="w-4 h-4" />
                   </button>
+                </article>
+              );
+            })
+          )}
+        </section>
+      )}
+
+      {/* 5. Filter Panel: "Созданные" (My Created Events) */}
+      {activeFilter === 'created' && (
+        <section className="flex flex-col gap-3">
+          {myCreatedEvents.length === 0 ? (
+            <div className="py-12 px-4 text-center rounded-[24px] bg-[#201f22] border border-white/5 space-y-3 shadow-lg">
+              <div className="w-12 h-12 rounded-full bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center mx-auto border border-[#10b981]/30">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-sm text-white">У вас пока нет созданных событий</h3>
+                <p className="text-xs text-[#c4c7c8] max-w-xs mx-auto">
+                  Создайте анонс концерта, вечеринки или выставки — он появится в афише после быстрой модерации
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenCreateEvent?.();
+                }}
+                type="button"
+                className="px-5 py-2.5 rounded-full bg-white text-[#1a1c1c] text-xs font-semibold shadow-md active:scale-95 transition-all"
+              >
+                Создать событие
+              </button>
+            </div>
+          ) : (
+            myCreatedEvents.map((event) => {
+              const eventDate = new Date(event.start_at);
+              const formattedDate = eventDate.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              }).toUpperCase();
+
+              const statusBadge =
+                event.status === 'published' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/25">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3]" />
+                    Опубликовано
+                  </span>
+                ) : event.status === 'pending' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#f59e0b]/15 text-[#fbbf24] border border-[#f59e0b]/25">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#fbbf24] animate-pulse" />
+                    На модерации
+                  </span>
+                ) : event.status === 'rejected' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                    Отклонено
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-neutral-300 border border-white/10">
+                    Черновик
+                  </span>
+                );
+
+              return (
+                <article
+                  key={event.id}
+                  onClick={() => onEventClick(event)}
+                  className="relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
+                >
+                  <div className="relative h-40 w-full overflow-hidden">
+                    <SafeImage
+                      src={event.cover_image_url}
+                      alt={event.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#201f22] via-[#201f22]/40 to-transparent" />
+                    <div className="absolute top-3 left-3 flex items-center gap-2">
+                      {statusBadge}
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#0e0e10]/80 backdrop-blur-xl text-white font-bold text-[10px] border border-white/10">
+                        {formattedDate}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 space-y-3">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white tracking-tight line-clamp-1">
+                        {event.title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-[#c4c7c8] text-xs">
+                        <MapPin className="w-3.5 h-3.5 text-[#8e9192] shrink-0" />
+                        <span className="truncate">
+                          {event.venue_name || event.city_name || 'Локация в приложении'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-[#1c1b1e] flex items-center justify-between border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#39393b] flex items-center justify-center text-[#4edea3]">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-white">
+                            {event.attendee_count || 0} гостей идут
+                          </span>
+                          <span className="text-[10px] text-[#8e9192]">
+                            {event.interest_count || 0} в закладках
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            telegram.hapticImpact('light');
+                            onEventClick(event);
+                          }}
+                          className="py-1.5 px-3 rounded-full bg-white text-[#1a1c1c] font-bold text-xs active:scale-95 transition-all shadow-sm"
+                        >
+                          Управление
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </article>
               );
             })

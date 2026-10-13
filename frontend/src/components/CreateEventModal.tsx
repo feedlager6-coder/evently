@@ -364,7 +364,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               {initialEvent ? 'Редактирование' : 'Новое событие'}
             </h1>
             <p className="text-[11px] text-neutral-400">
-              Шаг 1 из 3 • Основная информация
+              Основная информация и билеты
             </p>
           </div>
         </div>
