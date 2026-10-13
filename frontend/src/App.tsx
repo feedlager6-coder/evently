@@ -806,9 +806,17 @@ export const App: React.FC = () => {
   }, [events]);
 
   const carouselEvents = React.useMemo(() => {
-    if (weekendEvents.length > 0) return weekendEvents.slice(0, 8);
-    return events.slice(1, 6);
-  }, [weekendEvents, events]);
+    return weekendEvents.slice(0, 8);
+  }, [weekendEvents]);
+
+  // Refresh feed whenever user switches back to discovery tab
+  const prevTabRef = useRef(currentTab);
+  useEffect(() => {
+    if (currentTab === 'feed' && prevTabRef.current !== 'feed') {
+      loadFeedEvents();
+    }
+    prevTabRef.current = currentTab;
+  }, [currentTab, loadFeedEvents]);
 
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
@@ -1206,7 +1214,10 @@ export const App: React.FC = () => {
             isLoading={isLoadingAdmin}
             activeStatus={adminStatusFilter}
             onStatusChange={(st) => setAdminStatusFilter(st)}
-            onRefresh={loadAdminEvents}
+            onRefresh={() => {
+              loadAdminEvents();
+              loadFeedEvents();
+            }}
             onEventClick={(ev) => openEventById(ev.id, 'organizer')}
           />
         )}
@@ -1443,6 +1454,17 @@ export const App: React.FC = () => {
             setIsUserProfileModalOpen(false);
             setCurrentTab('admin');
           }
+        }}
+        organizations={myOrganizations}
+        onOpenCreateOrg={() => {
+          setIsUserProfileModalOpen(false);
+          setEditingOrgData(null);
+          setIsCreateOrgModalOpen(true);
+        }}
+        onOpenCreateEvent={() => {
+          setIsUserProfileModalOpen(false);
+          setPreselectedOrgForEventCreate(undefined);
+          setIsCreateEventModalOpen(true);
         }}
       />
 

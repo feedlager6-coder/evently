@@ -1,5 +1,5 @@
 import React from 'react';
-import type { City, TelegramWebAppUser } from '../types';
+import type { City, TelegramWebAppUser, OrganizationSummary } from '../types';
 import { telegram } from '../services/telegram';
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   Shield,
   Heart,
   CheckCircle2,
+  Plus,
 } from 'lucide-react';
 import { SafeAvatar } from './SafeAvatar';
 
@@ -30,6 +31,9 @@ interface UserProfileModalProps {
   onOpenOrganizerWorkspace: () => void;
   isAdmin: boolean;
   onOpenAdminPanel?: () => void;
+  organizations?: OrganizationSummary[];
+  onOpenCreateOrg?: () => void;
+  onOpenCreateEvent?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -47,6 +51,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenOrganizerWorkspace,
   isAdmin,
   onOpenAdminPanel,
+  organizations = [],
+  onOpenCreateOrg,
+  onOpenCreateEvent,
 }) => {
   if (!isOpen) return null;
 
@@ -298,27 +305,68 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <Store className="w-5 h-5 text-[#8e9192]" />
           </div>
 
-          <div className="space-y-1">
-            <h3 className="font-bold text-sm text-white">
-              Организуете мероприятия?
-            </h3>
-            <p className="text-xs text-[#c4c7c8] leading-relaxed">
-              Управляйте афишей, собирайте базу гостей и запускайте рассылки напрямую в Telegram.
-            </p>
-          </div>
+          {organizations.length > 0 ? (
+            <>
+              <div className="space-y-1">
+                <h3 className="font-bold text-sm text-white">
+                  Кабинет организатора
+                </h3>
+                <p className="text-xs text-[#c4c7c8] leading-relaxed">
+                  Управляйте событиями, аудиторией и рассылками организации {organizations[0].name}.
+                </p>
+              </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              telegram.hapticImpact('medium');
-              onOpenOrganizerWorkspace();
-              onClose();
-            }}
-            className="w-full py-2.5 px-4 rounded-full bg-white text-black font-semibold text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5"
-          >
-            <span>В кабинет организатора</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('medium');
+                  onOpenOrganizerWorkspace();
+                  onClose();
+                }}
+                className="w-full py-2.5 px-4 rounded-full bg-white text-black font-semibold text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5"
+              >
+                <span>В кабинет ({organizations[0].name})</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <h3 className="font-bold text-sm text-white">
+                  Организуете мероприятия?
+                </h3>
+                <p className="text-xs text-[#c4c7c8] leading-relaxed">
+                  Опубликуйте событие как автор или создайте организацию для продвижения бренда.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('medium');
+                    onClose();
+                    onOpenCreateEvent?.();
+                  }}
+                  className="py-2.5 px-3 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 active:scale-98 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#4edea3]" />
+                  <span>Создать событие</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('medium');
+                    onClose();
+                    onOpenCreateOrg?.();
+                  }}
+                  className="py-2.5 px-3 rounded-full bg-white text-black font-semibold text-xs shadow-md active:scale-98 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <span>Создать организацию</span>
+                </button>
+              </div>
+            </>
+          )}
         </section>
       </main>
     </div>

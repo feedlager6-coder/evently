@@ -150,6 +150,8 @@ async def list_published_events(
     )
 
     now_utc = datetime.now(timezone.utc)
+    # Events remain discoverable during their ongoing duration (up to 6 hours after start_at)
+    ongoing_cutoff_utc = now_utc - timedelta(hours=6)
 
     if city_id:
         query = query.where(Event.city_id == city_id)
@@ -159,18 +161,18 @@ async def list_published_events(
         if city and date_filter in ("today", "tomorrow", "weekend"):
             start_utc, end_utc = get_city_timezone_range(city.timezone, date_filter)
             if start_utc and end_utc:
-                effective_start = max(start_utc, now_utc) if date_filter == "today" else start_utc
+                effective_start = max(start_utc, ongoing_cutoff_utc) if date_filter == "today" else start_utc
                 query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
         else:
-            query = query.where(Event.start_at >= now_utc)
+            query = query.where(Event.start_at >= ongoing_cutoff_utc)
     elif date_filter in ("today", "tomorrow", "weekend"):
         # Default UTC range if city not selected
         start_utc, end_utc = get_city_timezone_range("UTC", date_filter)
         if start_utc and end_utc:
-            effective_start = max(start_utc, now_utc) if date_filter == "today" else start_utc
+            effective_start = max(start_utc, ongoing_cutoff_utc) if date_filter == "today" else start_utc
             query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
     else:
-        query = query.where(Event.start_at >= now_utc)
+        query = query.where(Event.start_at >= ongoing_cutoff_utc)
 
     if category_id:
         query = query.where(Event.category_id == category_id)

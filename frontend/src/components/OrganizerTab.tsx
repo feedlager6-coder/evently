@@ -48,8 +48,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   isLoadingInterested,
   subscriptions,
   isLoadingSubscriptions: _isLoadingSubscriptions,
-  organizations: _organizations = [],
-  myCreatedEvents: _myCreatedEvents = [],
+  organizations = [],
+  myCreatedEvents = [],
   onOpenOrganizerWorkspace,
   onOpenCreateEvent,
   onOpenCreateOrg,
@@ -118,39 +118,74 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         </div>
 
         <div className="relative z-10 space-y-1">
-          <h2 className="text-base font-semibold text-white">Организуете мероприятия?</h2>
+          <h2 className="text-base font-semibold text-white">
+            {organizations.length > 0
+              ? `Кабинет: ${organizations[0].name}`
+              : myCreatedEvents.length > 0
+              ? `Кабинет автора (${myCreatedEvents.length})`
+              : 'Организуете мероприятия?'}
+          </h2>
           <p className="text-xs text-[#c4c7c8] leading-relaxed max-w-[95%]">
-            Управляйте афишей, собирайте аудиторию и запускайте рассылки напрямую в Telegram.
+            {organizations.length > 0
+              ? 'Управляйте афишей, собирайте аудиторию и запускайте рассылки напрямую в Telegram.'
+              : myCreatedEvents.length > 0
+              ? 'Управляйте вашими событиями, проверяйте билеты гостей и следите за откликом.'
+              : 'Опубликуйте событие от своего имени или создайте организацию для продвижения бренда.'}
           </p>
         </div>
 
         <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              telegram.hapticImpact('light');
-              onOpenOrganizerWorkspace();
-            }}
-            type="button"
-            className="group flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-white text-[#1a1c1c] font-semibold text-xs active:scale-95 transition-all shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
-          >
-            <span>В кабинет</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-          <button
-            onClick={() => {
-              telegram.hapticImpact('light');
-              if (onOpenCreateEvent) {
-                onOpenCreateEvent();
-              } else {
-                onOpenCreateOrg();
-              }
-            }}
-            type="button"
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-[#39393b]/70 text-white font-semibold text-xs shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] active:scale-95 transition-all hover:bg-[#39393b]"
-          >
-            <Plus className="w-4 h-4 text-[#4edea3]" />
-            <span>Создать</span>
-          </button>
+          {organizations.length > 0 || myCreatedEvents.length > 0 ? (
+            <>
+              <button
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenOrganizerWorkspace();
+                }}
+                type="button"
+                className="group flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-white text-[#1a1c1c] font-semibold text-xs active:scale-95 transition-all shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+              >
+                <span>{organizations.length > 0 ? 'В кабинет' : 'Мои события'}</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+              <button
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenCreateEvent?.();
+                }}
+                type="button"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-[#39393b]/70 text-white font-semibold text-xs shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] active:scale-95 transition-all hover:bg-[#39393b]"
+              >
+                <Plus className="w-4 h-4 text-[#4edea3]" />
+                <span>Создать событие</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenCreateEvent?.();
+                }}
+                type="button"
+                className="group flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-white text-[#1a1c1c] font-semibold text-xs active:scale-95 transition-all shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+              >
+                <Plus className="w-4 h-4 text-[#00a572]" />
+                <span>Создать событие</span>
+              </button>
+              <button
+                onClick={() => {
+                  telegram.hapticImpact('light');
+                  onOpenCreateOrg();
+                }}
+                type="button"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-full bg-[#39393b]/70 text-white font-semibold text-xs shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] active:scale-95 transition-all hover:bg-[#39393b]"
+              >
+                <Store className="w-3.5 h-3.5 text-[#ffb95f]" />
+                <span>Создать организацию</span>
+              </button>
+            </>
+          )}
         </div>
       </section>
 
