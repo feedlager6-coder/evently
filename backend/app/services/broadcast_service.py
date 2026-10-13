@@ -72,7 +72,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "Открыть событие 🧭"
+        button_text = "🟢 Открыть событие"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.EVENT_UPDATE.value:
@@ -91,7 +91,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "Подробнее о событии 🧭"
+        button_text = "🟢 Подробнее о событии"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
@@ -99,7 +99,7 @@ def format_broadcast_content(
             f"🏛 <b>Новости от {safe_org_name}</b>\n\n"
             f"💬 {safe_custom or 'Свежие обновления для подписчиков'}\n"
         )
-        button_text = "Открыть профиль 🏛"
+        button_text = "🟢 Открыть профиль"
         button_url = settings.get_organization_deep_link(organization.id)
     else:
         raise HTTPException(status_code=400, detail=f"Неизвестный шаблон рассылки: {template_key}")
@@ -186,21 +186,27 @@ async def calculate_audience(
             if row.notifications_enabled and row.telegram_id is not None
         ]
 
-    else:  # EVENT_INTEREST
+    else:  # EVENT_INTEREST (includes both 'Хочу пойти' and confirmed 'Я иду' guests)
         interest_stmt = (
             select(EventInterest.user_id, User.telegram_id)
             .join(User, EventInterest.user_id == User.id)
             .where(EventInterest.event_id == event_id)
-            .distinct()
         )
-        interest_rows = (await session.execute(interest_stmt)).all()
+        attendee_stmt = (
+            select(EventAttendee.user_id, User.telegram_id)
+            .join(User, EventAttendee.user_id == User.id)
+            .where(EventAttendee.event_id == event_id)
+        )
+        i_rows = (await session.execute(interest_stmt)).all()
+        a_rows = (await session.execute(attendee_stmt)).all()
+        combined_rows = i_rows + a_rows
         
         # Deduplicate user IDs while preserving order
-        all_user_ids = list(dict.fromkeys(r.user_id for r in interest_rows))
+        all_user_ids = list(dict.fromkeys(r.user_id for r in combined_rows))
         total_audience = len(all_user_ids)
 
         # Users who have a non-null telegram_id
-        valid_user_ids = list(dict.fromkeys(r.user_id for r in interest_rows if r.telegram_id is not None))
+        valid_user_ids = list(dict.fromkeys(r.user_id for r in combined_rows if r.telegram_id is not None))
 
         # Check if any interest users have an explicit subscription with notifications_enabled=False
         if valid_user_ids:
@@ -534,15 +540,21 @@ async def dispatch_broadcast(
         attribution_token=broadcast.attribution_token,
     )
 
+    btn: Dict[str, Any] = {"text": button_text}
+    if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
+        if event:
+            param = f"event_{event.id}"
+            if broadcast.attribution_token:
+                param = f"event_{event.id}_b_{broadcast.attribution_token}"
+            btn["web_app"] = {"url": f"{settings.effective_public_host}/?startapp={param}"}
+        else:
+            btn["web_app"] = {"url": f"{settings.effective_public_host}/?startapp=org_{org.id}"}
+    else:
+        btn["url"] = button_url
+
     reply_markup = {
         "inline_keyboard": [
-            [
-                {
-                    "text": button_text,
-                    "url": button_url,
-                    "style": "primary"
-                }
-            ]
+            [btn]
         ]
     }
 

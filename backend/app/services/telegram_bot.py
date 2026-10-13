@@ -230,7 +230,7 @@ def build_event_inline_result(
     reply_markup = {
         "inline_keyboard": [
             [
-                {"text": "Открыть событие 🧭", "url": deep_link}
+                {"text": "🟢 Открыть событие", "url": deep_link}
             ]
         ]
     }
@@ -252,10 +252,11 @@ def build_event_inline_result(
     raw_cover = getattr(event, "cover_image_url", None)
     has_cover = bool(raw_cover and isinstance(raw_cover, str) and raw_cover.strip())
 
-    # For Share V2 with valid external image, use photo result; for Inline Search (@Ivently_bot), ALWAYS use article for rich card UX and 100% send reliability
-    if is_share and has_cover and not str(raw_cover).startswith("/uploads/") and "iventlyapp.ru/uploads" not in str(raw_cover):
-        photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
-        thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
+    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
+    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
+
+    # For any event with a valid cover image, return InlineQueryResultPhoto so Telegram renders the full photo card in chat
+    if has_cover and photo_url and photo_url.startswith("https://"):
         return {
             "type": "photo",
             "id": result_id,
@@ -268,11 +269,7 @@ def build_event_inline_result(
             "reply_markup": reply_markup
         }
 
-    # Guaranteed reliable InlineQueryResultArticle for inline queries and uploaded covers
-    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
-    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
-
-    # Prepend hidden zero-width link to enable rich media preview if Telegram can load it, while guaranteeing successful text sending
+    # Guaranteed reliable InlineQueryResultArticle for events without cover
     message_text = caption
     if photo_url and photo_url.startswith("https://"):
         message_text = f'<a href="{photo_url}">&#8205;</a>{caption}'
@@ -459,7 +456,7 @@ async def handle_inline_query(
                     },
                     "reply_markup": {
                         "inline_keyboard": [
-                            [{"text": "🧭 Открыть профиль", "url": org_url}]
+                            [{"text": "🟢 Открыть профиль", "url": org_url}]
                         ]
                     }
                 })
@@ -514,20 +511,26 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
+        is_event = start_param.startswith("event_") or start_param.startswith("app_event_")
+        main_button_label = "🟢 Открыть событие" if is_event else "🟢 Открыть Ivently"
+        welcome_intro = (
+            "👋 <b>Событие ждёт вас в Ivently!</b>\n\n"
+            "Нажмите кнопку ниже, чтобы открыть карточку события, узнать детали и отметить участие."
+            if is_event else
+            "👋 <b>Добро пожаловать в Ivently — события рядом!</b>\n\n"
+            "Находите концерты, вечеринки, спорт, митапы и другие события в вашем городе.\n\n"
+            "🔎 <b>Найти события</b> — поиск прямо из любого чата.\n"
+            "📍 Выберите город или разрешите определить его автоматически.\n"
+            "✨ Откройте Ivently, чтобы смотреть афишу и отмечать «Я иду»."
+        )
         return {
             "chat_id": chat_id,
-            "text": (
-                "👋 <b>Добро пожаловать в Ivently — события рядом!</b>\n\n"
-                "Находите концерты, вечеринки, спорт, митапы и другие события в вашем городе.\n\n"
-                "🔎 <b>Найти события</b> — поиск прямо из любого чата.\n"
-                "📍 Выберите город или разрешите определить его автоматически.\n"
-                "✨ Откройте Ivently, чтобы смотреть афишу и отмечать «Я иду»."
-            ),
+            "text": welcome_intro,
             "parse_mode": "HTML",
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🧭 Открыть Ivently", start_param or None, style="primary")
+                        build_mini_app_button(main_button_label, start_param or None, style="primary")
                     ],
                     [
                         {"text": "🔎 Найти события", "switch_inline_query": ""}

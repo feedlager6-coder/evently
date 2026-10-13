@@ -260,6 +260,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       return;
     }
 
+    if (targetSegment === 'event_interest' && !selectedEventTargetId) {
+      alert('Пожалуйста, выберите мероприятие для рассылки по заинтересованным гостям.');
+      return;
+    }
+
     const estimatedRecipients = targetSegment === 'subscribers'
       ? (audienceData?.total_subscribers ?? activeOrg.followers_count ?? 0)
       : (publishedEvents.find(e => e.id === selectedEventTargetId)?.bookmarksCount ?? 0);
@@ -273,48 +278,26 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setIsSendingBroadcast(true);
       telegram.hapticImpact('heavy');
 
+      const templateKey = targetSegment === 'event_interest' || selectedEventTargetId
+        ? 'event_announcement'
+        : 'custom_update';
+
       const payload: BroadcastCreateRequest = {
         organization_id: activeOrg.id,
         target_type: targetSegment === 'subscribers' ? 'organization_subscribers' : 'event_interest',
         event_id: selectedEventTargetId || undefined,
         broadcast_type: 'marketing',
-        template_key: 'custom_update',
+        template_key: templateKey,
         custom_text: broadcastMessage.trim(),
         is_silent: isSilentBroadcast,
       };
 
-      let createdBroadcast: BroadcastItem;
-      try {
-        const detail = await api.createBroadcast(payload);
-        createdBroadcast = detail;
-      } catch (err: any) {
-        // If simulated or dev fallback:
-        createdBroadcast = {
-          id: `bc-${Date.now()}`,
-          organization_id: activeOrg.id,
-          organization_name: activeOrg.name,
-          event_id: selectedEventTargetId || undefined,
-          event_title: publishedEvents.find(e => e.id === selectedEventTargetId)?.title || undefined,
-          target_type: payload.target_type,
-          broadcast_type: payload.broadcast_type,
-          template_key: payload.template_key,
-          custom_text: payload.custom_text,
-          status: 'completed',
-          total_recipients: estimatedRecipients,
-          sent_count: estimatedRecipients,
-          delivered_count: estimatedRecipients,
-          failed_count: 0,
-          blocked_count: 0,
-          open_rate: 0,
-          is_silent: isSilentBroadcast,
-          created_at: new Date().toISOString(),
-        };
-      }
-
-      setBroadcasts((prev) => [createdBroadcast, ...prev]);
+      const detail = await api.createBroadcast(payload);
+      setBroadcasts((prev) => [detail, ...prev]);
       telegram.hapticSuccess();
       setIsBroadcastModalOpen(false);
-      setBroadcastSuccessNotice('Рассылка успешно запущена и доставляется получателям!');
+      setBroadcastMessage('');
+      setBroadcastSuccessNotice('Рассылка успешно запущена и доставляется в Telegram!');
       setActiveTab('broadcasts');
       setTimeout(() => setBroadcastSuccessNotice(null), 5000);
     } catch (e: any) {
@@ -1624,6 +1607,27 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </span>
                     <span className="text-[10px] text-neutral-500">Сейчас</span>
                   </div>
+
+                  {(() => {
+                    const selEv = publishedEvents.find(e => e.id === selectedEventTargetId);
+                    if (!selEv) return null;
+                    return (
+                      <div className="space-y-1.5">
+                        {selEv.cover_image_url && (
+                          <div className="rounded-xl overflow-hidden aspect-video w-full bg-black/40 border border-white/5 relative">
+                            <SafeImage
+                              src={selEv.cover_image_url}
+                              alt={selEv.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="text-[11px] font-semibold text-emerald-400">
+                          🧭 {selEv.title} ({selEv.dateText})
+                        </div>
+                      </div>
+                    );
+                  })()}
                   
                   <p className="text-neutral-200 whitespace-pre-wrap leading-relaxed">
                     {broadcastMessage.trim() || 'Ваш текст сообщения появится здесь в реальном времени...'}
@@ -1632,13 +1636,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <div className="pt-1">
                     <div className="w-full py-2.5 bg-[#2d2d33] text-center text-xs font-semibold text-emerald-400 rounded-xl border border-white/5 flex items-center justify-center gap-1.5 shadow-md">
                       {selectedEventTargetId ? (
-                        <>
-                          <span>🎟️ Открыть билеты: {publishedEvents.find(e => e.id === selectedEventTargetId)?.title || 'в Ivently'}</span>
-                        </>
+                        <span>🟢 Открыть событие</span>
                       ) : (
-                        <>
-                          <span>🏛️ Открыть профиль в Ivently</span>
-                        </>
+                        <span>🟢 Открыть профиль в Ivently</span>
                       )}
                     </div>
                   </div>

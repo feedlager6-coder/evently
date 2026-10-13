@@ -221,7 +221,7 @@ def build_event_notification_reply_markup(event_id: str, attribution_token: Opti
         "inline_keyboard": [
             [
                 {
-                    "text": "Открыть событие 🧭",
+                    "text": "🟢 Открыть событие",
                     "web_app": {"url": web_app_url}
                 }
             ]
@@ -475,16 +475,15 @@ async def notify_event_cancelled(
         f"📍 {safe_venue}"
     )
 
-    deep_link = settings.get_event_deep_link(event.id)
+    btn: Dict[str, Any] = {"text": "🟢 Все события в Ivently"}
+    if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
+        btn["web_app"] = {"url": f"{settings.effective_public_host}/"}
+    else:
+        btn["url"] = settings.effective_mini_app_url
+
     reply_markup = {
         "inline_keyboard": [
-            [
-                {
-                    "text": "Открыть событие 🧭",
-                    "url": deep_link,
-                    "style": "primary"
-                }
-            ]
+            [btn]
         ]
     }
 

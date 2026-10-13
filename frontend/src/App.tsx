@@ -242,11 +242,20 @@ export const App: React.FC = () => {
     const clean = rawParam.trim();
     if (!clean) return;
 
-    if (clean.startsWith('event_')) {
+    let normalized = clean;
+    if (normalized.startsWith('app_event_')) {
+      normalized = normalized.slice(4);
+    } else if (normalized.startsWith('app_org_')) {
+      normalized = normalized.slice(4);
+    } else if (normalized.startsWith('app_create')) {
+      normalized = normalized.slice(4);
+    }
+
+    if (normalized.startsWith('event_')) {
       isDeepLinkActiveRef.current = true;
       setIsCityModalOpen(false);
       telegram.consumeStartParam(clean);
-      const paramRest = clean.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
+      const paramRest = normalized.slice(6).split('?')[0].split('&')[0].split('#')[0].replace(/\/+$/, '').trim();
       let eventId = paramRest;
       let broadcastToken: string | null = null;
       if (paramRest.includes('_b_')) {
@@ -796,7 +805,8 @@ export const App: React.FC = () => {
     }
   };
 
-  // Real-device UX: memoized weekend events (Saturday & Sunday) for horizontal highlight carousel
+  // Real-device UX: adaptive horizontal highlight carousel
+  // Shows weekend events if available; falls back to popular events so carousel never empties
   const weekendEvents = React.useMemo(() => {
     return events.filter((ev) => {
       const d = new Date(ev.start_at);
@@ -805,9 +815,15 @@ export const App: React.FC = () => {
     });
   }, [events]);
 
+  const hasWeekendEvents = weekendEvents.length > 0;
+  const carouselTitle = hasWeekendEvents ? 'Главное на выходных' : 'Популярное в городе';
+
   const carouselEvents = React.useMemo(() => {
-    return weekendEvents.slice(0, 8);
-  }, [weekendEvents]);
+    if (hasWeekendEvents) {
+      return weekendEvents.slice(0, 8);
+    }
+    return events.slice(0, 8);
+  }, [hasWeekendEvents, weekendEvents, events]);
 
   // Refresh feed whenever user switches back to discovery tab
   const prevTabRef = useRef(currentTab);
@@ -1011,13 +1027,13 @@ export const App: React.FC = () => {
                     />
                   )}
 
-                  {/* 2. Главное на выходных (Horizontal Weekend Highlights Carousel) */}
+                  {/* 2. Horizontal Highlights Carousel (Weekend or City Popular) */}
                   {dateFilter === 'all' && carouselEvents.length > 0 && (
                     <section className="space-y-2.5 pt-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1">
                           <h2 className="text-[15px] font-extrabold text-white tracking-tight">
-                            Главное на выходных
+                            {carouselTitle}
                           </h2>
                           <span className="text-[#10b981] text-xs">▾</span>
                         </div>
@@ -1025,7 +1041,9 @@ export const App: React.FC = () => {
                           type="button"
                           onClick={() => {
                             telegram.hapticImpact('light');
-                            setDateFilter('weekend');
+                            if (hasWeekendEvents) {
+                              setDateFilter('weekend');
+                            }
                           }}
                           className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-0.5 transition-colors"
                         >
