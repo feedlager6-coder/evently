@@ -1,6 +1,6 @@
 import React from 'react';
 import type { EventSummary } from '../types';
-import { Calendar, MapPin, Users, Check, Bookmark } from 'lucide-react';
+import { Calendar, MapPin, Users, Bookmark } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { telegram } from '../services/telegram';
 
@@ -70,18 +70,9 @@ export const EventCard: React.FC<EventCardProps> = ({
               <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/80 backdrop-blur-md text-white font-medium text-xs border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
                 {event.category_name || 'Событие'}
               </span>
-              <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#10b981]/20 backdrop-blur-md text-[#4edea3] font-semibold text-xs border border-[#10b981]/30">
-                <span>🔥 Топ недели</span>
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {event.is_attending ? (
-                <span className="px-2.5 py-1 rounded-full bg-[#10b981] text-white font-bold text-[11px] flex items-center gap-1 shadow-lg">
-                  <Check className="w-3 h-3 stroke-[3]" />
-                  <span>Вы идёте</span>
-                </span>
-              ) : null}
               <button
                 type="button"
                 onClick={handleBookmarkClick}
@@ -181,14 +172,8 @@ export const EventCard: React.FC<EventCardProps> = ({
             )}
           </div>
 
-          {/* User state badge / Bookmark icon */}
+          {/* Bookmark icon */}
           <div className="flex items-center gap-1.5">
-            {event.is_attending ? (
-              <span className="px-2.5 py-1 rounded-full bg-[#10b981] text-white font-bold text-[10px] flex items-center gap-1 shadow-sm">
-                <Check className="w-3 h-3 stroke-[3]" />
-                <span>Идёте</span>
-              </span>
-            ) : null}
             <button
               type="button"
               onClick={handleBookmarkClick}

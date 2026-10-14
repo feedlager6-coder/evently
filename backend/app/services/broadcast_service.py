@@ -87,7 +87,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "Открыть событие ↗"
+        button_text = "Открыть событие"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.EVENT_UPDATE.value:
@@ -106,7 +106,7 @@ def format_broadcast_content(
         if safe_custom:
             text += f"\n💬 {safe_custom}\n"
 
-        button_text = "Подробнее о событии ↗"
+        button_text = "Подробнее о событии"
         button_url = settings.get_event_deep_link(event.id, attribution_token=attribution_token)
 
     elif template_key == BroadcastTemplateKey.CUSTOM_UPDATE.value:
@@ -114,7 +114,7 @@ def format_broadcast_content(
             f"🏛 <b>Новости от {safe_org_name}</b>\n\n"
             f"💬 {safe_custom or 'Свежие обновления для подписчиков'}\n"
         )
-        button_text = "Открыть профиль ↗"
+        button_text = "Открыть профиль"
         button_url = settings.get_organization_deep_link(organization.id)
     else:
         raise HTTPException(status_code=400, detail=f"Неизвестный шаблон рассылки: {template_key}")
@@ -1260,7 +1260,7 @@ async def get_broadcast_detail(
     except HTTPException:
         # Graceful fallback for historical broadcasts if linked event was removed
         message_text = bcast.custom_text or f"Рассылка от {org.name}"
-        button_text = "Открыть профиль 🏛"
+        button_text = "Открыть профиль"
         button_url = settings.get_organization_deep_link(org.id)
 
     return BroadcastDetail(

@@ -7,10 +7,11 @@
 iventlyapp.ru {
     encode gzip zstd
 
-    # Direct static file serving for uploads with immutable caching
-    handle_path /uploads/* {
-        root * /var/www/uploads
-        file_server
+    # Proxy uploads directly to FastAPI app
+    handle /uploads/* {
+        reverse_proxy app:8000 {
+            header_up X-Forwarded-Proto https
+        }
         header Cache-Control "public, max-age=2592000, immutable"
     }
 

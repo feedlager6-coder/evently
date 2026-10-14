@@ -164,6 +164,22 @@ class StorageService:
         """
         ext = self.validate_image(content, content_type)
         content_type_clean = (content_type or "").lower().split(";")[0].strip()
+
+        # Convert cover images to standard RGB JPEG for Telegram Bot API compatibility
+        if folder == "covers":
+            try:
+                from PIL import Image
+                import io
+                with Image.open(io.BytesIO(content)) as im:
+                    rgb_im = im.convert("RGB")
+                    buf = io.BytesIO()
+                    rgb_im.save(buf, format="JPEG", quality=85, optimize=True)
+                    content = buf.getvalue()
+                    ext = ".jpg"
+                    content_type_clean = "image/jpeg"
+            except Exception as e:
+                logger.warning(f"Image conversion to JPEG skipped: {e}")
+
         filename = f"{uuid.uuid4().hex}{ext}"
 
         # If S3 is configured, upload to S3-compatible persistent storage

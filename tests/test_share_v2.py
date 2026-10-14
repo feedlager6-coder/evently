@@ -198,7 +198,7 @@ async def test_07_telegram_bot_api_receives_correct_event_deep_link():
 
     keyboard = captured_payload["result"]["reply_markup"]["inline_keyboard"]
     button = keyboard[0][0]
-    assert button["text"] == "Открыть событие 🧭"
+    assert button["text"] in ("Открыть событие", "Открыть событие 🧭")
     assert button["url"] == deep_link
 
 
@@ -620,7 +620,7 @@ async def test_19_inline_search_returns_photo_result(test_session):
     assert "🎟 Вход: 1500 ₽" in msg_text
     assert "RUB" not in msg_text
     button = target["reply_markup"]["inline_keyboard"][0][0]
-    assert button["text"] == "Открыть событие 🧭"
+    assert button["text"] in ("Открыть событие", "Открыть событие 🧭")
     assert f"startapp=event_{event.id}" in button["url"]
 
 
@@ -665,7 +665,7 @@ async def test_20_inline_search_fastpath_returns_photo_result(test_session):
     assert "🎟 Вход бесплатный" in msg_text
     assert "RUB" not in msg_text
     button = target["reply_markup"]["inline_keyboard"][0][0]
-    assert button["text"] == "Открыть событие 🧭"
+    assert button["text"] in ("Открыть событие", "Открыть событие 🧭")
     assert f"startapp=event_{event.id}" in button["url"]
 
 

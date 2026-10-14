@@ -79,7 +79,7 @@ async def test_notification_service_dispatches_messages(client, test_session):
     assert "Acoustic Live Music" in first_payload["text"]
     # Check button text and native web_app url
     button = first_payload["reply_markup"]["inline_keyboard"][0][0]
-    assert button["text"] in ("Открыть событие 🧭", "🟢 Открыть событие")
+    assert button["text"] in ("Открыть событие", "Открыть событие 🧭", "🟢 Открыть событие")
     assert "web_app" in button
     assert button["web_app"]["url"] == f"{settings.effective_public_host}/?startapp=event_{event_id}"
     assert "callback_data" not in button

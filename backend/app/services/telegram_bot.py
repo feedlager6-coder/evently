@@ -15,17 +15,20 @@ from app.schemas.event import EventSummary
 logger = logging.getLogger("evently.telegram")
 
 
+DEFAULT_EVENT_COVER_URL = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=500&auto=format&fit=crop&q=80"
+
+
 def resolve_absolute_image_url(url: Optional[str]) -> str:
     """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS JPEG URLs."""
-    public_host = settings.effective_public_host or "https://iventlyapp.ru"
-    fallback = f"{public_host}/covers/default_event.jpg"
+    fallback = DEFAULT_EVENT_COVER_URL
     if not url or not url.strip():
         return fallback
     clean = url.strip()
-    if "photo-1520523839898-50712140e698" in clean:
-        return f"{public_host}/covers/concerts.jpg"
+    if "photo-1520523839898-50712140e698" in clean or "/covers/default_event.jpg" in clean or "/covers/concerts.jpg" in clean:
+        return fallback
     if clean.startswith("http://") or clean.startswith("https://"):
         return clean
+    public_host = settings.effective_public_host or "https://iventlyapp.ru"
     if clean.startswith("/"):
         return f"{public_host}{clean}"
     return f"{public_host}/{clean}"
@@ -178,7 +181,7 @@ def build_mini_app_button(
 
 def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     """
-    Constructs compliant inline keyboard with official button 'Открыть событие ↗'.
+    Constructs compliant inline keyboard with official button 'Открыть событие'.
     Uses direct 'url' button for Telegram inline compatibility across all chats.
     Includes Telegram Bot API 9.4 'style': 'success' for native green styling.
     """
@@ -187,7 +190,7 @@ def build_event_inline_keyboard(event_id: str) -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "Открыть событие ↗", "url": url, "style": "success"}
+                {"text": "Открыть событие", "url": url, "style": "success"}
             ]
         ]
     }
@@ -202,7 +205,7 @@ def build_catalog_inline_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🧭 Открыть Ivently", "url": mini_app_url, "style": "success"}
+                {"text": "Открыть Ivently", "url": mini_app_url, "style": "success"}
             ]
         ]
     }
@@ -316,7 +319,7 @@ def build_event_inline_result(
         "inline_keyboard": [
             [
                 {
-                    "text": "Открыть событие 🧭",
+                    "text": "Открыть событие",
                     "url": deep_link,
                     "style": "success"
                 }
@@ -361,7 +364,11 @@ def build_event_inline_result(
 
     # For inline query search (@Ivently_bot <city>), always return InlineQueryResultArticle
     # to guarantee consistent, uniform vertical list ("шторка") with thumbnail, title, venue, date, and price
-    # across all clients (never collapsing into bare photo tiles)
+    # across all clients (never collapsing into bare photo tiles).
+    # Prepend invisible zero-width space link to photo_url so Telegram link preview renders large photo
+    invisible_lead = f'<a href="{html.escape(photo_url)}">&#8203;</a>' if photo_url else ""
+    message_text = f"{invisible_lead}{caption}"
+
     return {
         "type": "article",
         "id": result_id,
@@ -370,7 +377,7 @@ def build_event_inline_result(
         "thumbnail_url": thumb_url,
         "thumb_url": thumb_url,
         "input_message_content": {
-            "message_text": caption,
+            "message_text": message_text,
             "parse_mode": "HTML",
             "link_preview_options": {
                 "is_disabled": False,
@@ -602,7 +609,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
         is_event = start_param.startswith("event_") or start_param.startswith("app_event_")
-        main_button_label = "Открыть событие ↗" if is_event else "🧭 Открыть Ivently"
+        main_button_label = "Открыть событие" if is_event else "Открыть Ivently"
         welcome_intro = (
             "👋 <b>Событие ждёт вас в Ivently!</b>\n\n"
             "Нажмите кнопку ниже, чтобы открыть карточку события, узнать детали и отметить участие."
@@ -623,10 +630,10 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         build_mini_app_button(main_button_label, start_param or None, style="primary")
                     ],
                     [
-                        {"text": "🔎 Найти события", "switch_inline_query": ""}
+                        {"text": "Найти события", "switch_inline_query": ""}
                     ],
                     [
-                        build_mini_app_button("➕ Создать мероприятие", "create")
+                        build_mini_app_button("Создать мероприятие", "create")
                     ]
                 ]
             }
@@ -644,7 +651,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("➕ Заполнить форму события", "create")
+                        build_mini_app_button("Заполнить форму события", "create")
                     ]
                 ]
             }
@@ -664,7 +671,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 "reply_markup": {
                     "inline_keyboard": [
                         [
-                            build_mini_app_button("🛡️ Открыть модерацию", "admin")
+                            build_mini_app_button("Открыть модерацию", "admin")
                         ]
                     ]
                 }
@@ -692,10 +699,10 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🧭 Открыть афишу", style="primary")
+                        build_mini_app_button("Открыть афишу", style="primary")
                     ],
                     [
-                        {"text": "🔎 Поиск в чате", "switch_inline_query": ""}
+                        {"text": "Поиск в чате", "switch_inline_query": ""}
                     ]
                 ]
             }
@@ -707,7 +714,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "text": (
                 "ℹ️ <b>Как пользоваться Ivently:</b>\n\n"
                 "1. <b>Быстрый поиск в любом чате:</b>\n"
-                f"   Нажмите «🔎 Найти события» или напишите <code>@{bot_username} [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
+                f"   Нажмите «Найти события» или напишите <code>@{bot_username} [город] [категория/дата]</code> прямо в строке ввода сообщения.\n\n"
                 "2. <b>Telegram Mini App:</b>\n"
                 "   Нажмите кнопку ниже, чтобы открыть афишу, фильтровать события и отмечаться «Я иду».\n\n"
                 "3. <b>Команды бота:</b>\n"
@@ -719,10 +726,10 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🧭 Открыть Ivently", style="primary")
+                        build_mini_app_button("Открыть Ivently", style="primary")
                     ],
                     [
-                        {"text": "🔎 Найти события", "switch_inline_query": ""}
+                        {"text": "Найти события", "switch_inline_query": ""}
                     ]
                 ]
             }
@@ -740,7 +747,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button("🧭 Открыть Ivently", style="primary")
+                        build_mini_app_button("Открыть Ivently", style="primary")
                     ]
                 ]
             }

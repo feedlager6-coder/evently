@@ -134,10 +134,6 @@ export const TicketModal: React.FC<TicketModalProps> = ({
           {/* Upper Ticket Part: Event Hero & Info */}
           <div className="p-5 pb-6 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#10b981]/15 text-[#4edea3] border border-[#10b981]/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
-                Билет действителен
-              </span>
               <span className="text-xs text-[#8e9192] font-mono font-medium tracking-wider">
                 № {generatedTicketNo}
               </span>

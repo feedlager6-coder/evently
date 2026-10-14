@@ -376,7 +376,7 @@ class PaymentService:
                     if order.receipt_url:
                         reply_markup = {
                             "inline_keyboard": [
-                                [{"text": "🧾 Электронный чек", "url": order.receipt_url}]
+                                [{"text": "Электронный чек", "url": order.receipt_url}]
                             ]
                         }
                     sent = await send_telegram_notification(

@@ -38,7 +38,6 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
 }) => {
   const [manualCode, setManualCode] = useState('');
   const [isChecking, setIsChecking] = useState(false);
-  const [isContinuousScan, setIsContinuousScan] = useState(true);
   const [scannerNotice, setScannerNotice] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ScanResultItem | null>(null);
   const [checkInHistory, setCheckInHistory] = useState<ScanResultItem[]>([]);
@@ -147,7 +146,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
         { text: `Сканируйте QR-код билета: ${event.title}` },
         (scannedText: string) => {
           handleProcessCode(scannedText);
-          return !isContinuousScan; // false keeps popup camera open for stream scanning
+          return true; // Closes popup upon scan
         }
       );
     } else {
@@ -215,32 +214,14 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
 
         {/* Primary Action: Open Telegram Camera Scanner */}
         <div className="space-y-2">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleStartTelegramScanner}
-              className="flex-1 py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
-            >
-              <Camera className="w-5 h-5 stroke-[2.2]" />
-              <span>Сканировать QR-код</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                telegram.hapticImpact('light');
-                setIsContinuousScan((prev) => !prev);
-              }}
-              title="Потоковое сканирование очереди"
-              className={`px-3 py-3 rounded-2xl border transition flex flex-col items-center justify-center gap-1 text-[10px] font-bold min-w-[64px] ${
-                isContinuousScan
-                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                  : 'bg-white/5 border-white/10 text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>{isContinuousScan ? 'Поток: ВКЛ' : 'Поток'}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleStartTelegramScanner}
+            className="w-full py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
+          >
+            <Camera className="w-5 h-5 stroke-[2.2]" />
+            <span>Сканировать QR-код</span>
+          </button>
 
           {scannerNotice && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs leading-relaxed animate-fade-in">

@@ -2325,9 +2325,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   <div className="pt-1">
                     <div className="w-full py-2.5 bg-[#2d2d33] text-center text-xs font-semibold text-emerald-400 rounded-xl border border-white/5 flex items-center justify-center gap-1.5 shadow-md">
                       {selectedEventTargetId ? (
-                        <span>🟢 Открыть событие</span>
+                        <span>Открыть событие</span>
                       ) : (
-                        <span>🟢 Открыть профиль в Ivently</span>
+                        <span>Открыть профиль</span>
                       )}
                     </div>
                   </div>

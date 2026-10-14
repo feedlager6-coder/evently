@@ -219,13 +219,13 @@ def build_event_notification_reply_markup(event_id: str, attribution_token: Opti
 
     if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
         btn: Dict[str, Any] = {
-            "text": "🟢 Открыть событие",
+            "text": "Открыть событие",
             "style": "success",
             "web_app": {"url": f"{settings.effective_public_host}/?startapp={param}"}
         }
     else:
         btn = {
-            "text": "🟢 Открыть событие",
+            "text": "Открыть событие",
             "style": "success",
             "url": settings.get_event_deep_link(event_id, attribution_token=attribution_token)
         }
@@ -512,7 +512,7 @@ async def notify_event_cancelled(
         f"📍 {safe_venue}"
     )
 
-    btn: Dict[str, Any] = {"text": "🟢 Все события в Ivently"}
+    btn: Dict[str, Any] = {"text": "Открыть Ivently"}
     if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
         btn["web_app"] = {"url": f"{settings.effective_public_host}/"}
     else:

@@ -132,7 +132,7 @@ async def test_d506_02_broadcast_content_multiline_formatting_and_escaping():
     assert "До встречи!" in text
 
     # 3. Button text and URL
-    assert btn_text in ("Открыть событие ↗", "Открыть событие 🧭", "🟢 Открыть событие")
+    assert btn_text in ("Открыть событие", "Открыть событие ↗", "Открыть событие 🧭", "🟢 Открыть событие")
     assert f"event_{ev.id}" in btn_url
 
 
