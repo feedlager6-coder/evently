@@ -88,7 +88,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
 
   const totalTickets = activeAttending.length;
   const isOrganizer = organizations.length > 0;
-  const hasCreatedEvents = myCreatedEvents.length > 0;
+  const hasCreatedEvents = myCreatedEvents.length > 0 || isOrganizer;
   const totalFilterTabs = hasCreatedEvents ? 3 : 2;
 
   const activeFilterIndex =
