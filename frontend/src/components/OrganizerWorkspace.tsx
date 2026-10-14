@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   OrganizationSummary,
   EventSummary,
@@ -78,7 +78,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onEventDeleted,
   onRefreshOrganizations,
   isAdmin: _isAdmin = false,
-  paymentReturnOrderId: _paymentReturnOrderId,
+  paymentReturnOrderId,
   initialTab,
   initialBroadcastEventId,
   initialBroadcastOrgId,
@@ -148,32 +148,90 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
   const monthlyBroadcastsRemaining = entitlements?.limits?.broadcasts_remaining ?? Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
 
-  // Check pending Pro payment order on mount / return
-  useEffect(() => {
-    const raw = localStorage.getItem('ivently_pending_pro_order');
-    if (!raw) return;
-    try {
-      const pending = JSON.parse(raw);
-      if (pending?.orderId && Date.now() - (pending.createdAt || 0) < 3600000) {
-        api.getPaymentOrder(pending.orderId).then((order) => {
-          if (order.status === 'succeeded') {
-            localStorage.removeItem('ivently_pending_pro_order');
-            if (activeOrg) {
-              api.getOrganizerEntitlements(activeOrg.id).then((ent: OrganizerEntitlementsResponse) => setEntitlements(ent)).catch(() => {});
-            }
-            if (onRefreshOrganizations) onRefreshOrganizations();
-            telegram.showAlert('🎉 Оплата прошла успешно! Тариф PRO активирован.');
-          } else if (order.status === 'canceled' || order.status === 'failed') {
+  // Check pending Pro payment order on mount / return / visibilitychange / focus / 4s interval
+  const isCheckingPaymentRef = useRef(false);
+  const checkPendingPayment = useCallback(async () => {
+    if (isCheckingPaymentRef.current) return;
+    let orderId = paymentReturnOrderId || localStorage.getItem('ivently_pending_payment_order_id');
+    if (!orderId) {
+      try {
+        const raw = localStorage.getItem('ivently_pending_pro_order');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.orderId && Date.now() - (parsed.createdAt || 0) < 3600000) {
+            orderId = parsed.orderId;
+          } else {
             localStorage.removeItem('ivently_pending_pro_order');
           }
-        }).catch(() => {});
-      } else {
+        }
+      } catch {
         localStorage.removeItem('ivently_pending_pro_order');
       }
-    } catch {
-      localStorage.removeItem('ivently_pending_pro_order');
     }
-  }, [activeOrg, onRefreshOrganizations]);
+    if (!orderId) return;
+
+    isCheckingPaymentRef.current = true;
+    try {
+      const order = await api.getPaymentOrder(orderId);
+      if (order.status === 'succeeded') {
+        localStorage.removeItem('ivently_pending_payment_order_id');
+        localStorage.removeItem('ivently_pending_pro_order');
+        if (activeOrg) {
+          try {
+            const ent = await api.getOrganizerEntitlements(activeOrg.id);
+            setEntitlements(ent);
+          } catch (e) {
+            console.warn('Failed to refresh entitlements after payment:', e);
+          }
+        }
+        if (onRefreshOrganizations) {
+          onRefreshOrganizations();
+        }
+        setIsProModalOpen(false);
+        telegram.hapticSuccess();
+        await telegram.showAlert('🎉 Оплата прошла успешно! Тариф PRO активирован.');
+      } else if (order.status === 'canceled' || order.status === 'failed') {
+        localStorage.removeItem('ivently_pending_payment_order_id');
+        localStorage.removeItem('ivently_pending_pro_order');
+      }
+    } catch (e) {
+      console.warn('Failed to check pending payment order:', e);
+    } finally {
+      isCheckingPaymentRef.current = false;
+    }
+  }, [paymentReturnOrderId, activeOrg, onRefreshOrganizations]);
+
+  useEffect(() => {
+    // 1. Initial check on mount
+    checkPendingPayment();
+
+    // 2. Check when switching back to Telegram window
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkPendingPayment();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const handleFocus = () => {
+      checkPendingPayment();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Periodic check every 4 seconds while pending order is active
+    const intervalId = setInterval(() => {
+      const pendingId = paymentReturnOrderId || localStorage.getItem('ivently_pending_payment_order_id') || localStorage.getItem('ivently_pending_pro_order');
+      if (pendingId) {
+        checkPendingPayment();
+      }
+    }, 4000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(intervalId);
+    };
+  }, [checkPendingPayment, paymentReturnOrderId]);
 
   // Reusable multi-organization selector component
   const renderOrgSelector = (suffix?: string) => {
@@ -2590,6 +2648,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   const config = await api.getPaymentConfig();
                   if (config.payments_enabled) {
                     const order = await api.createProPayment({ organization_id: activeOrg.id });
+                    localStorage.setItem('ivently_pending_payment_order_id', order.id);
                     localStorage.setItem('ivently_pending_pro_order', JSON.stringify({
                       orderId: order.id,
                       orgId: activeOrg.id,
@@ -2597,7 +2656,6 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     }));
                     if (order.confirmation_url) {
                       telegram.openLink(order.confirmation_url);
-                      await telegram.showAlert('Страница безопасной оплаты ЮKassa открыта. После завершения платежа вернитесь в приложение — статус PRO обновится.');
                       setIsProModalOpen(false);
                       return;
                     }

@@ -146,11 +146,27 @@ class PaymentService:
 
         existing_order = (await session.execute(existing_order_stmt)).scalars().first()
         if existing_order and existing_order.confirmation_url:
-            logger.info(
-                "Reusing existing pending PaymentOrder %s for organization %s",
-                existing_order.id, organization_id
-            )
-            return existing_order, existing_order.confirmation_url
+            is_mock_order = bool(existing_order.provider_payment_id and existing_order.provider_payment_id.startswith("mock_"))
+            is_real_yookassa = settings.is_yookassa_configured and settings.PAYMENTS_ENABLED
+
+            # Discard mock order if real YooKassa is now active
+            if is_mock_order and is_real_yookassa:
+                logger.info("Discarding mock order %s because real YooKassa is active", existing_order.id)
+            else:
+                try:
+                    existing_order = await cls.verify_and_activate_order(session, existing_order)
+                except Exception as e:
+                    logger.warning("Error verifying existing order %s before reuse: %s", existing_order.id, e)
+
+                if existing_order.status in [
+                    PaymentOrderStatus.PENDING.value,
+                    PaymentOrderStatus.WAITING_FOR_PAYMENT.value
+                ]:
+                    logger.info(
+                        "Reusing existing pending PaymentOrder %s for organization %s",
+                        existing_order.id, organization_id
+                    )
+                    return existing_order, existing_order.confirmation_url
 
         # 4. Create new Order
         order_id = str(uuid.uuid4())
@@ -159,9 +175,11 @@ class PaymentService:
         currency = "RUB"
         description = "Ivently Pro — доступ на 30 дней"
 
-        # Determine return URL
-        base_host = settings.effective_public_host or "https://ivently.up.railway.app"
-        return_url = settings.YOOKASSA_RETURN_URL or f"{base_host}/?payment_order_id={order_id}"
+        # Determine return URL: redirect directly back into Telegram Mini App with startapp=payment_{order_id}
+        mini_app_base = settings.effective_mini_app_url.split("?")[0].rstrip("/")
+        return_url = f"{mini_app_base}?startapp=payment_{order_id}"
+        if settings.YOOKASSA_RETURN_URL and "startapp" in settings.YOOKASSA_RETURN_URL:
+            return_url = settings.YOOKASSA_RETURN_URL.replace("{order_id}", order_id)
 
         metadata = {
             "order_id": order_id,
@@ -228,6 +246,38 @@ class PaymentService:
         logger.info("Created PaymentOrder %s (provider_id=%s)", order_id, prov_res.provider_payment_id)
 
         return order, order.confirmation_url or return_url
+
+    @classmethod
+    async def reconcile_pending_orders_for_org(
+        cls,
+        session: AsyncSession,
+        organization_id: str
+    ) -> List[PaymentOrder]:
+        """
+        Reconciles pending or waiting_for_payment orders for an organization created in the last 2 hours.
+        Queries provider status and activates Pro if payment was completed.
+        """
+        now = utc_now()
+        two_hours_ago = now - timedelta(hours=2)
+        stmt = select(PaymentOrder).where(
+            PaymentOrder.organization_id == organization_id,
+            PaymentOrder.status.in_([
+                PaymentOrderStatus.PENDING.value,
+                PaymentOrderStatus.WAITING_FOR_PAYMENT.value
+            ]),
+            PaymentOrder.created_at >= two_hours_ago
+        ).order_by(desc(PaymentOrder.created_at))
+
+        orders = list((await session.execute(stmt)).scalars().all())
+        updated_orders = []
+        for o in orders:
+            try:
+                verified = await cls.verify_and_activate_order(session, o)
+                updated_orders.append(verified)
+            except Exception as e:
+                logger.warning("Reconciliation error for order %s: %s", o.id, e)
+                updated_orders.append(o)
+        return updated_orders
 
     @classmethod
     async def verify_and_activate_order(

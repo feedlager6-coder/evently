@@ -411,3 +411,61 @@ async def test_payment_history_endpoint(client, test_session, setup_mock_payment
         assert len(hist) >= 1
         assert hist[0]["amount"] == 499.0
         assert hist[0]["currency"] == "RUB"
+
+
+@pytest.mark.asyncio
+async def test_pro_payment_return_url_contains_startapp_param(client, test_session, setup_mock_payment_provider):
+    """Verifies that create_payment passes return_url with startapp=payment_{order_id}."""
+    owner_id = 1113
+    auth = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner1113')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Return URL Org", "category": "Концерты", "city_id": "makhachkala"},
+        headers=auth,
+    )
+    org_id = res_org.json()["id"]
+
+    with patch.object(settings, "PAYMENTS_ENABLED", True):
+        res_pay = await client.post("/api/v1/organizer/payments/pro", json={"organization_id": org_id}, headers=auth)
+        assert res_pay.status_code == 201
+        order_id = res_pay.json()["id"]
+        
+        # Check return_url passed to provider
+        order = await test_session.get(PaymentOrder, order_id)
+        mock_payment = setup_mock_payment_provider.payments[order.provider_payment_id]
+        return_url = mock_payment["confirmation"]["return_url"]
+        assert f"startapp=payment_{order_id}" in return_url
+
+
+@pytest.mark.asyncio
+async def test_entitlements_auto_reconciliation_activates_pro(client, test_session, setup_mock_payment_provider):
+    """Verifies that calling GET /api/v1/organizer/entitlements auto-reconciles pending order and activates PRO."""
+    owner_id = 1114
+    auth = {"Authorization": f"tma {make_test_init_data(user_id=owner_id, username='owner1114')}"}
+
+    res_org = await client.post(
+        "/api/v1/organizations",
+        json={"name": "Reconcile Org", "category": "Концерты", "city_id": "makhachkala"},
+        headers=auth,
+    )
+    org_id = res_org.json()["id"]
+
+    with patch.object(settings, "PAYMENTS_ENABLED", True):
+        # 1. Create order
+        res_pay = await client.post("/api/v1/organizer/payments/pro", json={"organization_id": org_id}, headers=auth)
+        assert res_pay.status_code == 201
+        order_id = res_pay.json()["id"]
+
+        order = await test_session.get(PaymentOrder, order_id)
+
+        # 2. Simulate payment completion on provider side
+        setup_mock_payment_provider.simulate_payment_status(order.provider_payment_id, status="succeeded", paid=True)
+
+        # 3. Request entitlements - backend should auto-reconcile and return PRO
+        res_ent = await client.get(f"/api/v1/organizer/entitlements?org_id={org_id}", headers=auth)
+        assert res_ent.status_code == 200
+        ent_data = res_ent.json()
+        assert ent_data["plan"] == "pro"
+        assert ent_data["status"] == "active"
+        assert ent_data["limits"]["broadcasts_per_month"] == 20

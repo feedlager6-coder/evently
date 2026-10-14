@@ -207,6 +207,13 @@ async def get_my_entitlements(
             ),
         )
 
+    if target_org_id:
+        try:
+            from app.services.payment_service import PaymentService
+            await PaymentService.reconcile_pending_orders_for_org(session, target_org_id)
+        except Exception:
+            pass
+
     return await EntitlementService.get_entitlements(session, target_org_id, org_name=org_name)
 
 
