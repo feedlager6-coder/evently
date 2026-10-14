@@ -16,13 +16,13 @@ logger = logging.getLogger("evently.telegram")
 
 def resolve_absolute_image_url(url: Optional[str]) -> str:
     """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS URLs."""
-    fallback = "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&h=500&auto=format&fit=crop&q=85"
+    public_host = settings.effective_public_host or "https://iventlyapp.ru"
+    fallback = f"{public_host}/ivently_avatar_star_circle_512.png"
     if not url or not url.strip():
         return fallback
     clean = url.strip()
     if clean.startswith("http://") or clean.startswith("https://"):
         return clean
-    public_host = settings.effective_public_host or "https://iventlyapp.ru"
     if clean.startswith("/"):
         return f"{public_host}{clean}"
     return f"{public_host}/{clean}"
@@ -290,7 +290,7 @@ def build_event_inline_result(
         "inline_keyboard": [
             [
                 {
-                    "text": "Открыть событие ↗",
+                    "text": "Открыть событие 🧭",
                     "url": deep_link,
                     "style": "success"
                 }
@@ -318,14 +318,18 @@ def build_event_inline_result(
     photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
     thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
 
-    message_text = caption
-    link_preview_opts: Dict[str, Any] = {"is_disabled": False}
     if has_cover and photo_url and photo_url.startswith("https://"):
-        message_text = f'<a href="{photo_url}">&#8205;</a>{caption}'
-        link_preview_opts = {
-            "url": photo_url,
-            "prefer_large_media": True,
-            "show_above_text": True
+        return {
+            "type": "photo",
+            "id": result_id,
+            "photo_url": photo_url,
+            "thumbnail_url": thumb_url,
+            "thumb_url": thumb_url,
+            "title": f"🎟 {title_str}",
+            "description": description,
+            "caption": caption,
+            "parse_mode": "HTML",
+            "reply_markup": reply_markup
         }
 
     return {
@@ -336,9 +340,9 @@ def build_event_inline_result(
         "thumbnail_url": thumb_url,
         "thumb_url": thumb_url,
         "input_message_content": {
-            "message_text": message_text,
+            "message_text": caption,
             "parse_mode": "HTML",
-            "link_preview_options": link_preview_opts
+            "link_preview_options": {"is_disabled": False}
         },
         "reply_markup": reply_markup
     }

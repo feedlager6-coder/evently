@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
+import { TelegramIcon } from './TelegramIcon';
 
 export function getAttendeesWord(count: number): string {
   const mod10 = count % 10;
@@ -299,11 +300,10 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             {/* Floating Top Badges on Cover */}
             <div className="absolute top-4 inset-x-4 flex items-center justify-between pointer-events-auto">
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-white font-bold text-[11px] tracking-wide flex items-center gap-1.5 shadow-md">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
-                  LIVE СКОРО
+                <span className="px-2.5 py-1 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-white font-medium text-[11px] tracking-tight shadow-md">
+                  Скоро
                 </span>
-                <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-[#c4c7c8] font-bold text-[11px] tracking-wide shadow-md">
+                <span className="px-2.5 py-1 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-[#c4c7c8] font-medium text-[11px] tracking-tight shadow-md">
                   {formattedShortDate}
                 </span>
               </div>
@@ -311,12 +311,11 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleTelegramNativeShare}
-                  className="h-9 px-3 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center gap-1.5 text-[#c4c7c8] hover:text-white active:scale-95 transition-all shadow-md"
+                  className="w-10 h-10 rounded-full bg-[#0e0e10]/75 backdrop-blur-md flex items-center justify-center text-[#c4c7c8] hover:text-[#4edea3] active:scale-95 transition-all shadow-md"
                   aria-label="Поделиться в Telegram"
-                  title="Отправить в Telegram чаты и Избранное"
+                  title="Поделиться в Telegram"
                 >
-                  <Send className="w-3.5 h-3.5 text-[#4edea3]" />
-                  <span className="text-xs font-semibold text-white">В Telegram</span>
+                  <TelegramIcon className="w-5 h-5 text-white" />
                 </button>
                 {onToggleInterest && (
                   <button

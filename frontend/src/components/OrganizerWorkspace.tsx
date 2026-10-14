@@ -5,6 +5,7 @@ import type {
   OrganizerAudienceResponse,
   BroadcastItem,
   BroadcastCreateRequest,
+  OrganizerEntitlementsResponse,
 } from '../types';
 import { api } from '../services/api';
 import { telegram } from '../services/telegram';
@@ -37,6 +38,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { CheckInScannerModal } from './CheckInScannerModal';
+import { TelegramIcon } from './TelegramIcon';
 
 export type WorkspaceTab = 'overview' | 'events' | 'audience' | 'broadcasts';
 export type EventSubFilter = 'all' | 'published' | 'pending' | 'drafts' | 'finished';
@@ -118,12 +120,20 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
   const [_isLoadingBroadcasts, setIsLoadingBroadcasts] = useState<boolean>(false);
 
+  // Entitlements & Subscription Plan State
+  const [entitlements, setEntitlements] = useState<OrganizerEntitlementsResponse | null>(null);
+  const [_isLoadingEntitlements, setIsLoadingEntitlements] = useState<boolean>(false);
+
   // Active organization: strictly user's first organization or null (Clean Slate)
   const activeOrg = organizations[0] || null;
-  const isOrgPro = Boolean(activeOrg?.is_verified || (activeOrg as any)?.plan === 'pro');
-  const monthlyQuota = isOrgPro ? 20 : 1;
+  const isOrgPro = Boolean(
+    entitlements?.plan === 'pro' ||
+    (activeOrg as any)?.plan === 'pro' ||
+    activeOrg?.is_verified
+  );
+  const monthlyQuota = entitlements?.limits?.broadcasts_per_month ?? (isOrgPro ? 20 : 1);
   const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
-  const monthlyBroadcastsRemaining = Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
+  const monthlyBroadcastsRemaining = entitlements?.limits?.broadcasts_remaining ?? Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
 
   // Audience & Broadcast Data State
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
@@ -210,8 +220,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       }
     };
 
+    const loadEntitlements = async () => {
+      setIsLoadingEntitlements(true);
+      try {
+        const data = await api.getOrganizerEntitlements(activeOrg.id);
+        if (data) {
+          setEntitlements(data);
+        }
+      } catch (err) {
+        console.warn('Failed to load real entitlements:', err);
+      } finally {
+        setIsLoadingEntitlements(false);
+      }
+    };
+
     loadAudience();
     loadBroadcasts();
+    loadEntitlements();
   }, [activeOrg?.id]);
 
   // 6-hour operational buffer: events remain active for 6 hours after start_at (or until end_at)
@@ -1976,7 +2001,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             {/* 24h Anti-Fatigue Rule Indicator & Quota */}
             <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex gap-3 items-center">
               <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                <CheckCircle2 className="w-4 h-4" />
+                <TelegramIcon className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-xs">
                 <span className="font-bold text-white block">

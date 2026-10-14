@@ -149,6 +149,7 @@ export interface OrganizationSummary {
   events_count?: number;
   is_subscribed: boolean;
   is_owner: boolean;
+  plan?: 'free' | 'pro' | string;
   created_at: string;
 }
 
@@ -232,6 +233,7 @@ export interface TelegramWebAppUser {
   username?: string;
   language_code?: string;
   is_premium?: boolean;
+  photo_url?: string;
 }
 
 export interface VenueSummary {

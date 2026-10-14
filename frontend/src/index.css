@@ -45,7 +45,8 @@
 
   html {
     scrollbar-gutter: stable;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   @supports not (scrollbar-gutter: stable) {
@@ -61,7 +62,8 @@
     min-height: 100vh;
     min-height: -webkit-fill-available;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

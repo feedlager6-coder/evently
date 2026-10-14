@@ -21,6 +21,7 @@ def parse_features(features_raw: Optional[str]) -> List[str]:
     return []
 
 from app.models.organization import Organization, OrganizationStatus
+from app.models.organization_plan import OrganizationPlan, PlanStatus
 from app.models.subscription import Subscription
 from app.models.event import Event, EventStatus
 from app.models.broadcast import Broadcast, BroadcastStatus
@@ -275,8 +276,15 @@ async def list_user_organizations(
 ) -> List[OrganizationSummary]:
     """Lists organizations owned by the given user."""
     stmt = (
-        select(Organization, City.name.label("city_name"))
+        select(Organization, City.name.label("city_name"), OrganizationPlan.plan.label("org_plan"))
         .outerjoin(City, Organization.city_id == City.id)
+        .outerjoin(
+            OrganizationPlan,
+            and_(
+                OrganizationPlan.organization_id == Organization.id,
+                OrganizationPlan.status == PlanStatus.ACTIVE.value
+            )
+        )
         .where(
             Organization.owner_user_id == user_id,
             Organization.status != OrganizationStatus.DELETED.value
@@ -286,7 +294,7 @@ async def list_user_organizations(
     rows = (await session.execute(stmt)).all()
 
     summaries = []
-    for org, city_name in rows:
+    for org, city_name, org_plan in rows:
         followers_count = await get_followers_count(session, org.id)
         summaries.append(
             OrganizationSummary(
@@ -303,6 +311,7 @@ async def list_user_organizations(
                 features=parse_features(org.features),
                 status=org.status,
                 is_verified=org.is_verified,
+                plan=org_plan or "free",
                 followers_count=followers_count,
                 is_subscribed=False,
                 is_owner=True,

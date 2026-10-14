@@ -11,7 +11,57 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#08080A] text-[#e5e1e4] antialiased selection:bg-[#10b981]/30 selection:text-white">
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash" style="position:fixed;inset:0;background:#08080A;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;user-select:none;-webkit-user-select:none;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;">
+        <style>
+          @keyframes ivently-pulse {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 16px rgba(16,185,129,0.35)); }
+            50% { transform: scale(1.06); filter: drop-shadow(0 0 28px rgba(16,185,129,0.7)); }
+          }
+          @keyframes ivently-shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+          @keyframes ivently-bar {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(50%); }
+            100% { transform: translateX(200%); }
+          }
+          .ivently-logo-star {
+            animation: ivently-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+          }
+          .ivently-title-shimmer {
+            background: linear-gradient(90deg, #FFFFFF 0%, #4EDEA3 45%, #FFFFFF 70%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: ivently-shimmer 3s linear infinite;
+          }
+        </style>
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
+          <div style="position:absolute;width:120px;height:120px;background:radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%);border-radius:50%;filter:blur(18px);pointer-events:none;"></div>
+          <svg class="ivently-logo-star" width="68" height="68" viewBox="0 0 68 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="splash-g" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#4edea3" />
+                <stop offset="100%" stop-color="#10b981" />
+              </linearGradient>
+            </defs>
+            <path d="M34 4 C34 22 22 34 4 34 C22 34 34 46 34 64 C34 46 46 34 64 34 C46 34 34 22 34 4 Z" fill="url(#splash-g)" />
+            <circle cx="34" cy="34" r="5" fill="#ffffff" opacity="0.9" />
+          </svg>
+        </div>
+        <div class="ivently-title-shimmer" style="font-size:24px;font-weight:700;letter-spacing:-0.5px;margin-bottom:6px;">
+          Ivently
+        </div>
+        <div style="color:#8E9192;font-size:13px;font-weight:500;letter-spacing:0.2px;margin-bottom:32px;">
+          События твоего города
+        </div>
+        <div style="width:110px;height:3px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;position:relative;">
+          <div style="width:40px;height:100%;background:#10b981;border-radius:99px;box-shadow:0 0 8px #10b981;animation:ivently-bar 1.6s ease-in-out infinite;"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

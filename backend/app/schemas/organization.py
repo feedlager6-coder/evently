@@ -59,6 +59,7 @@ class OrganizationSummary(BaseModel):
     events_count: int = 0
     is_subscribed: bool = False
     is_owner: bool = False
+    plan: Optional[str] = "free"
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -16,7 +16,7 @@ async def test_inline_query_returns_results(test_session):
     assert len(results) > 0
 
     first_article = results[0]
-    assert first_article["type"] == "article"
+    assert first_article["type"] in ("photo", "article")
     assert "Санкт-Петербург" in first_article["description"]
     assert "reply_markup" in first_article
     assert "url" in first_article["reply_markup"]["inline_keyboard"][0][0]

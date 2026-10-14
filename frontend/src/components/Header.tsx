@@ -79,6 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {user ? (
               <SafeAvatar
+                src={user.photo_url}
                 name={user.first_name || user.username || 'U'}
                 type="user"
                 className="w-full h-full object-cover"
