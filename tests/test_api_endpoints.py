@@ -63,16 +63,17 @@ async def test_location_suggestions(client):
 
 @pytest.mark.asyncio
 async def test_cover_image_upload_validation(client):
+    auth_headers = {"Authorization": f"tma {make_test_init_data(user_id=888999, username='uploader')}"}
     # 1. Valid JPEG
     jpeg_bytes = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00" + b"\x00" * 100
     files = {"file": ("test.jpg", jpeg_bytes, "image/jpeg")}
-    resp = await client.post("/api/v1/events/upload-cover", files=files)
+    resp = await client.post("/api/v1/events/upload-cover", files=files, headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["url"].startswith("/uploads/covers/")
 
     # 2. Invalid fake image (text/plain disguised as jpeg)
     fake_files = {"file": ("fake.jpg", b"hello not an image", "image/jpeg")}
-    fake_resp = await client.post("/api/v1/events/upload-cover", files=fake_files)
+    fake_resp = await client.post("/api/v1/events/upload-cover", files=fake_files, headers=auth_headers)
     assert fake_resp.status_code == 400
 
 

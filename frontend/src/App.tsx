@@ -615,6 +615,11 @@ export const App: React.FC = () => {
     }
   }, [isAdmin, adminStatusFilter]);
 
+  // Eagerly load personal hub on startup so unread indicators / notifications badge are active immediately
+  useEffect(() => {
+    loadPersonalHub(true);
+  }, [loadPersonalHub]);
+
   useEffect(() => {
     if (currentTab === 'my_events' || currentTab === 'organizer') {
       loadPersonalHub(hasLoadedHubRef.current);

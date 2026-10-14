@@ -12,7 +12,7 @@ class Category(Base):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Relationships
-    events = relationship("Event", back_populates="category", cascade="all, delete-orphan")
+    events = relationship("Event", back_populates="category")
 
     def __repr__(self) -> str:
         return f"<Category(id='{self.id}', name='{self.name}', slug='{self.slug}')>"

@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import settings
+from app.models.user import User
+from app.api.deps import require_admin
 from app.services.telegram_bot import handle_inline_query, handle_private_message, build_mini_app_button
 
 logger = logging.getLogger("evently.telegram_webhook")
@@ -91,12 +93,27 @@ async def dispatch_telegram_update(
 @router.post("/webhook")
 async def telegram_webhook(
     update: Dict[str, Any],
-    session: AsyncSession = Depends(get_db)
+    session: AsyncSession = Depends(get_db),
+    x_telegram_bot_api_secret_token: Optional[str] = Header(None)
 ):
     """
     Ingests and routes Telegram updates from webhook.
+    Verifies X-Telegram-Bot-Api-Secret-Token if TELEGRAM_WEBHOOK_SECRET is configured.
     Returns Bot API method directly in response for webhook clients.
     """
+    effective_secret = settings.effective_webhook_secret
+    if effective_secret:
+        import secrets
+        from fastapi import HTTPException
+        if not x_telegram_bot_api_secret_token or not secrets.compare_digest(
+            x_telegram_bot_api_secret_token, effective_secret
+        ):
+            logger.warning("Rejected Telegram webhook update: invalid secret token")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid Telegram webhook secret token"
+            )
+
     update_id = update.get("update_id")
     logger.info(f"Received Telegram webhook update: update_id={update_id}, keys={list(update.keys())}")
     return await dispatch_telegram_update(update, session)
@@ -155,9 +172,13 @@ async def telegram_info():
 
 
 @router.post("/setup-webhook")
-async def setup_webhook_endpoint(target_url: Optional[str] = None):
+async def setup_webhook_endpoint(
+    target_url: Optional[str] = None,
+    user: User = Depends(require_admin)
+):
     """
     Registers or re-registers the webhook with Telegram Bot API.
+    Protected: requires administrator privileges.
     Uses target_url if provided, otherwise uses settings.effective_public_host.
     """
     if not settings.is_live_bot:
@@ -181,12 +202,17 @@ async def setup_webhook_endpoint(target_url: Optional[str] = None):
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            wh_payload = {
+                "url": webhook_url,
+                "allowed_updates": ["inline_query", "message"]
+            }
+            secret = settings.effective_webhook_secret
+            if secret:
+                wh_payload["secret_token"] = secret
+
             resp = await client.post(
                 f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
-                json={
-                    "url": webhook_url,
-                    "allowed_updates": ["inline_query", "message"]
-                }
+                json=wh_payload
             )
             data = resp.json()
             return {

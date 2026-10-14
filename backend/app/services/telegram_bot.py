@@ -61,7 +61,7 @@ def format_event_price_line(event: Any) -> Optional[str]:
 
 
 def format_event_date_str(event: Any) -> str:
-    """Formats event date in Russian format '%d.%m.%Y в %H:%M' in Moscow timezone (MSK / UTC+3)."""
+    """Formats event date in Russian format '%d.%m.%Y в %H:%M' in city timezone (fallback to MSK)."""
     raw_start = getattr(event, "start_at", None)
     if not raw_start:
         return "Дата уточняется"
@@ -77,11 +77,18 @@ def format_event_date_str(event: Any) -> str:
 
     if dt:
         try:
-            msk_tz = timezone(timedelta(hours=3))
+            city_tz_str = None
+            if hasattr(event, "city") and event.city and getattr(event.city, "timezone", None):
+                city_tz_str = event.city.timezone
+            elif hasattr(event, "city_timezone") and event.city_timezone:
+                city_tz_str = event.city_timezone
+
+            from app.services.event_service import resolve_city_timezone
+            tz = resolve_city_timezone(city_tz_str or "Europe/Moscow")
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc).astimezone(msk_tz)
+                dt = dt.replace(tzinfo=timezone.utc).astimezone(tz)
             else:
-                dt = dt.astimezone(msk_tz)
+                dt = dt.astimezone(tz)
             return dt.strftime("%d.%m.%Y в %H:%M")
         except Exception:
             pass
@@ -450,7 +457,10 @@ async def handle_inline_query(
         try:
             from app.services.event_service import get_event_details
             event_details = await get_event_details(session, target_event_id)
-            if event_details:
+            ev_status = getattr(event_details, "status", None)
+            if hasattr(ev_status, "value"):
+                ev_status = ev_status.value
+            if event_details and ev_status == "published":
                 return {
                     "inline_query_id": query_id,
                     "results": [

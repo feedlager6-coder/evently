@@ -88,7 +88,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
       setBookmarkedEventIds(
         eventsData.reduce((acc, ev) => ({
           ...acc,
-          [ev.id]: Boolean((ev as any).is_interested || (ev as any).is_bookmarked),
+          [ev.id]: Boolean(ev.current_user_interested || (ev as any).is_interested || (ev as any).is_bookmarked),
         }), {})
       );
     } catch (err: any) {
@@ -864,7 +864,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </div>
 
                 {/* Venue Rules & Features */}
-                {org.features && org.features.length > 0 ? (
+                {org.features && org.features.length > 0 && (
                   <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2.5 shadow-sm">
                     <div className="text-xs font-bold text-white uppercase tracking-wider">
                       Особенности и удобства
@@ -879,22 +879,6 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                           <span>{feat}</span>
                         </div>
                       ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2.5 shadow-sm">
-                    <div className="text-xs font-bold text-white uppercase tracking-wider">
-                      Характеристики и правила
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                        <span className="text-[10px] text-neutral-500">Возрастной ценз</span>
-                        <span className="font-bold text-white">FC / DC 18+</span>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-[#08080A] border border-white/5 flex flex-col space-y-0.5">
-                        <span className="text-[10px] text-neutral-500">Оплата на баре</span>
-                        <span className="font-bold text-white">Безналичный расчет</span>
-                      </div>
                     </div>
                   </div>
                 )}

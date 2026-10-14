@@ -1,6 +1,6 @@
 import logging
 import html
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Set
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -210,21 +210,29 @@ async def notify_organization_subscribers(
 def build_event_notification_reply_markup(event_id: str, attribution_token: Optional[str] = None) -> Dict[str, Any]:
     """
     Builds official Telegram Mini App inline keyboard for direct private chat messages.
-    Uses 'web_app' button targeting public host with ?startapp= parameter for immediate
-    in-app loading without external browser redirect hoops.
+    Uses 'web_app' button targeting public host with ?startapp= parameter if HTTPS is configured,
+    otherwise falls back to Telegram deep link.
     """
     param = f"event_{event_id}"
     if attribution_token:
         param = f"event_{event_id}_b_{attribution_token}"
-    web_app_url = f"{settings.effective_public_host}/?startapp={param}"
+
+    if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
+        btn: Dict[str, Any] = {
+            "text": "🟢 Открыть событие",
+            "style": "success",
+            "web_app": {"url": f"{settings.effective_public_host}/?startapp={param}"}
+        }
+    else:
+        btn = {
+            "text": "🟢 Открыть событие",
+            "style": "success",
+            "url": settings.get_event_deep_link(event_id, attribution_token=attribution_token)
+        }
+
     return {
         "inline_keyboard": [
-            [
-                {
-                    "text": "🟢 Открыть событие",
-                    "web_app": {"url": web_app_url}
-                }
-            ]
+            [btn]
         ]
     }
 
@@ -236,7 +244,7 @@ async def _dispatch_notifications(
 ) -> int:
     # Load event with city and organization
     stmt = (
-        select(Event, Organization, City.name.label("city_name"))
+        select(Event, Organization, City.name.label("city_name"), City.timezone.label("city_timezone"))
         .join(Organization, Event.organization_id == Organization.id)
         .outerjoin(City, Event.city_id == City.id)
         .where(Event.id == event_id)
@@ -248,7 +256,7 @@ async def _dispatch_notifications(
         logger.info(f"Notification skipped: Event '{event_id}' has no associated organization.")
         return 0
 
-    event, org, city_name = row
+    event, org, city_name, city_tz_str = row
 
     # STRICT CHECK: Event must be published
     if event.status != EventStatus.PUBLISHED.value:
@@ -275,7 +283,14 @@ async def _dispatch_notifications(
         return 0
 
     # Prepare message content
-    date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
+    from app.services.event_service import resolve_city_timezone
+    tz = resolve_city_timezone(city_tz_str or "Europe/Moscow")
+    dt = event.start_at
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(tz)
+    else:
+        dt = dt.astimezone(tz)
+    date_str = dt.strftime("%d.%m.%Y в %H:%M")
     safe_org_name = html.escape(org.name)
     safe_title = html.escape(event.title)
     safe_venue = html.escape(event.venue_name)
@@ -375,10 +390,32 @@ async def notify_event_updated(
 
     change_lines: List[str] = []
     if changes.get("time_changed"):
+        from app.services.event_service import resolve_city_timezone
+        city_tz_str = "Europe/Moscow"
+        if event.city_id:
+            try:
+                from app.models.city import City
+                c_res = await session.execute(select(City.timezone).where(City.id == event.city_id))
+                c_val = c_res.scalar_one_or_none()
+                if c_val:
+                    city_tz_str = c_val
+            except Exception:
+                pass
+        tz = resolve_city_timezone(city_tz_str)
+
+        def _fmt_dt(val: Any) -> str:
+            if isinstance(val, datetime):
+                if val.tzinfo is None:
+                    val = val.replace(tzinfo=timezone.utc).astimezone(tz)
+                else:
+                    val = val.astimezone(tz)
+                return val.strftime("%d.%m.%Y в %H:%M")
+            return str(val)
+
         old_time = changes.get("old_start_at")
         new_time = changes.get("new_start_at")
-        old_str = old_time.strftime("%d.%m.%Y в %H:%M") if isinstance(old_time, datetime) else str(old_time)
-        new_str = new_time.strftime("%d.%m.%Y в %H:%M") if isinstance(new_time, datetime) else str(new_time)
+        old_str = _fmt_dt(old_time)
+        new_str = _fmt_dt(new_time)
         change_lines.append(f"Время начала изменилось:\nБыло: {old_str}\nСтало: {new_str}")
 
     if changes.get("venue_changed"):

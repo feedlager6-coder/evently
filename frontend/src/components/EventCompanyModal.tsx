@@ -430,7 +430,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                           {member.display_name}
                         </div>
                         <div className="flex items-center space-x-1.5 text-[10px] mt-0.5">
-                          {member.attendance_status === 'going' ? (
+                          {(member.attendance_status === 'going' || member.attendance_status === 'attending') ? (
                             <span className="text-emerald-400 font-medium">● Идёт</span>
                           ) : (
                             <span className="text-[#ffb95f] font-medium">● Интересуется</span>
@@ -505,7 +505,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                       <div className="flex items-center space-x-2.5 min-w-0">
                         <div className="w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px] rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#131722]">
                           <SafeAvatar
-                            src={req.other_user_avatar_url}
+                            src={req.other_user_avatar_url || req.other_avatar_url}
                             name={req.other_user_display_name}
                             className="w-full h-full object-cover"
                           />
@@ -557,7 +557,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                       <div className="flex items-center space-x-2.5 min-w-0 flex-1">
                         <div className="w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px] rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#131722]">
                           <SafeAvatar
-                            src={req.other_user_avatar_url}
+                            src={req.other_user_avatar_url || req.other_avatar_url}
                             name={req.other_user_display_name}
                             className="w-full h-full object-cover"
                           />
@@ -616,7 +616,7 @@ export const EventCompanyModal: React.FC<EventCompanyModalProps> = ({
                           </span>
                         </div>
                         <div className="text-[10px] text-emerald-300 mt-0.5">
-                          {match.attendance_status === 'going' ? 'Идёт на событие' : 'Интересуется событием'}
+                          {(match.attendance_status === 'going' || match.attendance_status === 'attending') ? 'Идёт на событие' : 'Интересуется событием'}
                         </div>
                       </div>
                     </div>

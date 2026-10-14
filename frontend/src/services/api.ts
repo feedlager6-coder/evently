@@ -1121,64 +1121,33 @@ export const api = {
       if (res.ok) {
         return await res.json();
       }
-    } catch {
-      // Offline fallback handling below
-    }
-
-    // Client-side robust verification fallback
-    let parsedEventId = '';
-    let parsedTicketNo = clean;
-    if (clean.startsWith('{')) {
       try {
-        const parsed = JSON.parse(clean);
-        parsedTicketNo = parsed.ticket_id || clean;
-        parsedEventId = parsed.event_id || '';
+        const errJson = await res.json();
+        if (errJson.status && errJson.message) {
+          return errJson;
+        }
+        return {
+          status: 'invalid',
+          message: errJson.detail || 'Не удалось проверить билет на сервере',
+          ticket_code: clean,
+          checked_in_at: now,
+        };
       } catch {
-        // ignore parse error
+        return {
+          status: 'invalid',
+          message: `Ошибка проверки билета (${res.status})`,
+          ticket_code: clean,
+          checked_in_at: now,
+        };
       }
-    }
-
-    if (parsedEventId && parsedEventId !== eventId) {
+    } catch (err: any) {
       return {
         status: 'invalid',
-        message: 'Билет относится к другому мероприятию',
-        ticket_code: parsedTicketNo,
+        message: 'Ошибка сети. Проверьте подключение к интернету.',
+        ticket_code: clean,
         checked_in_at: now,
       };
     }
-
-    const storageKey = `ivently_checked_tickets_${eventId}`;
-    let previousScans: string[] = [];
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) previousScans = JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-
-    if (previousScans.includes(parsedTicketNo)) {
-      return {
-        status: 'already_checked_in',
-        message: 'Билет уже был использован для входа ранее',
-        ticket_code: parsedTicketNo,
-        checked_in_at: now,
-      };
-    }
-
-    previousScans.push(parsedTicketNo);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(previousScans));
-    } catch {
-      // ignore
-    }
-
-    return {
-      status: 'success',
-      message: 'Билет действителен. Вход подтвержден!',
-      ticket_code: parsedTicketNo,
-      checked_in_at: now,
-      guest_name: 'Гость Ivently',
-    };
   }
 };
 

@@ -206,6 +206,9 @@ async def test_event_interest_audience_restrictions(client, test_session):
     )
     event_id = ev_res.json()["id"]
 
+    admin_auth = {"Authorization": f"tma {make_test_init_data(user_id=123456789, username='admin')}"}
+    await client.post(f"/api/v1/admin/events/{event_id}/publish", headers=admin_auth)
+
     # User 1 marks interest ("Хочу пойти")
     user1_init = make_test_init_data(user_id=1401, username="rock_fan")
     await client.post(

@@ -19,11 +19,58 @@ class OrganizationCreate(BaseModel):
     @field_validator("avatar_url")
     @classmethod
     def validate_avatar_url(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v.strip():
-            v = v.strip()
-            if not (v.startswith("http://") or v.startswith("https://") or v.startswith("/uploads/") or v.startswith("/")):
-                raise ValueError("avatar_url must start with http://, https://, or /uploads/")
-        return v
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if val.startswith("//"):
+            raise ValueError("avatar_url не может быть protocol-relative (начинаться с //)")
+        if not (val.startswith("http://") or val.startswith("https://") or val.startswith("/uploads/")):
+            raise ValueError("avatar_url должен начинаться с http://, https:// или /uploads/")
+        return val
+
+    @field_validator("website")
+    @classmethod
+    def validate_website(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if not (val.startswith("http://") or val.startswith("https://")):
+            return f"https://{val}"
+        return val
+
+    @field_validator("social_link")
+    @classmethod
+    def validate_social_link(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if val.startswith("@"):
+            return f"https://t.me/{val[1:]}"
+        if val.startswith("t.me/"):
+            return f"https://{val}"
+        if val.startswith("vk.com/"):
+            return f"https://{val}"
+        if not (val.startswith("http://") or val.startswith("https://")):
+            return f"https://{val}"
+        return val
 
 
 class OrganizationUpdate(BaseModel):
@@ -39,6 +86,62 @@ class OrganizationUpdate(BaseModel):
     social_link: Optional[str] = Field(None, max_length=1024)
     features: Optional[List[str]] = Field(None)
     status: Optional[str] = Field(None, pattern="^(active|disabled)$")
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if val.startswith("//"):
+            raise ValueError("avatar_url не может быть protocol-relative (начинаться с //)")
+        if not (val.startswith("http://") or val.startswith("https://") or val.startswith("/uploads/")):
+            raise ValueError("avatar_url должен начинаться с http://, https:// или /uploads/")
+        return val
+
+    @field_validator("website")
+    @classmethod
+    def validate_website(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if not (val.startswith("http://") or val.startswith("https://")):
+            return f"https://{val}"
+        return val
+
+    @field_validator("social_link")
+    @classmethod
+    def validate_social_link(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        low = val.lower()
+        for bad in ("javascript:", "data:", "vbscript:", "file:"):
+            if low.startswith(bad):
+                raise ValueError(f"Недопустимая схема URL: {bad}")
+        if val.startswith("@"):
+            return f"https://t.me/{val[1:]}"
+        if val.startswith("t.me/"):
+            return f"https://{val}"
+        if val.startswith("vk.com/"):
+            return f"https://{val}"
+        if not (val.startswith("http://") or val.startswith("https://")):
+            return f"https://{val}"
+        return val
 
 
 class OrganizationSummary(BaseModel):

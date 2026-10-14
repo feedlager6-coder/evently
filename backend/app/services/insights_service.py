@@ -6,7 +6,7 @@ from sqlalchemy import select, func, or_, case, union
 
 from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.models.attendee import EventAttendee
 from app.models.interest import EventInterest
 from app.models.view import EventView
@@ -97,10 +97,14 @@ async def get_organizer_insights(
             or_(
                 Event.organizer_user_id == organizer_user_id,
                 Event.organization_id.in_(owned_org_ids),
-            )
+            ),
+            Event.status != EventStatus.DELETED.value
         )
     else:
-        event_query = select(Event).where(Event.organizer_user_id == organizer_user_id)
+        event_query = select(Event).where(
+            Event.organizer_user_id == organizer_user_id,
+            Event.status != EventStatus.DELETED.value
+        )
 
     event_res = await session.execute(event_query)
     all_events = event_res.scalars().all()
@@ -163,8 +167,14 @@ async def get_organizer_insights(
 
     # 4. Events performance totals
     total_events = len(all_events)
-    upcoming_count = sum(1 for e in all_events if e.start_at and to_utc(e.start_at) >= now and e.status != "cancelled")
-    past_count = sum(1 for e in all_events if e.start_at and (to_utc(e.start_at) < now or e.status == "cancelled"))
+    upcoming_count = sum(
+        1 for e in all_events
+        if e.start_at and to_utc(e.start_at) >= now and e.status in (EventStatus.PUBLISHED.value, EventStatus.PENDING.value)
+    )
+    past_count = sum(
+        1 for e in all_events
+        if e.start_at and (to_utc(e.start_at) < now or e.status == EventStatus.CANCELLED.value)
+    )
 
     total_views = 0
     total_interest = 0

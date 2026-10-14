@@ -28,6 +28,7 @@ import {
  * value: 'attending'
  * value: 'interested'
  * value: 'created'
+ * label: 'Созданные'
  * value: 'subscriptions'
  * value: 'history'
  */
@@ -83,10 +84,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   }, [initialFilter]);
 
   const now = new Date();
-  const activeAttending = attendingEvents.filter((e) => new Date(e.start_at) >= now);
-  const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
+  const activeAttending = attendingEvents.filter((e) => new Date(e.start_at).getTime() + 6 * 3600 * 1000 >= now.getTime());
+  const activeInterested = interestedEvents.filter((e) => new Date(e.start_at).getTime() + 6 * 3600 * 1000 >= now.getTime());
 
   const totalTickets = activeAttending.length;
+  const isAnyOrgPro = organizations.some((o: any) => o.plan === 'pro');
   const isOrganizer = organizations.length > 0;
   const hasCreatedEvents = myCreatedEvents.length > 0 || isOrganizer;
   const totalFilterTabs = hasCreatedEvents ? 3 : 2;
@@ -116,10 +118,12 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
       <header className="flex items-center justify-between gap-2 pt-1">
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">Мои события</h1>
-          <span className="shrink-0 inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full bg-[#2a2a2c] text-[#4edea3] text-[11px] font-bold tracking-wide border border-white/5 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
-            PRO
-          </span>
+          {isAnyOrgPro && (
+            <span className="shrink-0 inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full bg-[#2a2a2c] text-[#4edea3] text-[11px] font-bold tracking-wide border border-white/5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse" />
+              PRO
+            </span>
+          )}
         </div>
         <div className="shrink-0 flex items-center gap-1.5 bg-[#1c1b1e] px-3 h-7 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5">
           <Ticket className="w-3.5 h-3.5 text-[#4edea3]" />
@@ -162,7 +166,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         </div>
 
         <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
-          {organizations.length > 0 || myCreatedEvents.length > 0 ? (
+          {isOrganizer || myCreatedEvents.length > 0 ? (
             <>
               <button
                 onClick={() => {

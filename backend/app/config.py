@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     TELEGRAM_MINI_APP_URL: str = "https://t.me/Ivently_bot/app"
     TELEGRAM_MINI_APP_SHORT_NAME: Optional[str] = "app"
     TELEGRAM_MODE: str = "polling"  # "polling" (instant delivery, immune to inbound drops) or "webhook"
+    TELEGRAM_WEBHOOK_SECRET: Optional[str] = None
 
     # Admin Telegram IDs (comma-separated or list of ints)
     ADMIN_USER_IDS: str = "123456789,987654321"
@@ -88,6 +89,7 @@ class Settings(BaseSettings):
         "TELEGRAM_MINI_APP_URL",
         "TELEGRAM_MINI_APP_SHORT_NAME",
         "TELEGRAM_MODE",
+        "TELEGRAM_WEBHOOK_SECRET",
         "ADMIN_USER_IDS",
         "SECRET_KEY",
         "PUBLIC_HOST",
@@ -153,13 +155,26 @@ class Settings(BaseSettings):
             or os.getenv("RAILWAY_STATIC_URL")
         )
         if not host:
-            if self.APP_ENV == "production":
-                return "https://iventlyapp.ru"
-            return "https://iventlyapp.ru"
+            return "https://ivently.up.railway.app"
         host = host.strip().strip("'\"").strip()
         if not host.startswith("http://") and not host.startswith("https://"):
             host = f"https://{host}"
         return host.rstrip("/")
+
+    @property
+    def effective_webhook_secret(self) -> Optional[str]:
+        """
+        Determines the secret token for Telegram Webhook security.
+        Uses explicit TELEGRAM_WEBHOOK_SECRET if set, otherwise derives
+        a deterministic sha256 token from SECRET_KEY and TELEGRAM_BOT_TOKEN
+        in production or when live bot is configured.
+        """
+        if self.TELEGRAM_WEBHOOK_SECRET:
+            return self.TELEGRAM_WEBHOOK_SECRET
+        if (self.APP_ENV == "production" or self.is_live_bot) and self.clean_bot_token and self.SECRET_KEY:
+            import hashlib
+            return hashlib.sha256(f"{self.SECRET_KEY}:{self.clean_bot_token}".encode()).hexdigest()[:32]
+        return None
 
     @property
     def clean_bot_username(self) -> str:

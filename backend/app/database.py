@@ -89,6 +89,7 @@ async def init_db(target_engine=None) -> None:
             ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
             ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
             ("broadcasts", "attribution_token", "VARCHAR(32)", "VARCHAR(32)"),
+            ("broadcasts", "is_silent", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
             ("broadcast_recipients", "opened_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
             ("broadcast_recipients", "attributed_interest_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
             ("broadcast_recipients", "attributed_rsvp_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
@@ -103,6 +104,7 @@ async def init_db(target_engine=None) -> None:
             ("payment_orders", "pro_extended_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
             ("payment_orders", "success_notified_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
             ("payment_orders", "metadata_json", "TEXT", "TEXT"),
+            ("event_attendees", "ticket_code", "VARCHAR(255)", "VARCHAR(255)"),
         ]
 
         dialect_name = conn.dialect.name

@@ -27,7 +27,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
   const userIdentifier = currentUser?.id ? String(currentUser.id) : 'GUEST';
 
   const generatedTicketNo = event
-    ? ticketNumber || `IVN-${event.id.replace(/-/g, '').slice(0, 4).toUpperCase()}-${userIdentifier}`
+    ? ticketNumber || event.ticket_code || `IVN-${event.id.replace(/-/g, '').slice(0, 4).toUpperCase()}-${userIdentifier}`
     : '';
 
   const isFree = Boolean(event?.is_free) || (event?.price_amount !== null && event?.price_amount !== undefined && Number(event?.price_amount) === 0);
@@ -73,7 +73,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
 
   const handleShareTelegram = () => {
     telegram.hapticImpact('medium');
-    const shareText = `Мой электронный билет на «${event.title}» в Ivently!\n📅 Дата: ${formattedDate}\n📍 Место: ${event.venue_name || 'Локация в приложении'}\n🎟 Номер: ${generatedTicketNo}`;
+    const shareText = `Я иду на «${event.title}» в Ivently!\n📅 Дата: ${formattedDate}\n📍 Место: ${event.venue_name || 'Локация в приложении'}\nПрисоединяйтесь!`;
     const directEventUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/Ivently_bot?start=event_${event.id}`)}&text=${encodeURIComponent(shareText)}`;
 
     if (window.Telegram?.WebApp?.openTelegramLink) {

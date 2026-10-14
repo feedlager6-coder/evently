@@ -180,8 +180,8 @@ export const CreateOrganizationModal: React.FC<CreateOrganizationModalProps> = (
 
   const handleSelectSuggestion = (suggestion: LocationSuggestion) => {
     setAddress(suggestion.address || suggestion.display_name);
-    setLatitude(suggestion.latitude);
-    setLongitude(suggestion.longitude);
+    setLatitude(suggestion.latitude ?? undefined);
+    setLongitude(suggestion.longitude ?? undefined);
     setShowSuggestions(false);
     setLocationSuggestions([]);
     telegram.hapticImpact('light');

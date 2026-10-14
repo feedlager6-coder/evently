@@ -52,8 +52,9 @@ async def test_save_image_local():
 @pytest.mark.asyncio
 async def test_upload_avatar_endpoint(client: AsyncClient):
     """Verifies POST /api/v1/organizations/upload-avatar endpoint."""
+    auth_headers = {"Authorization": f"tma {make_test_init_data(user_id=123456789)}"}
     files = {"file": ("avatar.png", TINY_PNG, "image/png")}
-    response = await client.post("/api/v1/organizations/upload-avatar", files=files)
+    response = await client.post("/api/v1/organizations/upload-avatar", files=files, headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert "url" in data
@@ -61,7 +62,7 @@ async def test_upload_avatar_endpoint(client: AsyncClient):
 
     # Test upload with invalid file format
     invalid_files = {"file": ("avatar.txt", b"plain text", "text/plain")}
-    err_response = await client.post("/api/v1/organizations/upload-avatar", files=invalid_files)
+    err_response = await client.post("/api/v1/organizations/upload-avatar", files=invalid_files, headers=auth_headers)
     assert err_response.status_code == 400
 
 
@@ -69,7 +70,7 @@ async def test_upload_avatar_endpoint(client: AsyncClient):
 async def test_upload_event_cover_endpoint(client: AsyncClient):
     """Verifies POST /api/v1/events/upload-cover endpoint requires auth and works with valid image."""
     init_data = make_test_init_data(user_id=123456789)
-    headers = {"X-Telegram-Init-Data": init_data}
+    headers = {"Authorization": f"tma {init_data}"}
 
     # Upload valid JPEG cover
     files = {"file": ("cover.jpg", TINY_JPEG, "image/jpeg")}

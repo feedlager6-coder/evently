@@ -13,7 +13,7 @@ from app.schemas.organization import (
 from app.schemas.subscription import SubscriptionStatusResponse
 from app.schemas.event import EventSummary
 from app.api.deps import get_current_user, get_current_user_optional
-from app.services.storage_service import storage_service
+from app.services.storage_service import storage_service, MAX_FILE_SIZE
 from app.services.organization_service import (
     create_organization as create_org_service,
     get_organization_by_id_or_slug,
@@ -30,14 +30,21 @@ router = APIRouter(prefix="/organizations", tags=["Organizations"])
 
 @router.post("/upload-avatar")
 async def upload_organization_avatar(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user)
 ):
     """
     Uploads an organization avatar.
+    Requires authenticated user.
     Validates MIME type, file size limit (5MB), and magic bytes.
     Saves image to persistent storage (S3 or persistent volume/disk) and returns URL.
     """
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Размер файла превышает лимит 5 МБ"
+        )
     url = await storage_service.save_image(
         content=content,
         content_type=file.content_type or "",

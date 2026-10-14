@@ -40,7 +40,10 @@ const STANDARD_CATEGORIES = [
   { id: 'parties', name: 'Вечеринки' },
   { id: 'lectures', name: 'Лекции' },
   { id: 'exhibitions', name: 'Выставки' },
-  { id: 'sport', name: 'Спорт' },
+  { id: 'sports', name: 'Спорт' },
+  { id: 'education', name: 'Обучение' },
+  { id: 'business', name: 'Бизнес' },
+  { id: 'theatre', name: 'Театр' },
   { id: 'other', name: 'Другое' },
 ];
 
@@ -277,8 +280,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setImageUploadError('Размер файла не должен превышать 10 МБ');
+    if (file.size > 5 * 1024 * 1024) {
+      setImageUploadError('Размер файла не должен превышать 5 МБ');
       return;
     }
 
@@ -307,8 +310,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     if (!venueName.trim()) {
       setVenueName(suggestion.title || suggestion.display_name.split(',')[0].trim());
     }
-    setLatitude(suggestion.latitude);
-    setLongitude(suggestion.longitude);
+    setLatitude(suggestion.latitude ?? undefined);
+    setLongitude(suggestion.longitude ?? undefined);
     setShowSuggestions(false);
     setLocationSuggestions([]);
     telegram.hapticImpact('light');
@@ -363,6 +366,16 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         await api.createEvent(payload);
         telegram.hapticSuccess();
         setSuccess(true);
+        try {
+          const rawDrafts = localStorage.getItem('ivently_event_drafts');
+          if (rawDrafts) {
+            const parsed = JSON.parse(rawDrafts);
+            const filtered = parsed.filter((d: any) => d.id !== initialDraft?.id);
+            localStorage.setItem('ivently_event_drafts', JSON.stringify(filtered));
+          }
+        } catch (e) {
+          console.warn('Failed to clean up draft from localStorage:', e);
+        }
         onEventCreated();
       }
     } catch (err: any) {
@@ -509,6 +522,24 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     {selectedOrgId === org.id && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
                   </button>
                 ))}
+                {!selectedOrgId && (
+                  <div className="pt-2.5 sm:col-span-2">
+                    <label className="flex items-center space-x-2.5 cursor-pointer bg-white/[0.02] hover:bg-white/[0.04] p-3 rounded-xl border border-white/5 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={allowEventContact}
+                        onChange={(e) => {
+                          setAllowEventContact(e.target.checked);
+                          telegram.hapticImpact('light');
+                        }}
+                        className="rounded border-neutral-700 text-emerald-500 focus:ring-0 w-4 h-4 bg-neutral-900"
+                      />
+                      <span className="text-xs text-neutral-300 font-medium">
+                        Разрешить гостям писать мне в Telegram по поводу события
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -555,7 +586,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 {isUploadingImage ? 'Загрузка...' : 'Загрузить изображение'}
               </span>
               <span className="text-[11px] text-neutral-500 mt-0.5">
-                JPG или PNG до 10 МБ (16:9 или 4:3)
+                JPG, PNG или WebP до 5 МБ (16:9 или 4:3)
               </span>
               <input 
                 ref={fileInputRef}
@@ -654,6 +685,30 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
               Дата, время и место
             </label>
+
+            {/* City Selector */}
+            {cities && cities.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center justify-between">
+                  <span>Город проведения *</span>
+                  <span className="text-[10px] text-neutral-500">{cities.length} городов</span>
+                </label>
+                <select
+                  value={cityId}
+                  onChange={(e) => {
+                    setCityId(e.target.value);
+                    telegram.hapticImpact('light');
+                  }}
+                  className="input-field w-full px-3.5 py-2.5 rounded-xl text-sm text-white bg-[#17171a] border border-white/10"
+                >
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id} className="bg-[#17171a] text-white">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             
             <div className="grid grid-cols-2 gap-2.5">
               <div>

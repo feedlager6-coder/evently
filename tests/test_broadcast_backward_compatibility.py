@@ -174,16 +174,33 @@ async def test_schema_migration_preserves_d40_legacy_broadcasts(tmp_path):
 
     # Execute migrations exactly as done in app.database.init_db
     migrations = [
+        ("events", "organization_id", "VARCHAR(36)", "VARCHAR(36)"),
         ("events", "allow_event_contact", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
+        ("events", "capacity", "INTEGER", "INTEGER"),
         ("events", "source_type", "VARCHAR(30) DEFAULT 'user'", "VARCHAR(30) DEFAULT 'user'"),
         ("events", "source_name", "VARCHAR(100)", "VARCHAR(100)"),
         ("events", "external_id", "VARCHAR(255)", "VARCHAR(255)"),
         ("events", "source_url", "VARCHAR(1024)", "VARCHAR(1024)"),
         ("events", "last_synced_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("organizations", "features", "TEXT", "TEXT"),
+        ("users", "avatar_url", "VARCHAR(1024)", "TEXT"),
+        ("users", "default_city_id", "VARCHAR(50)", "TEXT"),
         ("broadcasts", "attribution_token", "VARCHAR(32)", "VARCHAR(32)"),
+        ("broadcasts", "is_silent", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT 0"),
         ("broadcast_recipients", "opened_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
         ("broadcast_recipients", "attributed_interest_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
         ("broadcast_recipients", "attributed_rsvp_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "customer_email", "VARCHAR(255)", "VARCHAR(255)"),
+        ("payment_orders", "service_name", "VARCHAR(255) DEFAULT 'Ivently Pro — доступ на 30 дней'", "VARCHAR(255) DEFAULT 'Ivently Pro — доступ на 30 дней'"),
+        ("payment_orders", "confirmation_url", "VARCHAR(1024)", "VARCHAR(1024)"),
+        ("payment_orders", "paid_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "expires_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "receipt_status", "VARCHAR(30) DEFAULT 'pending'", "VARCHAR(30) DEFAULT 'pending'"),
+        ("payment_orders", "receipt_url", "VARCHAR(1024)", "VARCHAR(1024)"),
+        ("payment_orders", "receipt_issued_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "pro_extended_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "success_notified_at", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP"),
+        ("payment_orders", "metadata_json", "TEXT", "TEXT"),
     ]
     async with engine.begin() as conn_async:
         for table, col, _, sqlite_type in migrations:

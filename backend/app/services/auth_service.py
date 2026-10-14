@@ -6,6 +6,7 @@ from typing import Optional, Dict
 from urllib.parse import parse_qsl, unquote
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.models.user import User
@@ -119,8 +120,16 @@ async def get_or_create_user(session: AsyncSession, tg_user: TelegramUserPayload
             avatar_url=tg_user.photo_url,
             default_city_id=None
         )
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
+        try:
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+        except IntegrityError:
+            await session.rollback()
+            res = await session.execute(stmt)
+            existing = res.scalar_one_or_none()
+            if existing:
+                return existing
+            raise
 
     return user

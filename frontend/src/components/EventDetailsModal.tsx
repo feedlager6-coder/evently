@@ -426,7 +426,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         </div>
 
         {/* Organizer Entity Card */}
-        {event.organization_name && (
+        {event.organization_name ? (
           <div 
             onClick={() => {
               if (onOpenOrgModal && event.organization_id) {
@@ -471,6 +471,43 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             >
               В профиль
             </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#1c1b1e] shadow-sm border border-white/5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-[#2a2a2c] shrink-0 border border-white/10">
+                <SafeAvatar
+                  name={(event as any).organizer_name || 'Автор'}
+                  type="user"
+                  sizeClassName="w-12 h-12"
+                  className="rounded-full"
+                />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-white font-semibold text-sm truncate">
+                    {(event as any).organizer_name || 'Автор события'}
+                  </span>
+                </div>
+                <span className="text-[#8e9192] text-xs">
+                  Частный организатор
+                </span>
+              </div>
+            </div>
+            {Boolean((event as any).organizer_contact_url || (event as any).organizer_username) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  telegram.hapticImpact('light');
+                  const url = (event as any).organizer_contact_url || `https://t.me/${(event as any).organizer_username?.replace(/^@/, '')}`;
+                  telegram.openTelegramLink(url);
+                }}
+                className="px-3.5 py-2 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-[#4edea3] text-xs font-semibold active:scale-95 transition-all shrink-0 flex items-center gap-1.5"
+                type="button"
+              >
+                <span>Написать</span>
+              </button>
+            )}
           </div>
         )}
 

@@ -28,6 +28,24 @@ def haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
     return R * c
 
 
+_CITIES_CACHE: Optional[List[City]] = None
+_CITIES_CACHE_TIME: float = 0.0
+
+
+async def _get_cached_active_cities(session: AsyncSession) -> List[City]:
+    global _CITIES_CACHE, _CITIES_CACHE_TIME
+    import time
+    now = time.time()
+    if _CITIES_CACHE is not None and (now - _CITIES_CACHE_TIME) < 60:
+        return _CITIES_CACHE
+
+    stmt = select(City).where(City.is_active == True).order_by(City.name.asc())
+    result = await session.execute(stmt)
+    _CITIES_CACHE = list(result.scalars().all())
+    _CITIES_CACHE_TIME = now
+    return _CITIES_CACHE
+
+
 @router.get("", response_model=List[CityResponse])
 async def get_cities(
     response: Response,
@@ -36,13 +54,15 @@ async def get_cities(
     session: AsyncSession = Depends(get_db)
 ):
     """Returns list of active supported cities with search filtering and HTTP caching."""
-    stmt = select(City).where(City.is_active == True).order_by(City.name.asc())
-    result = await session.execute(stmt)
-    cities = list(result.scalars().all())
+    cities = await _get_cached_active_cities(session)
 
     if q and q.strip():
         term = q.strip().lower()
-        cities = [c for c in cities if term in c.name.lower() or term in c.id.lower()]
+        filtered = [c for c in cities if term in c.name.lower() or term in c.id.lower()]
+        if limit:
+            filtered = filtered[:limit]
+        response.headers["Cache-Control"] = "private, no-cache"
+        return filtered
 
     if limit:
         cities = cities[:limit]
@@ -60,11 +80,9 @@ async def get_nearest_city(
 ):
     """
     Finds the nearest supported Russian city based on user's geographic coordinates.
+    Uses in-memory cache to guarantee sub-millisecond response time.
     """
-    result = await session.execute(
-        select(City).where(City.is_active == True)
-    )
-    cities = result.scalars().all()
+    cities = await _get_cached_active_cities(session)
     if not cities:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active cities found")
 

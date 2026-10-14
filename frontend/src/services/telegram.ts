@@ -57,6 +57,8 @@ declare global {
   }
 }
 
+let currentBackHandler: (() => void) | null = null;
+
 export const telegram = {
   isAvailable(): boolean {
     return Boolean(window.Telegram?.WebApp && window.Telegram.WebApp.initData);
@@ -329,8 +331,12 @@ export const telegram = {
   showBackButton(onClick: () => void) {
     try {
       if (window.Telegram?.WebApp?.BackButton) {
-        window.Telegram.WebApp.BackButton.show();
+        if (currentBackHandler && window.Telegram.WebApp.BackButton.offClick) {
+          window.Telegram.WebApp.BackButton.offClick(currentBackHandler);
+        }
+        currentBackHandler = onClick;
         window.Telegram.WebApp.BackButton.onClick(onClick);
+        window.Telegram.WebApp.BackButton.show();
       }
     } catch {
       // Ignored outside Telegram
@@ -340,6 +346,10 @@ export const telegram = {
   hideBackButton() {
     try {
       if (window.Telegram?.WebApp?.BackButton) {
+        if (currentBackHandler && window.Telegram.WebApp.BackButton.offClick) {
+          window.Telegram.WebApp.BackButton.offClick(currentBackHandler);
+          currentBackHandler = null;
+        }
         window.Telegram.WebApp.BackButton.hide();
       }
     } catch {

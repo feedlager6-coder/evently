@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete, update
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
+from app.services.entitlement_service import ensure_utc, utc_now
 
 def parse_features(features_raw: Optional[str]) -> List[str]:
     if not features_raw:
@@ -28,6 +29,8 @@ from app.models.broadcast import Broadcast, BroadcastStatus
 from app.models.city import City
 from app.models.user import User
 from app.models.attendee import EventAttendee
+from app.models.interest import EventInterest
+from app.services.event_service import build_signed_ticket_code
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationUpdate,
@@ -274,15 +277,28 @@ async def list_user_organizations(
     session: AsyncSession,
     user_id: int
 ) -> List[OrganizationSummary]:
-    """Lists organizations owned by the given user."""
+    """Lists organizations owned by the given user with active unexpired plan and subscriber count in a single query."""
+    now = datetime.now(timezone.utc)
+    followers_subq = (
+        select(func.count(Subscription.id))
+        .where(Subscription.organization_id == Organization.id)
+        .scalar_subquery()
+        .label("followers_count")
+    )
     stmt = (
-        select(Organization, City.name.label("city_name"), OrganizationPlan.plan.label("org_plan"))
+        select(
+            Organization,
+            City.name.label("city_name"),
+            OrganizationPlan.plan.label("org_plan"),
+            OrganizationPlan.expires_at.label("org_expires"),
+            followers_subq
+        )
         .outerjoin(City, Organization.city_id == City.id)
         .outerjoin(
             OrganizationPlan,
             and_(
                 OrganizationPlan.organization_id == Organization.id,
-                OrganizationPlan.status == PlanStatus.ACTIVE.value
+                OrganizationPlan.status == PlanStatus.ACTIVE.value,
             )
         )
         .where(
@@ -294,8 +310,10 @@ async def list_user_organizations(
     rows = (await session.execute(stmt)).all()
 
     summaries = []
-    for org, city_name, org_plan in rows:
-        followers_count = await get_followers_count(session, org.id)
+    for org, city_name, org_plan, org_expires, followers_count in rows:
+        eff_plan = org_plan or "free"
+        if org_expires and ensure_utc(org_expires) < now:
+            eff_plan = "free"
         summaries.append(
             OrganizationSummary(
                 id=org.id,
@@ -311,8 +329,8 @@ async def list_user_organizations(
                 features=parse_features(org.features),
                 status=org.status,
                 is_verified=org.is_verified,
-                plan=org_plan or "free",
-                followers_count=followers_count,
+                plan=eff_plan,
+                followers_count=followers_count or 0,
                 is_subscribed=False,
                 is_owner=True,
                 created_at=org.created_at
@@ -352,12 +370,18 @@ async def list_organization_events(
         .where(EventAttendee.event_id == Event.id)
         .scalar_subquery()
     )
+    interest_count_subq = (
+        select(func.count(EventInterest.user_id))
+        .where(EventInterest.event_id == Event.id)
+        .scalar_subquery()
+    )
 
     query = (
         select(
             Event,
             City.name.label("city_name"),
-            attendee_count_subq.label("attendee_count")
+            attendee_count_subq.label("attendee_count"),
+            interest_count_subq.label("interest_count")
         )
         .outerjoin(City, Event.city_id == City.id)
         .where(Event.organization_id == org_id)
@@ -372,14 +396,17 @@ async def list_organization_events(
 
     rows = (await session.execute(query)).all()
 
-    # User attendances
+    # User attendances and interests
     attending_event_ids = set()
+    interested_event_ids = set()
     if current_user_id:
         att_stmt = select(EventAttendee.event_id).where(EventAttendee.user_id == current_user_id)
         attending_event_ids = set((await session.execute(att_stmt)).scalars().all())
+        int_stmt = select(EventInterest.event_id).where(EventInterest.user_id == current_user_id)
+        interested_event_ids = set((await session.execute(int_stmt)).scalars().all())
 
     summaries = []
-    for ev, c_name, att_count in rows:
+    for ev, c_name, att_count, int_count in rows:
         summaries.append(
             EventSummary(
                 id=ev.id,
@@ -399,13 +426,16 @@ async def list_organization_events(
                 attendee_count=att_count or 0,
                 status=ev.status,
                 is_attending=(ev.id in attending_event_ids),
+                interest_count=int_count or 0,
+                current_user_interested=(ev.id in interested_event_ids),
                 organization_id=org.id,
                 organization_name=org.name,
                 organization_category=org.category,
                 organization_avatar_url=org.avatar_url,
                 allow_event_contact=bool(getattr(ev, "allow_event_contact", False)),
                 source_type=getattr(ev, "source_type", "user") or "user",
-                source_name=getattr(ev, "source_name", None)
+                source_name=getattr(ev, "source_name", None),
+                ticket_code=(build_signed_ticket_code(ev.id, current_user_id) if current_user_id and (ev.id in attending_event_ids) else None),
             )
         )
     return summaries
@@ -492,8 +522,15 @@ async def list_user_subscriptions(
     user_id: int
 ) -> List[UserSubscriptionItem]:
     """Lists all organizations the user is currently subscribed to."""
+    from sqlalchemy.orm import aliased
+    SubFollowers = aliased(Subscription)
+    followers_subq = (
+        select(func.count(SubFollowers.id))
+        .where(SubFollowers.organization_id == Organization.id)
+        .scalar_subquery()
+    )
     stmt = (
-        select(Subscription, Organization, City.name.label("city_name"))
+        select(Subscription, Organization, City.name.label("city_name"), followers_subq.label("followers_count"))
         .join(Organization, Subscription.organization_id == Organization.id)
         .outerjoin(City, Organization.city_id == City.id)
         .where(
@@ -505,8 +542,7 @@ async def list_user_subscriptions(
     rows = (await session.execute(stmt)).all()
 
     items = []
-    for sub, org, city_name in rows:
-        followers_count = await get_followers_count(session, org.id)
+    for sub, org, city_name, followers_count in rows:
         summary = OrganizationSummary(
             id=org.id,
             name=org.name,
@@ -520,7 +556,7 @@ async def list_user_subscriptions(
             avatar_url=org.avatar_url,
             status=org.status,
             is_verified=org.is_verified,
-            followers_count=followers_count,
+            followers_count=followers_count or 0,
             is_subscribed=True,
             is_owner=(org.owner_user_id == user_id),
             created_at=org.created_at

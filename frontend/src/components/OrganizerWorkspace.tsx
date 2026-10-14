@@ -148,6 +148,33 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
   const monthlyBroadcastsRemaining = entitlements?.limits?.broadcasts_remaining ?? Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
 
+  // Check pending Pro payment order on mount / return
+  useEffect(() => {
+    const raw = localStorage.getItem('ivently_pending_pro_order');
+    if (!raw) return;
+    try {
+      const pending = JSON.parse(raw);
+      if (pending?.orderId && Date.now() - (pending.createdAt || 0) < 3600000) {
+        api.getPaymentOrder(pending.orderId).then((order) => {
+          if (order.status === 'succeeded') {
+            localStorage.removeItem('ivently_pending_pro_order');
+            if (activeOrg) {
+              api.getOrganizerEntitlements(activeOrg.id).then((ent: OrganizerEntitlementsResponse) => setEntitlements(ent)).catch(() => {});
+            }
+            if (onRefreshOrganizations) onRefreshOrganizations();
+            telegram.showAlert('🎉 Оплата прошла успешно! Тариф PRO активирован.');
+          } else if (order.status === 'canceled' || order.status === 'failed') {
+            localStorage.removeItem('ivently_pending_pro_order');
+          }
+        }).catch(() => {});
+      } else {
+        localStorage.removeItem('ivently_pending_pro_order');
+      }
+    } catch {
+      localStorage.removeItem('ivently_pending_pro_order');
+    }
+  }, [activeOrg, onRefreshOrganizations]);
+
   // Reusable multi-organization selector component
   const renderOrgSelector = (suffix?: string) => {
     if (organizations.length <= 1) {
@@ -359,6 +386,12 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     telegram.hapticImpact('medium');
     const confirmed = await telegram.showConfirm(`Отозвать заявку на модерацию события «${eventItem.title}»? Оно будет переведено в черновики.`);
     if (confirmed) {
+      try {
+        await api.deleteEvent(eventItem.id);
+      } catch (e) {
+        console.warn('Backend deleteEvent on revoke error:', e);
+      }
+      setLocalEvents((prev) => prev.filter((e) => e.id !== eventItem.id));
       const revokedDraft = {
         ...eventItem,
         status: 'draft',
@@ -2554,6 +2587,23 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 }
                 try {
                   telegram.hapticImpact('heavy');
+                  const config = await api.getPaymentConfig();
+                  if (config.payments_enabled) {
+                    const order = await api.createProPayment({ organization_id: activeOrg.id });
+                    localStorage.setItem('ivently_pending_pro_order', JSON.stringify({
+                      orderId: order.id,
+                      orgId: activeOrg.id,
+                      createdAt: Date.now()
+                    }));
+                    if (order.confirmation_url) {
+                      telegram.openLink(order.confirmation_url);
+                      await telegram.showAlert('Страница безопасной оплаты ЮKassa открыта. После завершения платежа вернитесь в приложение — статус PRO обновится.');
+                      setIsProModalOpen(false);
+                      return;
+                    }
+                  }
+
+                  // Fallback for dev / free activation when payments are disabled
                   const updatedEntitlements = await api.upgradeOrganizationPro(activeOrg.id);
                   telegram.hapticSuccess();
                   setEntitlements(updatedEntitlements);

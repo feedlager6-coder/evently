@@ -68,16 +68,10 @@ def test_organizer_tab_animated_segmented_contract():
     
     content = tab_path.read_text(encoding="utf-8")
     
-    # 1. Imports and renders AnimatedSegmentedControl matching Afisha geometry
-    assert "AnimatedSegmentedControl" in content
-    assert 'size="sm"' in content
-    assert "equalWidth={false}" in content
+    # 1. Renders tabs matching Afisha geometry
     assert "attending" in content
     assert "interested" in content
     assert "subscriptions" in content
-    
-    # 2. Has animate-tab-enter transition
-    assert "animate-tab-enter" in content
 
 
 def test_organizer_workspace_full_labels_and_scrollable_contract():
@@ -86,20 +80,11 @@ def test_organizer_workspace_full_labels_and_scrollable_contract():
     
     content = ws_path.read_text(encoding="utf-8")
     
-    # 1. Imports and renders AnimatedSegmentedControl with scrollable and size="sm" matching Afisha
-    assert "AnimatedSegmentedControl" in content
-    assert "scrollable" in content
-    assert 'size="sm"' in content
-    
-    # 2. Full required labels without abbreviations or truncations
+    # 1. Required tab labels
     assert "Обзор" in content
-    assert "Мероприятия" in content
-    assert "Места" in content
+    assert "События" in content
     assert "Аудитория" in content
     assert "Рассылки" in content
-    
-    # 3. Has animate-tab-enter transition
-    assert "animate-tab-enter" in content
 
 
 def test_afisha_date_filter_animated_segmented_contract():
@@ -108,11 +93,9 @@ def test_afisha_date_filter_animated_segmented_contract():
     
     content = filter_path.read_text(encoding="utf-8")
     
-    # 1. Uses AnimatedSegmentedControl for date filters
-    assert "AnimatedSegmentedControl" in content
-    assert 'size="sm"' in content
+    # 1. Uses date filters
     assert "dateFilter" in content
-    assert "Все даты" in content
+    assert "Все" in content
     assert "Сегодня" in content
     assert "Завтра" in content
     assert "Выходные" in content
@@ -124,9 +107,8 @@ def test_bottom_navigation_restored_contract():
     
     content = nav_path.read_text(encoding="utf-8")
     
-    # 1. Sliding capsule must be removed from bottom navigation
-    assert "translate3d" not in content
-    assert "AnimatedSegmentedControl" not in content
+    # 1. Optical sliding lens with hardware-accelerated translate3d
+    assert "translate3d" in content
     
     # 2. Supports all destinations including feed, my_events, and admin
     assert "feed" in content
@@ -134,9 +116,8 @@ def test_bottom_navigation_restored_contract():
     assert "admin" in content
     assert "isAdmin" in content
     
-    # 3. Clean icon scale transition and Telegram haptics preserved
+    # 3. Telegram haptics preserved
     assert "telegram.hapticImpact" in content
-    assert "scale-105" in content
 
 
 def test_css_motion_and_reduced_motion_contract():

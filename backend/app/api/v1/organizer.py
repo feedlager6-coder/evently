@@ -1,17 +1,19 @@
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.organization import Organization, OrganizationStatus
+from app.models.organization_plan import PlanType
 from app.models.event import Event
+from app.models.attendee import EventAttendee
 from app.models.ticket_checkin import TicketCheckIn
 from app.schemas.event import EventSummary
 from app.schemas.audience import OrganizerAudienceResponse
@@ -29,7 +31,7 @@ from app.schemas.entitlement import (
     EntitlementLimits,
 )
 from app.api.deps import get_current_user
-from app.services.event_service import get_organizer_events
+from app.services.event_service import get_organizer_events, compute_ticket_signature
 from app.services.audience_service import get_organizer_audience
 from app.services.insights_service import get_organizer_insights
 from app.services.entitlement_service import EntitlementService, CAPABILITY_REGISTRY
@@ -216,16 +218,23 @@ async def upgrade_organization_pro(
 ):
     """
     Activates PRO plan for an organization owned by the current user.
-    Enables broadcasts and extended capabilities.
+    Requires subscription payment when payments are enabled, unless executed by admin.
     """
+    if (settings.PAYMENTS_ENABLED or settings.APP_ENV == "production") and not settings.is_admin(user.telegram_id):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Для подключения тарифа Pro необходимо оформить подписку"
+        )
+
     stmt = select(Organization).where(Organization.id == org_id)
     org = (await session.execute(stmt)).scalar_one_or_none()
     if not org or org.status == OrganizationStatus.DELETED.value:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
-    if org.owner_user_id != user.id:
+    if org.owner_user_id != user.id and not settings.is_admin(user.telegram_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы не являетесь владельцем этой организации")
 
-    await EntitlementService.set_organization_plan(session, org_id, plan=PlanType.PRO.value)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.PRO_SUBSCRIPTION_DAYS)
+    await EntitlementService.set_organization_plan(session, org_id, plan=PlanType.PRO.value, expires_at=expires_at)
     return await EntitlementService.get_entitlements(session, org_id, org_name=org.name)
 
 
@@ -275,17 +284,43 @@ async def check_in_event_ticket(
     raw_code = req.ticket_code.strip()
     ticket_id = raw_code
     payload_event_id = None
+    provided_sig = None
     guest_name = "Гость Ivently"
+    candidate_user_ident = None
 
     if raw_code.startswith("{") and raw_code.endswith("}"):
         try:
             parsed = json.loads(raw_code)
             ticket_id = (parsed.get("ticket_id") or raw_code).strip()
             payload_event_id = parsed.get("event_id")
+            if parsed.get("sig"):
+                provided_sig = str(parsed.get("sig")).strip().upper()
+            if parsed.get("telegram_id"):
+                candidate_user_ident = str(parsed.get("telegram_id")).strip()
+            elif parsed.get("user_id"):
+                candidate_user_ident = str(parsed.get("user_id")).strip()
             if parsed.get("guest_name"):
                 guest_name = parsed.get("guest_name")
+
+            if ticket_id.startswith("IVN-"):
+                t_parts = ticket_id.split("-")
+                if len(t_parts) == 4 and not provided_sig:
+                    candidate_user_ident = candidate_user_ident or t_parts[2].strip()
+                    provided_sig = t_parts[3].strip().upper()
         except Exception:
             pass
+    elif ticket_id.startswith("rsvp_"):
+        parts = ticket_id.split("_")
+        if len(parts) >= 3:
+            payload_event_id = parts[1]
+            candidate_user_ident = parts[2].strip()
+    elif ticket_id.startswith("IVN-"):
+        parts = ticket_id.split("-")
+        if len(parts) == 4 and parts[2].isdigit():
+            candidate_user_ident = parts[2].strip()
+            provided_sig = parts[3].strip().upper()
+        elif len(parts) >= 3 and parts[-1].isdigit():
+            candidate_user_ident = parts[-1].strip()
 
     now_utc = datetime.now(timezone.utc)
     now_iso = now_utc.strftime("%H:%M:%S")
@@ -296,6 +331,7 @@ async def check_in_event_ticket(
     is_payment_required_at_door = not is_free and not ticket_url and (event.price_amount is not None and event.price_amount > 0)
     price_amount = float(event.price_amount) if (event.price_amount is not None and event.price_amount > 0) else None
 
+    # 1. Check event mismatch
     if payload_event_id and payload_event_id != event_id:
         return CheckInResponse(
             status="invalid",
@@ -309,12 +345,94 @@ async def check_in_event_ticket(
             price_amount=price_amount,
         )
 
-    # Check if already checked in from database
+    # 2. Validate attendee registration in EventAttendee and compute canonical attendee code
+    canonical_attendee_code = None
+    if candidate_user_ident and candidate_user_ident.isdigit():
+        ident_num = int(candidate_user_ident)
+        target_user = (await session.execute(
+            select(User).where(or_(User.id == ident_num, User.telegram_id == ident_num))
+        )).scalar_one_or_none()
+        if target_user:
+            att = (await session.execute(
+                select(EventAttendee).where(
+                    EventAttendee.event_id == event_id,
+                    EventAttendee.user_id == target_user.id
+                )
+            )).scalar_one_or_none()
+            if att:
+                # Cryptographic signature validation
+                expected_sig = compute_ticket_signature(event_id, target_user.id)
+                expected_tg_sig = compute_ticket_signature(event_id, target_user.telegram_id) if target_user.telegram_id else None
+
+                if provided_sig:
+                    if provided_sig != expected_sig and provided_sig != expected_tg_sig:
+                        return CheckInResponse(
+                            status="invalid",
+                            message="Недействительная подпись билета",
+                            ticket_code=ticket_id,
+                            checked_in_at=now_iso,
+                            event_id=event_id,
+                            event_title=event.title,
+                            guest_name=guest_name,
+                            is_payment_required_at_door=is_payment_required_at_door,
+                            price_amount=price_amount,
+                        )
+                elif settings.APP_ENV == "production":
+                    # In production, signature is mandatory to prevent user_id enumeration attacks
+                    return CheckInResponse(
+                        status="invalid",
+                        message="Билет требует криптографической подписи",
+                        ticket_code=ticket_id,
+                        checked_in_at=now_iso,
+                        event_id=event_id,
+                        event_title=event.title,
+                        guest_name=guest_name,
+                        is_payment_required_at_door=is_payment_required_at_door,
+                        price_amount=price_amount,
+                    )
+
+                user_name = f"{target_user.first_name or ''} {target_user.last_name or ''}".strip()
+                guest_name = user_name or target_user.username or guest_name
+                canonical_attendee_code = f"attendee:{target_user.id}"
+            elif not is_payment_required_at_door and not ticket_url:
+                # User exists in platform but did not register for this event
+                return CheckInResponse(
+                    status="invalid",
+                    message="Билет не найден среди регистраций на это мероприятие",
+                    ticket_code=ticket_id,
+                    checked_in_at=now_iso,
+                    event_id=event_id,
+                    event_title=event.title,
+                    guest_name=guest_name,
+                    is_payment_required_at_door=is_payment_required_at_door,
+                    price_amount=price_amount,
+                )
+
+    # 3. Check for completely fake strings (not matching any valid ticket pattern)
+    if not canonical_attendee_code and not is_payment_required_at_door and not ticket_url:
+        if not ticket_id.startswith("IVN-") and not ticket_id.startswith("rsvp_"):
+            return CheckInResponse(
+                status="invalid",
+                message="Недействительный QR-код или неизвестный билет",
+                ticket_code=ticket_id,
+                checked_in_at=now_iso,
+                event_id=event_id,
+                event_title=event.title,
+                guest_name=guest_name,
+                is_payment_required_at_door=is_payment_required_at_door,
+                price_amount=price_amount,
+            )
+
+    # 4. Check if ticket or canonical attendee code has already been checked in
+    codes_to_check = [ticket_id]
+    if canonical_attendee_code and canonical_attendee_code != ticket_id:
+        codes_to_check.append(canonical_attendee_code)
+
     existing_stmt = select(TicketCheckIn).where(
         TicketCheckIn.event_id == event_id,
-        TicketCheckIn.ticket_code == ticket_id
+        TicketCheckIn.ticket_code.in_(codes_to_check)
     )
-    existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+    existing = (await session.execute(existing_stmt)).scalars().first()
     if existing:
         prev_time = existing.created_at.strftime("%H:%M:%S") if existing.created_at else now_iso
         return CheckInResponse(
@@ -329,7 +447,7 @@ async def check_in_event_ticket(
             price_amount=price_amount,
         )
 
-    # Insert new checkin with atomic unique constraint error handling
+    # 5. Insert new check-in record and canonical check-in record with atomic unique constraint error handling
     new_checkin = TicketCheckIn(
         event_id=event_id,
         ticket_code=ticket_id,
@@ -338,11 +456,20 @@ async def check_in_event_ticket(
         created_at=now_utc,
     )
     session.add(new_checkin)
+    if canonical_attendee_code and canonical_attendee_code != ticket_id:
+        canonical_checkin = TicketCheckIn(
+            event_id=event_id,
+            ticket_code=canonical_attendee_code,
+            checked_in_by_user_id=user.id,
+            guest_name=guest_name,
+            created_at=now_utc,
+        )
+        session.add(canonical_checkin)
     try:
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+        existing = (await session.execute(existing_stmt)).scalars().first()
         prev_time = existing.created_at.strftime("%H:%M:%S") if (existing and existing.created_at) else now_iso
         return CheckInResponse(
             status="already_checked_in",

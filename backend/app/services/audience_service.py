@@ -7,7 +7,7 @@ from sqlalchemy import select, func, or_, case, union
 
 from app.models.organization import Organization, OrganizationStatus
 from app.models.subscription import Subscription
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.models.attendee import EventAttendee
 from app.models.interest import EventInterest
 from app.models.view import EventView
@@ -77,17 +77,24 @@ async def get_organizer_audience(
 
     # 2. Query events belonging to organizer (filtered by target_org_id if specified)
     if target_org_id:
-        event_query = select(Event).where(Event.organization_id == target_org_id)
+        event_query = select(Event).where(
+            Event.organization_id == target_org_id,
+            Event.status != EventStatus.DELETED.value
+        )
     else:
         if owned_org_ids:
             event_query = select(Event).where(
                 or_(
                     Event.organizer_user_id == organizer_user_id,
                     Event.organization_id.in_(owned_org_ids)
-                )
+                ),
+                Event.status != EventStatus.DELETED.value
             )
         else:
-            event_query = select(Event).where(Event.organizer_user_id == organizer_user_id)
+            event_query = select(Event).where(
+                Event.organizer_user_id == organizer_user_id,
+                Event.status != EventStatus.DELETED.value
+            )
 
     event_res = await session.execute(event_query.order_by(Event.start_at.desc()))
     all_events = event_res.scalars().all()

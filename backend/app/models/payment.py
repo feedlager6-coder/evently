@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import Column, String, Float, Integer, DateTime, ForeignKey, Index, Text
+from sqlalchemy import Column, String, Float, Integer, DateTime, ForeignKey, Index, Text, Numeric
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -61,7 +61,7 @@ class PaymentOrder(Base):
         index=True
     )
 
-    amount = Column(Float, nullable=False, default=499.0)
+    amount = Column(Numeric(10, 2, asdecimal=True), nullable=False, default=499.00)
     currency = Column(String(3), nullable=False, default="RUB")
     provider = Column(String(50), nullable=False, default="yookassa")
     provider_payment_id = Column(String(100), nullable=True, unique=True, index=True)
@@ -117,7 +117,7 @@ class PaymentTransaction(Base):
     provider = Column(String(50), nullable=False, default="yookassa")
     provider_payment_id = Column(String(100), nullable=True, index=True)
     operation_type = Column(String(50), nullable=False, default=PaymentOperationType.PAYMENT.value)
-    amount = Column(Float, nullable=False)
+    amount = Column(Numeric(10, 2, asdecimal=True), nullable=False)
     currency = Column(String(3), nullable=False, default="RUB")
     status = Column(String(30), nullable=False)
     provider_status = Column(String(50), nullable=True)

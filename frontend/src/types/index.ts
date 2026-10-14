@@ -55,6 +55,7 @@ export interface EventSummary {
   rejection_reason?: string;
   created_at: string;
   is_creator?: boolean;
+  ticket_code?: string | null;
 }
 
 export interface UserHubData {
@@ -206,8 +207,8 @@ export interface LocationSuggestion {
   title?: string;
   address: string;
   city?: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number | null;
+  longitude?: number | null;
   display_name: string;
 }
 
@@ -286,6 +287,7 @@ export interface CompanyRequestItem {
   other_user_id: number;
   other_user_display_name: string;
   other_user_avatar_url?: string;
+  other_avatar_url?: string;
   status: 'pending' | 'accepted' | 'declined' | 'cancelled';
   created_at: string;
 }
@@ -309,6 +311,7 @@ export interface CompanyMatchItem {
 
 export interface CompanyActionResponse {
   success: boolean;
+  ok?: boolean;
   message: string;
   match_created: boolean;
   match?: CompanyMatchItem;

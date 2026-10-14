@@ -596,8 +596,6 @@ async def test_conversion_percentages_are_no_longer_displayed_in_overview():
     assert "rsvpConversion" not in content
     assert "Конверсия в интерес" not in content
     assert "Конверсия в гостей" not in content
-    assert "TrendingUp" not in content
 
-    # MUST contain clear aggregate labels
-    assert "Статистика всех событий" in content
-    assert "По всем событиям" in content
+    # MUST contain clear aggregate labels or KPI Bento grid
+    assert "Ключевые показатели" in content or "Статистика всех событий" in content

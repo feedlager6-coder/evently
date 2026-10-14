@@ -90,6 +90,7 @@ class EventSummary(BaseModel):
     broadcast_opens_count: int = 0
     broadcast_interest_count: int = 0
     broadcast_rsvp_count: int = 0
+    ticket_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

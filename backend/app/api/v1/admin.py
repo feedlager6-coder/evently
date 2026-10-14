@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 
 from app.database import get_db
 from app.models.user import User
@@ -17,7 +17,7 @@ from app.services.moderation_service import (
     cancel_event
 )
 from app.services.event_service import get_event_details, EventNotFoundError
-from app.services.entitlement_service import EntitlementService
+from app.services.entitlement_service import EntitlementService, ensure_utc, utc_now
 from app.services import notification_service
 
 router = APIRouter(prefix="/admin", tags=["Admin Moderation"])
@@ -111,15 +111,25 @@ async def admin_list_organizations(
     """
     Lists all active organizations with their current plan for admin inspection and testing.
     """
+    now = datetime.now(timezone.utc)
     stmt = (
-        select(Organization, OrganizationPlan.plan, OrganizationPlan.status)
-        .outerjoin(OrganizationPlan, Organization.id == OrganizationPlan.organization_id)
+        select(Organization, OrganizationPlan.plan, OrganizationPlan.status, OrganizationPlan.expires_at)
+        .outerjoin(
+            OrganizationPlan,
+            and_(
+                Organization.id == OrganizationPlan.organization_id,
+                OrganizationPlan.status == "active",
+            )
+        )
         .where(Organization.status != OrganizationStatus.DELETED.value)
         .order_by(Organization.created_at.desc())
     )
     rows = (await session.execute(stmt)).all()
     results = []
-    for org, plan, plan_status in rows:
+    for org, plan, plan_status, expires_at in rows:
+        eff_plan = plan or "free"
+        if expires_at and ensure_utc(expires_at) < now:
+            eff_plan = "free"
         results.append(
             AdminOrganizationSummary(
                 id=org.id,
@@ -129,7 +139,7 @@ async def admin_list_organizations(
                 city_id=org.city_id,
                 owner_user_id=org.owner_user_id,
                 status=org.status,
-                plan=plan or "free",
+                plan=eff_plan,
                 plan_status=plan_status or "active",
                 created_at=org.created_at,
             )

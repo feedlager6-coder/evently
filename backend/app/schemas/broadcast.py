@@ -46,6 +46,7 @@ class BroadcastPreviewRequest(BaseModel):
     )
     event_id: Optional[str] = Field(None, description="Event ID (required for event-related templates)")
     custom_text: Optional[str] = Field(None, max_length=500, description="Optional custom message text (max 500 chars)")
+    is_silent: Optional[bool] = Field(default=False, description="Send silent notification without sound")
 
 
 class BroadcastPreviewResponse(BaseModel):
@@ -82,6 +83,7 @@ class BroadcastCreateRequest(BaseModel):
     )
     event_id: Optional[str] = Field(None, description="Event ID (required for event-related templates)")
     custom_text: Optional[str] = Field(None, max_length=500, description="Optional custom message text (max 500 chars)")
+    is_silent: Optional[bool] = Field(default=False, description="Send silent notification without sound")
 
 
 class BroadcastItem(BaseModel):
@@ -108,6 +110,7 @@ class BroadcastItem(BaseModel):
     open_rate: float = 0.0
     interest_conversion: float = 0.0
     rsvp_conversion: float = 0.0
+    is_silent: bool = False
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

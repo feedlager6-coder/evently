@@ -1,7 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import re
+import logging
+import hmac
+import hashlib
 from typing import Optional, List, Tuple, Dict, Any
+
+logger = logging.getLogger("evently.events")
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete, case
 from sqlalchemy.orm import selectinload
@@ -56,12 +61,76 @@ def resolve_city_timezone(city_tz_str: str):
         return ZoneInfo(city_tz_str)
     except Exception:
         offsets = {
+            "Europe/Kaliningrad": 2,
             "Europe/Warsaw": 1,
             "Europe/Moscow": 3,
+            "Europe/Kirov": 3,
+            "Europe/Volgograd": 3,
+            "Europe/Astrakhan": 4,
+            "Europe/Saratov": 4,
+            "Europe/Ulyanovsk": 4,
+            "Europe/Samara": 4,
+            "Asia/Yekaterinburg": 5,
+            "Asia/Omsk": 6,
+            "Asia/Novosibirsk": 7,
+            "Asia/Barnaul": 7,
+            "Asia/Tomsk": 7,
+            "Asia/Novokuznetsk": 7,
+            "Asia/Krasnoyarsk": 7,
+            "Asia/Irkutsk": 8,
+            "Asia/Chita": 9,
+            "Asia/Yakutsk": 9,
+            "Asia/Khandyga": 9,
+            "Asia/Vladivostok": 10,
+            "Asia/Ust-Nera": 10,
+            "Asia/Magadan": 11,
+            "Asia/Sakhalin": 11,
+            "Asia/Srednekolymsk": 11,
+            "Asia/Kamchatka": 12,
+            "Asia/Anadyr": 12,
             "UTC": 0,
         }
-        hours = offsets.get(city_tz_str, 0)
+        hours = offsets.get(city_tz_str, 3)
         return timezone(timedelta(hours=hours))
+
+
+MONTHS_RU = [
+    "", "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря"
+]
+
+
+def compute_ticket_signature(event_id: str, user_id: int) -> str:
+    """Computes tamper-evident HMAC-SHA256 signature for ticket check-in."""
+    clean_event = str(event_id).strip()
+    msg = f"{clean_event}:{user_id}".encode("utf-8")
+    key = (settings.SECRET_KEY or "evently_mvp_secret_key_change_in_production_32bytes").encode("utf-8")
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:8].upper()
+
+
+def build_signed_ticket_code(event_id: str, user_id: int) -> str:
+    """Builds standardized cryptographically signed ticket code: IVN-{prefix}-{user_id}-{sig}"""
+    prefix = str(event_id).replace("-", "")[:4].upper()
+    sig = compute_ticket_signature(event_id, user_id)
+    return f"IVN-{prefix}-{user_id}-{sig}"
+
+
+def format_event_local_datetime(start_at: Any, city_tz_str: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Formats start_at datetime into local date string (e.g. '15 октября') and time string ('20:00').
+    Uses event's city timezone if provided (default Europe/Moscow).
+    """
+    if not isinstance(start_at, datetime):
+        try:
+            start_at = datetime.fromisoformat(str(start_at).replace("Z", "+00:00"))
+        except Exception:
+            return "Скоро", ""
+
+    tz = resolve_city_timezone(city_tz_str or "Europe/Moscow")
+    dt = start_at.astimezone(tz) if start_at.tzinfo else start_at.replace(tzinfo=timezone.utc).astimezone(tz)
+    date_str = f"{dt.day} {MONTHS_RU[dt.month]}"
+    time_str = dt.strftime("%H:%M")
+    return date_str, time_str
 
 
 def get_city_timezone_range(city_tz_str: str, date_filter: str) -> Tuple[Optional[datetime], Optional[datetime]]:
@@ -272,7 +341,8 @@ async def list_published_events(
                 organization_avatar_url=org_avatar,
                 allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
                 source_type=getattr(event, "source_type", "user") or "user",
-                source_name=getattr(event, "source_name", None)
+                source_name=getattr(event, "source_name", None),
+                ticket_code=(build_signed_ticket_code(event.id, current_user_id) if current_user_id and (event.id in attending_event_ids) else None),
             )
         )
 
@@ -340,6 +410,23 @@ async def get_event_details(
     if event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
 
+    is_author = bool(current_user_id and current_user_id == event.organizer_user_id)
+    is_org_owner = False
+    is_admin = False
+    if current_user_id:
+        curr_user = (await session.execute(select(User).where(User.id == current_user_id))).scalar_one_or_none()
+        if curr_user and settings.is_admin(curr_user.telegram_id):
+            is_admin = True
+        if event.organization_id:
+            org_res = (await session.execute(select(Organization).where(Organization.id == event.organization_id))).scalar_one_or_none()
+            if org_res and org_res.owner_user_id == current_user_id:
+                is_org_owner = True
+
+    is_privileged = is_author or is_org_owner or is_admin
+
+    if event.status in (EventStatus.PENDING.value, EventStatus.REJECTED.value) and not is_privileged:
+        raise EventNotFoundError(f"Event with ID '{event_id}' not found.")
+
     if org_id:
         organizer_display = org_name or "Организация"
         organizer_username = None
@@ -356,9 +443,9 @@ async def get_event_details(
             organizer_contact_url = None
             organizer_display = org_first_name or "Организатор"
 
-    is_organizer = bool(current_user_id and current_user_id == event.organizer_user_id)
+    is_organizer = bool(is_author or is_org_owner)
     # Phase 6: Organizer sees own views_count; public sees 0
-    safe_views_count = (raw_views_count or 0) if (current_user_id and current_user_id == event.organizer_user_id) else 0
+    safe_views_count = (raw_views_count or 0) if is_privileged else 0
 
     # Check RSVP & Interest
     is_attending = False
@@ -432,12 +519,13 @@ async def get_event_details(
         organization_followers_count=org_followers_count,
         organization_is_subscribed=org_is_subscribed,
         is_organizer=is_organizer,
-        rejection_reason=event.rejection_reason,
+        rejection_reason=event.rejection_reason if is_privileged else None,
         attendee_count=att_count or 0,
         is_attending=is_attending,
         interest_count=int_count or 0,
         current_user_interested=is_interested,
         views_count=safe_views_count,
+        ticket_code=(build_signed_ticket_code(event.id, current_user_id) if current_user_id and is_attending else None),
         created_at=event.created_at,
         updated_at=event.updated_at
     )
@@ -457,10 +545,10 @@ async def add_event_rsvp(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.status != EventStatus.PUBLISHED.value:
+        raise EventValidationError("Запись доступна только для опубликованных мероприятий.")
     if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
-    if event.status == EventStatus.CANCELLED.value:
-        raise EventValidationError("Мероприятие отменено. Изменение участия недоступно.")
 
     # Confirmed attendance supersedes interest: remove interest if exists
     del_int_stmt = delete(EventInterest).where(
@@ -562,10 +650,10 @@ async def add_event_interest(
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
+    if event.status != EventStatus.PUBLISHED.value:
+        raise EventValidationError("Отметка интереса доступна только для опубликованных мероприятий.")
     if ensure_utc(event.start_at) < utc_now():
         raise EventPastError("Мероприятие уже завершено. Отметка интереса недоступна.")
-    if event.status == EventStatus.CANCELLED.value:
-        raise EventValidationError("Мероприятие отменено. Отметка интереса недоступна.")
 
     # If currently attending, remove attendance (downgrade to interested)
     del_att_stmt = delete(EventAttendee).where(
@@ -873,12 +961,16 @@ async def update_organizer_event(
         changes["new_venue"] = data.address.strip()
         event.address = data.address.strip()
 
-    if data.title is not None and data.title.strip():
+    content_changed = False
+    if data.title is not None and data.title.strip() and data.title.strip() != (event.title or ""):
         event.title = data.title.strip()
-    if data.description is not None and data.description.strip():
+        content_changed = True
+    if data.description is not None and data.description.strip() and data.description.strip() != (event.description or ""):
         event.description = data.description.strip()
-    if data.cover_image_url is not None:
+        content_changed = True
+    if data.cover_image_url is not None and data.cover_image_url != event.cover_image_url:
         event.cover_image_url = data.cover_image_url
+        content_changed = True
     if data.latitude is not None:
         event.latitude = data.latitude
     if data.longitude is not None:
@@ -889,6 +981,18 @@ async def update_organizer_event(
         event.price_currency = data.price_currency
     if data.capacity is not None:
         event.capacity = data.capacity
+
+    # Moderation workflow:
+    # 1. Resubmit rejected event for review upon edit
+    if event.status == EventStatus.REJECTED.value:
+        event.status = EventStatus.PENDING.value
+        event.rejection_reason = None
+        logger.info(f"Event {event.id} was REJECTED and modified; moved back to PENDING.")
+    # 2. Re-moderate published event if title/description/cover was changed by non-admin
+    elif event.status == EventStatus.PUBLISHED.value and not is_admin and content_changed:
+        event.status = EventStatus.PENDING.value
+        event.rejection_reason = None
+        logger.info(f"Event {event.id} content was modified by non-admin; moved back to PENDING for re-moderation.")
 
     if data.category_id is not None and data.category_id.strip():
         cat_res = await session.execute(select(Category).where(Category.id == data.category_id.strip()))
@@ -1180,7 +1284,8 @@ async def get_user_personal_events(
                 organization_avatar_url=org_avatar,
                 allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
                 source_type=getattr(event, "source_type", "user") or "user",
-                source_name=getattr(event, "source_name", None)
+                source_name=getattr(event, "source_name", None),
+                ticket_code=(build_signed_ticket_code(event.id, user_id) if event_type == "attending" else None),
             )
         )
     return summaries

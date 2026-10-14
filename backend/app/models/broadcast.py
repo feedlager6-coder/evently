@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     BigInteger,
+    Boolean,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -68,6 +69,7 @@ class Broadcast(Base):
     custom_text = Column(String(500), nullable=True)
     status = Column(String(30), nullable=False, default=BroadcastStatus.QUEUED.value, index=True)
     attribution_token = Column(String(32), unique=True, index=True, nullable=True, default=lambda: secrets.token_hex(8))
+    is_silent = Column(Boolean, nullable=False, default=False)
 
     total_recipients = Column(Integer, nullable=False, default=0)
     sent_count = Column(Integer, nullable=False, default=0)

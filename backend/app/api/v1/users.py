@@ -118,7 +118,7 @@ async def get_my_hub(
         interested=interested,
         subscriptions=subs,
         created_events=created,
-        created=created,
+        created=[],
         organizations=orgs
     )
 

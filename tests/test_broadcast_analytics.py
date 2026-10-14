@@ -689,6 +689,10 @@ async def test_zero_denominator_safety(client, test_session):
     )
     event_id = res_ev.json()["id"]
 
+    ev_db = (await test_session.execute(select(Event).where(Event.id == event_id))).scalar_one()
+    ev_db.status = EventStatus.PUBLISHED.value
+    await test_session.commit()
+
     rec_uid = 9901
     await client.post(
         f"/api/v1/organizations/{org_id}/subscribe",

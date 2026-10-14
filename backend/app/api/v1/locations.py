@@ -18,16 +18,16 @@ class LocationSuggestion(BaseModel):
     title: str
     address: str
     city: Optional[str] = None
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     display_name: str
 
 
 def format_osm_item(
     item: dict,
     default_city_name: str,
-    fallback_lat: float,
-    fallback_lon: float
+    fallback_lat: Optional[float] = None,
+    fallback_lon: Optional[float] = None
 ) -> LocationSuggestion:
     raw_display = item.get("display_name", "")
     addr = item.get("address", {})
@@ -79,9 +79,17 @@ def format_osm_item(
         clean_parts = [p.strip() for p in raw_display.split(",") if not p.strip().isdigit()][:3]
         clean_address = ", ".join(clean_parts) if clean_parts else raw_display
 
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     try:
-        lat = float(item.get("lat", fallback_lat))
-        lon = float(item.get("lon", fallback_lon))
+        raw_lat = item.get("lat")
+        raw_lon = item.get("lon")
+        if raw_lat is not None and raw_lon is not None:
+            lat = float(raw_lat)
+            lon = float(raw_lon)
+        else:
+            lat = fallback_lat
+            lon = fallback_lon
     except (ValueError, TypeError):
         lat, lon = fallback_lat, fallback_lon
 
@@ -97,6 +105,17 @@ def format_osm_item(
     )
 
 
+_NOMINATIM_CACHE: dict = {}
+_LOCATIONS_CLIENT: Optional[httpx.AsyncClient] = None
+
+
+def _get_locations_client() -> httpx.AsyncClient:
+    global _LOCATIONS_CLIENT
+    if _LOCATIONS_CLIENT is None or _LOCATIONS_CLIENT.is_closed:
+        _LOCATIONS_CLIENT = httpx.AsyncClient(timeout=2.0)
+    return _LOCATIONS_CLIENT
+
+
 @router.get("/suggest", response_model=List[LocationSuggestion])
 async def suggest_locations(
     q: str = Query(..., min_length=2, description="Address or venue search query"),
@@ -106,10 +125,14 @@ async def suggest_locations(
     """
     Returns human-friendly address suggestions with coordinates for venue search.
     Queries OpenStreetMap Nominatim with Russian language biasing,
-    parses address components cleanly (stripping technical administrative noise),
+    parses address components cleanly, caches responses,
     and falls back gracefully if Nominatim is unreachable.
     """
     clean_query = q.strip().rstrip(".,; ")
+    cache_key = f"{city_id or ''}:{clean_query.lower()}"
+    if cache_key in _NOMINATIM_CACHE:
+        return [LocationSuggestion(**item) for item in _NOMINATIM_CACHE[cache_key]]
+
     city_name = ""
     city_lat = 42.9849  # Default to Makhachkala
     city_lon = 47.5047
@@ -133,7 +156,7 @@ async def suggest_locations(
 
     suggestions: List[LocationSuggestion] = []
 
-    # 1. Attempt OpenStreetMap Nominatim lookup with strict 1.5s timeout
+    # 1. Attempt OpenStreetMap Nominatim lookup with strict 2.0s timeout
     try:
         search_params: dict = {
             "q": search_q,
@@ -147,20 +170,20 @@ async def suggest_locations(
             search_params["viewbox"] = f"{city_lon - delta},{city_lat + delta},{city_lon + delta},{city_lat - delta}"
             search_params["bounded"] = "1"
 
-        async with httpx.AsyncClient(timeout=1.5) as client:
-            resp = await client.get(
-                "https://nominatim.openstreetmap.org/search",
-                params=search_params,
-                headers={
-                    "User-Agent": "Ivently-App/1.0 (https://t.me/Ivently_bot)",
-                    "Accept-Language": "ru",
-                }
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                for item in data:
-                    sugg = format_osm_item(item, city_name, city_lat, city_lon)
-                    suggestions.append(sugg)
+        client = _get_locations_client()
+        resp = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params=search_params,
+            headers={
+                "User-Agent": "Ivently-App/1.0 (https://t.me/Ivently_bot)",
+                "Accept-Language": "ru",
+            }
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            for item in data:
+                sugg = format_osm_item(item, city_name, city_lat, city_lon)
+                suggestions.append(sugg)
     except Exception as e:
         logger.warning(f"Nominatim lookup failed or timed out ({e}), using resilient local fallback")
 
@@ -172,10 +195,14 @@ async def suggest_locations(
                 title=clean_query,
                 address=fallback_display,
                 city=city_name or None,
-                latitude=city_lat,
-                longitude=city_lon,
+                latitude=None,
+                longitude=None,
                 display_name=fallback_display,
             )
         )
+
+    if len(_NOMINATIM_CACHE) > 500:
+        _NOMINATIM_CACHE.clear()
+    _NOMINATIM_CACHE[cache_key] = [s.model_dump() for s in suggestions]
 
     return suggestions

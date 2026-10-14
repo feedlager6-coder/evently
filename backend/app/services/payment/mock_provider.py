@@ -134,7 +134,7 @@ class MockYooKassaProvider(PaymentProvider):
         obj = payload.get("object", {})
         return {
             "event_type": event_type,
-            "provider_payment_id": obj.get("id"),
+            "provider_payment_id": obj.get("payment_id") or obj.get("id"),
             "status": obj.get("status"),
             "paid": obj.get("paid", False),
             "amount": float(obj.get("amount", {}).get("value", 0.0)) if obj.get("amount") else 0.0,

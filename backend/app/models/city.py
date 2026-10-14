@@ -16,7 +16,7 @@ class City(Base):
     is_active = Column(Boolean, default=True, nullable=False)
 
     # Relationships
-    events = relationship("Event", back_populates="city", cascade="all, delete-orphan")
+    events = relationship("Event", back_populates="city")
     users = relationship("User", back_populates="default_city")
 
     def __repr__(self) -> str:

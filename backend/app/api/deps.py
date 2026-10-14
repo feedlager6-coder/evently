@@ -66,11 +66,15 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Telegram authentication failed: {str(e)}"
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        import logging
+        logging.getLogger("evently.auth").error("Internal database or service error in auth dependency: %s", e, exc_info=True)
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication error: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Внутренняя ошибка сервиса авторизации"
         )
 
 

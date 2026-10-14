@@ -110,6 +110,8 @@ async def test_organizer_events_includes_interest_count(client, test_session):
         price_currency="RUB"
     )
     ev = await create_organizer_event(test_session, ev_data, organizer_user_id=db_user_id)
+    ev.status = EventStatus.PUBLISHED.value
+    await test_session.commit()
 
     # Initially 0 interest and 0 attendee
     org_events_res = await client.get("/api/v1/organizer/events", headers=org_auth)

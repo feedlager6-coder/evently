@@ -12,7 +12,7 @@ from sqlalchemy import select, and_, or_, func, case
 
 from app.config import settings
 from app.models.organization import Organization, OrganizationStatus
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.models.user import User
 from app.models.subscription import Subscription
 from app.models.interest import EventInterest
@@ -40,6 +40,21 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def format_broadcast_date_str(event: Optional[Event]) -> str:
+    """Formats event date taking the event's city timezone into account with fallback to Moscow."""
+    if not event or not event.start_at:
+        return ""
+    from app.services.event_service import format_event_local_datetime
+    city_tz_str = "Europe/Moscow"
+    city_obj = event.__dict__.get("city") if hasattr(event, "__dict__") else None
+    if city_obj and getattr(city_obj, "timezone", None):
+        city_tz_str = city_obj.timezone
+    date_str, time_str = format_event_local_datetime(event.start_at, city_tz_str)
+    if time_str:
+        return f"{date_str} в {time_str}"
+    return date_str
+
+
 def format_broadcast_content(
     organization: Organization,
     template_key: str,
@@ -61,7 +76,7 @@ def format_broadcast_content(
             raise HTTPException(status_code=400, detail="Для анонса события необходимо указать мероприятие")
         safe_title = html.escape(event.title)
         safe_venue = html.escape(event.venue_name)
-        date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
+        date_str = format_broadcast_date_str(event)
 
         text = (
             f"🔔 <b>Новое событие от {safe_org_name}</b>\n\n"
@@ -80,7 +95,7 @@ def format_broadcast_content(
             raise HTTPException(status_code=400, detail="Для обновления события необходимо указать мероприятие")
         safe_title = html.escape(event.title)
         safe_venue = html.escape(event.venue_name)
-        date_str = event.start_at.strftime("%d.%m.%Y в %H:%M")
+        date_str = format_broadcast_date_str(event)
 
         text = (
             f"📢 <b>Обновление события от {safe_org_name}</b>\n\n"
@@ -155,12 +170,18 @@ async def calculate_audience(
         event = ev_res.scalar_one_or_none()
         if not event:
             raise HTTPException(status_code=404, detail="Событие не найдено")
+        if event.status in (EventStatus.CANCELLED.value, EventStatus.DELETED.value):
+            raise HTTPException(
+                status_code=400,
+                detail="Рассылка недоступна для отмененных или удаленных событий"
+            )
+        if event.status != EventStatus.PUBLISHED.value:
+            raise HTTPException(
+                status_code=400,
+                detail="Рассылка доступна только для опубликованных событий"
+            )
         if event.organization_id != organization_id:
-            if event.organizer_user_id == organizer_user_id:
-                if not event.organization_id:
-                    event.organization_id = organization_id
-                    await session.flush()
-            else:
+            if event.organizer_user_id != organizer_user_id:
                 raise HTTPException(
                     status_code=400,
                     detail="Событие не принадлежит указанной организации"
@@ -416,6 +437,11 @@ async def create_broadcast(
     org: Organization = calc["organization"]
     event: Optional[Event] = calc["event"]
 
+    # If event has no organization assigned and was authored by current user, explicitly link it here
+    if event and not event.organization_id and event.organizer_user_id == organizer_user_id:
+        event.organization_id = org.id
+        await session.flush()
+
     # Create Broadcast entity
     attribution_token = secrets.token_hex(8)
     broadcast = Broadcast(
@@ -426,6 +452,7 @@ async def create_broadcast(
         broadcast_type=broadcast_type_val,
         template_key=template_key_val,
         custom_text=req.custom_text.strip() if req.custom_text else None,
+        is_silent=bool(req.is_silent),
         status=BroadcastStatus.QUEUED.value,
         attribution_token=attribution_token,
         total_recipients=len(eligible_user_ids),
@@ -488,6 +515,7 @@ async def create_broadcast(
         open_rate=0.0,
         interest_conversion=0.0,
         rsvp_conversion=0.0,
+        is_silent=bool(broadcast.is_silent),
         created_at=broadcast.created_at,
         started_at=broadcast.started_at,
         completed_at=broadcast.completed_at,
@@ -593,7 +621,25 @@ async def dispatch_broadcast(
     rate_limit = max(1, settings.BROADCAST_RATE_LIMIT_PER_SEC)
     delay_between_messages = 1.0 / rate_limit
 
+    cover_image_url = None
+    local_cover_path = None
+    cached_photo_bytes = None
+    telegram_photo_file_id: Optional[str] = None
+
+    if event and event.cover_image_url:
+        from app.services.notification_service import resolve_event_cover_url, resolve_local_cover_path
+        cover_image_url = resolve_event_cover_url(event.cover_image_url)
+        local_cover_path = resolve_local_cover_path(event.cover_image_url)
+        if local_cover_path and local_cover_path.is_file():
+            try:
+                cached_photo_bytes = local_cover_path.read_bytes()
+            except Exception as e:
+                logger.warning(f"Failed to pre-read cover bytes: {e}")
+                cached_photo_bytes = None
+
     async def _send_to_recipient(client: httpx.AsyncClient, rec: BroadcastRecipient, tg_id: Optional[int]):
+        nonlocal telegram_photo_file_id
+
         # Idempotency check: only process PENDING recipients
         if rec.status != RecipientStatus.PENDING.value:
             return
@@ -610,18 +656,13 @@ async def dispatch_broadcast(
         rec.status = RecipientStatus.SENDING.value
         await session.commit()
 
-        cover_image_url = None
-        local_cover_path = None
-        if event and event.cover_image_url:
-            from app.services.notification_service import resolve_event_cover_url, resolve_local_cover_path
-            cover_image_url = resolve_event_cover_url(event.cover_image_url)
-            local_cover_path = resolve_local_cover_path(event.cover_image_url)
-
+        is_silent = bool(getattr(broadcast, "is_silent", False))
         payload = {
             "chat_id": tg_id,
             "text": message_text,
             "parse_mode": "HTML",
-            "reply_markup": reply_markup
+            "reply_markup": reply_markup,
+            "disable_notification": is_silent,
         }
 
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -630,16 +671,66 @@ async def dispatch_broadcast(
             resp = None
             photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 
-            # Priority 1: If local file exists, upload multipart directly to avoid external URL fetch issues
-            if local_cover_path:
+            # Priority 0: If we already have telegram_photo_file_id from first successful sendPhoto, reuse it via JSON
+            if telegram_photo_file_id:
+                photo_payload = {
+                    "chat_id": tg_id,
+                    "photo": telegram_photo_file_id,
+                    "caption": message_text,
+                    "parse_mode": "HTML",
+                    "reply_markup": reply_markup,
+                    "disable_notification": is_silent,
+                }
                 try:
-                    photo_bytes = local_cover_path.read_bytes()
-                    files = {"photo": (local_cover_path.name, photo_bytes, "image/jpeg")}
+                    resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+                    if resp.status_code == 429:
+                        retry_after = 1
+                        try:
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+
+                    if resp.status_code == 400:
+                        telegram_photo_file_id = None
+                        resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        logger.warning(f"sendPhoto with cached file_id failed with status {resp.status_code} for recipient {rec.user_id}")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        await session.commit()
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
+                except Exception as photo_err:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    await session.commit()
+                    return
+
+            # Priority 1: If local file bytes exist, upload multipart once to obtain file_id
+            elif cached_photo_bytes and local_cover_path:
+                try:
+                    files = {"photo": (local_cover_path.name, cached_photo_bytes, "image/jpeg")}
                     data = {
                         "chat_id": str(tg_id),
                         "caption": message_text,
                         "parse_mode": "HTML",
-                        "reply_markup": json.dumps(reply_markup)
+                        "reply_markup": json.dumps(reply_markup),
+                        "disable_notification": "true" if is_silent else "false",
                     }
                     resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
                     if resp.status_code == 429:
@@ -689,7 +780,8 @@ async def dispatch_broadcast(
                     "photo": cover_image_url,
                     "caption": message_text,
                     "parse_mode": "HTML",
-                    "reply_markup": reply_markup
+                    "reply_markup": reply_markup,
+                    "disable_notification": is_silent,
                 }
                 try:
                     resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
@@ -758,6 +850,14 @@ async def dispatch_broadcast(
                         data = await data
                 except Exception:
                     data = {}
+
+                # If response has photos, capture Telegram file_id for subsequent recipients
+                if isinstance(data, dict):
+                    photos = data.get("result", {}).get("photo")
+                    if photos and isinstance(photos, list) and len(photos) > 0:
+                        last_p = photos[-1]
+                        if isinstance(last_p, dict) and last_p.get("file_id"):
+                            telegram_photo_file_id = last_p["file_id"]
 
                 # Invariant: ok MUST be True and message_id MUST be present
                 if isinstance(data, dict) and data.get("ok") is False:
@@ -1096,6 +1196,7 @@ async def list_organizer_broadcasts(
                 open_rate=min(round(((opened_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
                 interest_conversion=min(round(((interest_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
                 rsvp_conversion=min(round(((rsvp_cnt or 0) / delivered) * 100, 1), 100.0) if delivered > 0 else 0.0,
+                is_silent=bool(getattr(bcast, "is_silent", False)),
                 created_at=bcast.created_at,
                 started_at=bcast.started_at,
                 completed_at=bcast.completed_at,
@@ -1184,6 +1285,7 @@ async def get_broadcast_detail(
         open_rate=open_rate,
         interest_conversion=interest_conversion,
         rsvp_conversion=rsvp_conversion,
+        is_silent=bool(getattr(bcast, "is_silent", False)),
         created_at=bcast.created_at,
         started_at=bcast.started_at,
         completed_at=bcast.completed_at,

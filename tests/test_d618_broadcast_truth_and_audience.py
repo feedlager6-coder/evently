@@ -102,6 +102,10 @@ async def test_event_interest_audience_accuracy_and_isolation(client, test_sessi
     assert ev2_res.status_code == 201
     ev2_id = ev2_res.json()["id"]
 
+    admin_auth = {"Authorization": f"tma {make_test_init_data(user_id=123456789, username='admin')}"}
+    await client.post(f"/api/v1/admin/events/{ev1_id}/publish", headers=admin_auth)
+    await client.post(f"/api/v1/admin/events/{ev2_id}/publish", headers=admin_auth)
+
     # 3. User 7010 and 7011 express interest in Event 1
     auth_u1 = {"Authorization": f"tma {make_test_init_data(user_id=7010, username='user_7010')}"}
     auth_u2 = {"Authorization": f"tma {make_test_init_data(user_id=7011, username='user_7011')}"}

@@ -13,6 +13,7 @@ class EventAttendee(Base):
 
     event_id = Column(String(36), ForeignKey("events.id", ondelete="CASCADE"), primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    ticket_code = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships

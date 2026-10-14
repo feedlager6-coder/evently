@@ -105,9 +105,15 @@ async def lifespan(app: FastAPI):
                                     except Exception as up_err:
                                         logger.error(f"Error dispatching Telegram update {up_id}: {up_err}", exc_info=True)
                             elif resp.status_code == 409:
-                                logger.warning("Telegram polling conflict (409), ensuring webhook is deleted...")
-                                await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
-                                await asyncio.sleep(2)
+                                text = resp.text
+                                logger.warning(f"Telegram polling conflict (409): {text}")
+                                if "terminated by other getUpdates request" in text:
+                                    import random
+                                    delay = random.uniform(5, 10)
+                                    await asyncio.sleep(delay)
+                                else:
+                                    await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
+                                    await asyncio.sleep(3)
                             else:
                                 logger.warning(f"Telegram getUpdates returned {resp.status_code}: {resp.text}")
                                 await asyncio.sleep(2)
@@ -120,32 +126,28 @@ async def lifespan(app: FastAPI):
 
             telegram_polling_task = asyncio.create_task(telegram_polling_loop())
 
-        elif settings.effective_public_host:
+        elif settings.effective_public_host and settings.APP_ENV == "production":
             webhook_url = f"{settings.effective_public_host}/api/v1/telegram/webhook"
+            secret = settings.effective_webhook_secret
             logger.info(f"Checking/syncing Telegram webhook to: {webhook_url}")
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
-                    info_resp = await client.get(f"https://api.telegram.org/bot{settings.clean_bot_token}/getWebhookInfo")
-                    current_url = ""
-                    if info_resp.status_code == 200:
-                        current_url = info_resp.json().get("result", {}).get("url", "")
+                    wh_payload = {
+                        "url": webhook_url,
+                        "allowed_updates": ["inline_query", "message"]
+                    }
+                    if secret:
+                        wh_payload["secret_token"] = secret
 
-                    if current_url != webhook_url:
-                        logger.info(f"Registering Telegram webhook: {webhook_url} (previous: '{current_url}')...")
-                        set_resp = await client.post(
-                            f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
-                            json={
-                                "url": webhook_url,
-                                "allowed_updates": ["inline_query", "message"]
-                            }
-                        )
-                        data = set_resp.json()
-                        if data.get("ok"):
-                            logger.info(f"✅ Telegram webhook auto-registered: {webhook_url}")
-                        else:
-                            logger.warning(f"⚠️ Telegram setWebhook response: {data.get('description')}")
+                    set_resp = await client.post(
+                        f"https://api.telegram.org/bot{settings.clean_bot_token}/setWebhook",
+                        json=wh_payload
+                    )
+                    data = set_resp.json()
+                    if data.get("ok"):
+                        logger.info(f"✅ Telegram webhook synchronized with secret_token: {webhook_url}")
                     else:
-                        logger.info(f"✅ Telegram webhook already configured: {webhook_url}")
+                        logger.warning(f"⚠️ Telegram setWebhook response: {data.get('description')}")
             except Exception as e:
                 logger.error(f"Failed to auto-sync Telegram webhook on startup: {e}")
 
@@ -202,11 +204,12 @@ app = FastAPI(
 )
 
 # CORS Middleware (supports Telegram WebApp origin & local dev)
-cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+raw_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+has_wildcard = not raw_origins or "*" in raw_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins if cors_origins else ["*"],
-    allow_credentials=True,
+    allow_origins=raw_origins if not has_wildcard else ["*"],
+    allow_credentials=not has_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -270,9 +273,13 @@ if FRONTEND_DIST_DIR.exists() and (FRONTEND_DIST_DIR / "index.html").exists():
         ):
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Not Found")
-        file_path = FRONTEND_DIST_DIR / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
+        try:
+            resolved_base = FRONTEND_DIST_DIR.resolve()
+            target = (FRONTEND_DIST_DIR / full_path).resolve()
+            if target.is_relative_to(resolved_base) and target.is_file():
+                return FileResponse(target)
+        except (ValueError, OSError):
+            pass
         return FileResponse(
             FRONTEND_DIST_DIR / "index.html",
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"}

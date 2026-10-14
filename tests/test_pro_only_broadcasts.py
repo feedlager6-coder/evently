@@ -557,6 +557,9 @@ async def test_17_existing_attendance_interest_unbroken(client, test_session):
     assert res_ev.status_code == 201
     event_id = res_ev.json()["id"]
 
+    admin_auth = {"Authorization": f"tma {make_test_init_data(user_id=123456789, username='admin')}"}
+    await client.post(f"/api/v1/admin/events/{event_id}/publish", headers=admin_auth)
+
     user_id = 9617
     user_auth = {"Authorization": f"tma {make_test_init_data(user_id=user_id, username='fan_user')}"}
 

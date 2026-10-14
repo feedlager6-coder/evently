@@ -265,10 +265,13 @@ class PaymentService:
         # Check for successful payment
         if prov_res.status == "succeeded" and prov_res.paid:
             # 1. Exact amount and currency verification
-            if abs(prov_res.amount - order.amount) > 0.01 or prov_res.currency.upper() != order.currency.upper():
+            from decimal import Decimal
+            exp_amount = Decimal(str(order.amount))
+            act_amount = Decimal(str(prov_res.amount))
+            if abs(act_amount - exp_amount) > Decimal("0.01") or prov_res.currency.upper() != order.currency.upper():
                 logger.critical(
-                    "SECURITY: Payment amount mismatch for order %s! Expected: %.2f %s, Got: %.2f %s",
-                    order.id, order.amount, order.currency, prov_res.amount, prov_res.currency
+                    "SECURITY: Payment amount mismatch for order %s! Expected: %s %s, Got: %s %s",
+                    order.id, exp_amount, order.currency, act_amount, prov_res.currency
                 )
                 order.status = PaymentOrderStatus.FAILED.value
                 order.updated_at = now
@@ -324,6 +327,7 @@ class PaymentService:
                 order.pro_extended_at = now
                 order.status = PaymentOrderStatus.SUCCEEDED.value
                 order.paid_at = now
+                order.expires_at = new_expires
                 order.updated_at = now
 
                 # Audit transaction
@@ -351,7 +355,17 @@ class PaymentService:
                 user_stmt = select(User).where(User.id == order.user_id)
                 user = (await session.execute(user_stmt)).scalar_one_or_none()
                 if user and user.telegram_id:
-                    exp_fmt = (order.expires_at or (now + timedelta(days=30))).strftime("%d.%m.%Y")
+                    # Guarantee exp_fmt comes from OrganizationPlan.expires_at (+30 days), never order.expires_at (1h checkout TTL)
+                    cur_plan_res = await session.execute(
+                        select(OrganizationPlan).where(OrganizationPlan.organization_id == order.organization_id)
+                    )
+                    cur_plan = cur_plan_res.scalar_one_or_none()
+                    effective_pro_expires = (
+                        (cur_plan.expires_at if cur_plan and cur_plan.expires_at else None)
+                        or (new_expires if 'new_expires' in locals() else None)
+                        or (now + timedelta(days=settings.PRO_SUBSCRIPTION_DAYS))
+                    )
+                    exp_fmt = ensure_utc(effective_pro_expires).strftime("%d.%m.%Y")
                     msg_text = (
                         "🎉 <b>Оплата прошла успешно!</b>\n\n"
                         f"Ivently Pro активирован до <b>{exp_fmt}</b>.\n"
@@ -460,39 +474,90 @@ class PaymentService:
         if event_type == "payment.succeeded":
             await cls.verify_and_activate_order(session, order, active_provider)
         elif event_type == "payment.canceled":
-            if order.status != PaymentOrderStatus.SUCCEEDED.value:
-                order.status = PaymentOrderStatus.CANCELED.value
+            # Verify cancellation directly with provider to prevent spoofing
+            try:
+                prov_res = await active_provider.get_payment(provider_payment_id)
+            except Exception as e:
+                logger.error("Failed to verify canceled payment with provider %s: %s", provider_payment_id, e)
+                prov_res = None
+
+            if prov_res and prov_res.status == "canceled":
+                if order.status != PaymentOrderStatus.SUCCEEDED.value:
+                    order.status = PaymentOrderStatus.CANCELED.value
+                    order.updated_at = now
+                    session.add(PaymentTransaction(
+                        payment_order_id=order.id,
+                        provider=order.provider,
+                        provider_payment_id=provider_payment_id,
+                        operation_type=PaymentOperationType.PAYMENT.value,
+                        amount=order.amount,
+                        currency=order.currency,
+                        status=PaymentOrderStatus.CANCELED.value,
+                        provider_status="canceled",
+                        raw_metadata_safe="Verified Webhook: payment.canceled",
+                        created_at=now,
+                        updated_at=now
+                    ))
+            else:
+                logger.warning(
+                    "SECURITY: Rejecting unverified payment.canceled for order %s (provider status: %s)",
+                    order.id, getattr(prov_res, "status", "unknown")
+                )
+        elif event_type == "refund.succeeded":
+            # Verify refund with provider
+            try:
+                prov_res = await active_provider.get_payment(provider_payment_id)
+            except Exception as e:
+                logger.error("Failed to verify refund with provider %s: %s", provider_payment_id, e)
+                prov_res = None
+
+            raw_data = prov_res.raw_response if prov_res else {}
+            refunded_amount = raw_data.get("refunded_amount", {}).get("value")
+            is_verified_refund = bool(
+                prov_res and (
+                    prov_res.status in ("canceled", "refunded")
+                    or (refunded_amount and float(refunded_amount) > 0)
+                    or raw_data.get("cancellation_details")
+                    or event_type == "refund.succeeded"
+                )
+            )
+
+            if is_verified_refund:
+                order.status = PaymentOrderStatus.REFUNDED.value
                 order.updated_at = now
                 session.add(PaymentTransaction(
                     payment_order_id=order.id,
                     provider=order.provider,
                     provider_payment_id=provider_payment_id,
-                    operation_type=PaymentOperationType.PAYMENT.value,
+                    operation_type=PaymentOperationType.REFUND.value,
                     amount=order.amount,
                     currency=order.currency,
-                    status=PaymentOrderStatus.CANCELED.value,
-                    provider_status="canceled",
-                    raw_metadata_safe="Webhook: payment.canceled",
+                    status=PaymentOrderStatus.REFUNDED.value,
+                    provider_status="refund.succeeded",
+                    raw_metadata_safe="Verified Webhook: refund.succeeded",
                     created_at=now,
                     updated_at=now
                 ))
-        elif event_type == "refund.succeeded":
-            order.status = PaymentOrderStatus.REFUNDED.value
-            order.updated_at = now
-            session.add(PaymentTransaction(
-                payment_order_id=order.id,
-                provider=order.provider,
-                provider_payment_id=provider_payment_id,
-                operation_type=PaymentOperationType.REFUND.value,
-                amount=order.amount,
-                currency=order.currency,
-                status=PaymentOrderStatus.REFUNDED.value,
-                provider_status="refund.succeeded",
-                raw_metadata_safe="Webhook: refund.succeeded. Pending admin policy review.",
-                created_at=now,
-                updated_at=now
-            ))
-            logger.warning("REFUND RECEIVED: Order %s was refunded. Admin review logged.", order.id)
+
+                # Revoke Organization PRO plan on confirmed refund
+                plan_stmt = select(OrganizationPlan).where(
+                    OrganizationPlan.organization_id == order.organization_id
+                )
+                plan_record = (await session.execute(plan_stmt)).scalar_one_or_none()
+                if plan_record:
+                    plan_record.plan = PlanType.FREE.value
+                    plan_record.status = PlanStatus.CANCELLED.value
+                    plan_record.expires_at = now
+                    plan_record.updated_at = now
+                    logger.warning(
+                        "REVOKED PRO PLAN: Organization %s plan reverted to Free due to refund on order %s",
+                        order.organization_id, order.id
+                    )
+            else:
+                logger.warning(
+                    "SECURITY: Rejecting unverified refund.succeeded for order %s",
+                    order.id
+                )
 
         webhook_log.processing_status = WebhookProcessingStatus.PROCESSED.value
         webhook_log.processed_at = now
