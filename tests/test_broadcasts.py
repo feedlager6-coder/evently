@@ -189,6 +189,7 @@ async def test_event_interest_audience_restrictions(client, test_session):
     )
     org_id = res_org.json()["id"]
 
+    future_start = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     # Create event
     ev_res = await client.post(
         "/api/v1/events",
@@ -197,7 +198,7 @@ async def test_event_interest_audience_restrictions(client, test_session):
             "description": "Heavy metal live",
             "category_id": "concerts",
             "city_id": "makhachkala",
-            "start_at": "2026-10-10T19:00:00Z",
+            "start_at": future_start,
             "venue_name": "Rock Bar Hall",
             "organization_id": org_id
         },

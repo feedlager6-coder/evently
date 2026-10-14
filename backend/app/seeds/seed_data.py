@@ -812,7 +812,7 @@ def generate_seed_events(organizer_id: int) -> list:
             "id": "mow_10",
             "title": "Неоклассика при свечах: Фортепиано и виолончель",
             "description": "Музыка Эйнауди, Циммера и Рихтера в старинном особняке, освещенном тысячью свечей.",
-            "cover_image_url": "https://images.unsplash.com/photo-1520523839898-50712140e698?w=800",
+            "cover_image_url": "/covers/concerts.jpg",
             "category_id": "concerts",
             "city_id": "moscow",
             "start_at": now + timedelta(days=9, hours=3),

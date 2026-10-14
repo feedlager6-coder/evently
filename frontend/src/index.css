@@ -7,7 +7,7 @@
 
   :root {
     /* Obsidian Optical Background Tokens */
-    --bg-canvas: #08080A;
+    --bg-canvas: #0e0e10;
     --bg-surface: #121215;
     --bg-elevated: #1A1A1F;
     --bg-card: #1C1B1E;
@@ -45,8 +45,8 @@
 
   html {
     scrollbar-gutter: stable;
-    overscroll-behavior-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    background-color: #0e0e10;
   }
 
   @supports not (scrollbar-gutter: stable) {
@@ -60,10 +60,9 @@
     background-color: var(--bg-canvas);
     color: var(--text-primary);
     min-height: 100vh;
-    min-height: -webkit-fill-available;
+    min-height: 100dvh;
     overflow-x: hidden;
-    overscroll-behavior-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 }
 
@@ -391,5 +390,22 @@ a.bg-white svg {
 
 .tab-lens-glow {
   box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.6), 0 0 16px rgba(255, 255, 255, 0.12);
+}
+
+/* Modal Spring Slide-Up Animation */
+@keyframes modalSlideUp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 48px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-modal-slide-up {
+  animation: modalSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 

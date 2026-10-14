@@ -236,10 +236,10 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-[60] flex flex-col bg-[#131315] text-[#e5e1e4] selection:bg-[#4edea3]/30 overflow-hidden transition-all duration-200 ease-out ${
+      className={`fixed inset-0 z-[60] flex flex-col bg-[#131315] text-[#e5e1e4] selection:bg-[#4edea3]/30 overflow-hidden ${
         isAnimatingOut
-          ? 'opacity-0 translate-y-8 pointer-events-none'
-          : 'opacity-100 translate-y-0'
+          ? 'opacity-0 translate-y-8 transition-all duration-200 ease-out pointer-events-none'
+          : 'animate-modal-slide-up'
       }`}
       style={{ willChange: 'transform, opacity' }}
     >

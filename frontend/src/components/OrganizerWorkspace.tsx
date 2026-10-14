@@ -1704,15 +1704,24 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {/* Anti-Fatigue Status Banner */}
               <section className="p-4 rounded-2xl glass-surface specular-border relative overflow-hidden">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-xl bg-[#2AABEE]/15 border border-[#2AABEE]/30 flex items-center justify-center text-[#2AABEE] shrink-0 mt-0.5">
+                    <TelegramIcon className="w-5 h-5 fill-current" />
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">Лимит доступен: 1 рассылка</span>
+                      <span className="text-xs font-bold text-white">
+                        {isOrgPro
+                          ? 'PRO План: Безлимитные Telegram-рассылки'
+                          : `Лимит доступен: ${monthlyBroadcastsRemaining} из ${monthlyQuota} рассылок в месяц`}
+                      </span>
+                      {isOrgPro && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 text-[10px] font-bold border border-amber-500/20">
+                          PRO
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-neutral-400 leading-relaxed">
-                      Анти-спам правило 24ч соблюдено. Аудитория отдохнула и готова к получению анонса в Telegram.
+                      Официальная Telegram-рассылка по подписчикам. Анти-спам защита: не чаще 1 раза в 24 часа.
                     </p>
                   </div>
                 </div>

@@ -194,7 +194,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
             className="w-full py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
           >
             <Camera className="w-5 h-5 stroke-[2.2]" />
-            <span>📷 Сканировать QR-код билета</span>
+            <span>Сканировать QR-код билета</span>
           </button>
 
           {scannerNotice && (

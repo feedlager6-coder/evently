@@ -39,7 +39,6 @@ import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
 import { SafeImage } from './components/SafeImage';
-import { useRubberBand } from './hooks/useRubberBand';
 
 export const App: React.FC = () => {
   // Navigation & UI state
@@ -66,9 +65,6 @@ export const App: React.FC = () => {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
-
-  // Elastic Rubber-band overscroll for native iOS/Telegram feel
-  const { containerProps: rubberBandProps, style: rubberBandStyle } = useRubberBand();
 
   // Active Event Details modal
   const [selectedEventDetails, setSelectedEventDetails] = useState<EventResponse | null>(null);
@@ -912,7 +908,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Content Area based on Tab */}
-      <main className="max-w-[480px] mx-auto" {...rubberBandProps} style={rubberBandStyle}>
+      <main className="max-w-[480px] mx-auto">
         <div className={currentTab === 'feed' ? 'block' : 'hidden'}>
           <div className="space-y-3 pb-8">
             {/* Prominent Discovery Search Trigger */}

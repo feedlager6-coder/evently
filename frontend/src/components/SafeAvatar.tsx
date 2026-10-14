@@ -29,7 +29,11 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
     }
   }, [src]);
 
-  const initials = name.trim() ? name.trim().slice(0, 2).toUpperCase() : '';
+  const cleanName = name.trim();
+  const nameParts = cleanName.split(/\s+/).filter(Boolean);
+  const initials = nameParts.length >= 2
+    ? (nameParts[0][0] + nameParts[1][0]).toUpperCase()
+    : cleanName.slice(0, 2).toUpperCase();
   const hasExplicitSize = /\b(w-\d+|h-\d+|size-\d+|w-\[|h-\[)/.test(className);
   const effectiveSize = sizeClassName === 'w-full h-full' && hasExplicitSize ? '' : sizeClassName;
 
@@ -65,7 +69,8 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
       <img
         src={src}
         alt={alt || name}
-        loading="lazy"
+        loading="eager"
+        referrerPolicy="no-referrer"
         onLoad={() => setImageState('loaded')}
         onError={() => {
           console.warn('[Ivently Media] Avatar image failed to load, switching to graceful fallback:', src);

@@ -94,6 +94,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="relative">
             <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/20 p-0.5 bg-[#1c1b1e] shadow-[0_0_24px_rgba(16,185,129,0.18)]">
               <SafeAvatar
+                src={user?.photo_url}
                 name={displayName}
                 type="user"
                 className="w-full h-full object-cover rounded-full"

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+import re
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete, case
@@ -178,16 +179,37 @@ async def list_published_events(
         query = query.where(Event.category_id == category_id)
 
     if search_query and search_query.strip():
-        term = f"%{search_query.strip()}%"
-        query = query.where(
-            or_(
-                Event.title.ilike(term),
-                Event.description.ilike(term),
-                Event.venue_name.ilike(term),
-                City.name.ilike(term),
-                Category.name.ilike(term)
-            )
-        )
+        clean_text = search_query.strip()
+        tokens = [t for t in re.sub(r'[-_.,:;!?"\'/\\()+]+', ' ', clean_text).lower().split() if t]
+        if tokens:
+            token_conditions = []
+            for token in tokens:
+                variants = {token, token.lower(), token.upper(), token.capitalize()}
+                term_ilike = f"%{token}%"
+                field_conditions = [
+                    func.lower(Event.title).like(term_ilike),
+                    Event.title.ilike(term_ilike),
+                    func.lower(Event.venue_name).like(term_ilike),
+                    Event.venue_name.ilike(term_ilike),
+                    func.lower(Event.description).like(term_ilike),
+                    Event.description.ilike(term_ilike),
+                    func.lower(City.name).like(term_ilike),
+                    func.lower(Category.name).like(term_ilike),
+                ]
+                for v in variants:
+                    v_term = f"%{v}%"
+                    field_conditions.extend([
+                        Event.title.like(v_term),
+                        Event.venue_name.like(v_term),
+                        Event.description.like(v_term),
+                        City.name.like(v_term),
+                        Category.name.like(v_term)
+                    ])
+                token_conditions.append(or_(*field_conditions))
+            query = query.where(and_(*token_conditions))
+        else:
+            term = f"%{clean_text.lower()}%"
+            query = query.where(func.lower(Event.title).like(term))
 
     # Order chronologically
     query = query.order_by(Event.start_at.asc())

@@ -15,12 +15,14 @@ logger = logging.getLogger("evently.telegram")
 
 
 def resolve_absolute_image_url(url: Optional[str]) -> str:
-    """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS URLs."""
+    """Ensures thumbnail URLs sent to Telegram Bot API are valid absolute HTTP/HTTPS JPEG URLs."""
     public_host = settings.effective_public_host or "https://iventlyapp.ru"
-    fallback = f"{public_host}/ivently_avatar_star_circle_512.png"
+    fallback = f"{public_host}/covers/default_event.jpg"
     if not url or not url.strip():
         return fallback
     clean = url.strip()
+    if "photo-1520523839898-50712140e698" in clean:
+        return f"{public_host}/covers/concerts.jpg"
     if clean.startswith("http://") or clean.startswith("https://"):
         return clean
     if clean.startswith("/"):
@@ -315,10 +317,10 @@ def build_event_inline_result(
     raw_cover = getattr(event, "cover_image_url", None)
     has_cover = bool(raw_cover and isinstance(raw_cover, str) and raw_cover.strip())
 
-    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False) if has_cover else None
-    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True) if has_cover else resolve_absolute_image_url(None)
+    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
+    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
 
-    if has_cover and photo_url and photo_url.startswith("https://"):
+    if photo_url and photo_url.startswith("https://"):
         return {
             "type": "photo",
             "id": result_id,
@@ -554,7 +556,7 @@ async def handle_inline_query(
     if not results:
         # Graceful empty-state
         city_display = target_city_name or (target_city_id or "выбранном городе").capitalize()
-        empty_thumb = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400"
+        empty_thumb = resolve_absolute_image_url(None)
         display_q = html.escape(query_text or "поиск")
         results.append({
             "type": "article",
@@ -576,7 +578,7 @@ async def handle_inline_query(
     return {
         "inline_query_id": query_id,
         "results": results,
-        "cache_time": 30,
+        "cache_time": 5,
         "is_personal": True
     }
 

@@ -40,7 +40,8 @@ declare global {
         };
         ready: () => void;
         expand: () => void;
-        close: () => void;
+        setHeaderColor?: (color: string) => void;
+        setBackgroundColor?: (color: string) => void;
         disableVerticalSwipes?: () => void;
         enableVerticalSwipes?: () => void;
         enableClosingConfirmation?: () => void;
@@ -275,6 +276,8 @@ export const telegram = {
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.setHeaderColor?.('#0e0e10');
+        window.Telegram.WebApp.setBackgroundColor?.('#0e0e10');
         window.Telegram.WebApp.disableVerticalSwipes?.();
         window.Telegram.WebApp.enableClosingConfirmation?.();
       }
