@@ -59,9 +59,9 @@ async def test_inline_result_fallback_covers(test_session):
         is_free = False
 
     inline_res = build_event_inline_result(MockEvent())
-    assert inline_res["type"] == "photo"
-    assert inline_res["photo_url"].endswith("/covers/default_event.jpg")
+    assert inline_res["type"] == "article"
     assert inline_res["thumbnail_url"].endswith("/covers/default_event.jpg")
+    assert inline_res["input_message_content"]["link_preview_options"]["url"].endswith("/covers/default_event.jpg")
 
 
 @pytest.mark.asyncio

@@ -320,20 +320,8 @@ def build_event_inline_result(
     photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
     thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
 
-    if photo_url and photo_url.startswith("https://"):
-        return {
-            "type": "photo",
-            "id": result_id,
-            "photo_url": photo_url,
-            "thumbnail_url": thumb_url,
-            "thumb_url": thumb_url,
-            "title": f"🎟 {title_str}",
-            "description": description,
-            "caption": caption,
-            "parse_mode": "HTML",
-            "reply_markup": reply_markup
-        }
-
+    # Always return InlineQueryResultArticle to guarantee consistent, uniform vertical list
+    # with thumbnail, title, venue, date, and price across all clients (never collapsing into bare photo grid)
     return {
         "type": "article",
         "id": result_id,
@@ -344,7 +332,12 @@ def build_event_inline_result(
         "input_message_content": {
             "message_text": caption,
             "parse_mode": "HTML",
-            "link_preview_options": {"is_disabled": False}
+            "link_preview_options": {
+                "is_disabled": False,
+                "url": photo_url,
+                "prefer_large_media": True,
+                "show_above_text": True
+            }
         },
         "reply_markup": reply_markup
     }
@@ -468,7 +461,7 @@ async def handle_inline_query(
         city_res = await session.execute(select(City.name).where(City.id == target_city_id))
         target_city_name = city_res.scalar_one_or_none()
 
-    # Fetch events
+    # Fetch events (strictly upcoming only, no past events)
     events: List[Any] = []
     total = 0
     if target_city_id:
@@ -478,7 +471,8 @@ async def handle_inline_query(
             category_id=parsed.category_id,
             date_filter=parsed.date_filter,
             search_query=search_keyword,
-            limit=10
+            limit=10,
+            only_upcoming=True
         )
     else:
         # Nationwide search across all cities if no city specified
@@ -488,7 +482,8 @@ async def handle_inline_query(
             category_id=parsed.category_id,
             date_filter=parsed.date_filter,
             search_query=search_keyword,
-            limit=10
+            limit=10,
+            only_upcoming=True
         )
         # If no events found with keyword and transliterated alternative exists, search with alt
         if not events and search_keyword and alt_text and alt_text != search_keyword:
@@ -498,14 +493,16 @@ async def handle_inline_query(
                 category_id=parsed.category_id,
                 date_filter=parsed.date_filter,
                 search_query=alt_text,
-                limit=10
+                limit=10,
+                only_upcoming=True
             )
         # If query is completely empty, fallback to Makhachkala
         if not events and not query_text:
             events, total = await list_published_events(
                 session=session,
                 city_id="makhachkala",
-                limit=10
+                limit=10,
+                only_upcoming=True
             )
 
     results: List[Dict[str, Any]] = []
@@ -513,45 +510,6 @@ async def handle_inline_query(
     if events:
         for ev in events:
             results.append(build_event_inline_result(ev, is_share=False))
-
-    # Also search matching organizations if query is present
-    if query_text:
-        try:
-            from app.services.discovery_service import discovery_service
-            matched_orgs, _ = await discovery_service.search_organizations(
-                session=session,
-                query=query_text,
-                city_id=target_city_id if target_city_id else None,
-                limit=3
-            )
-            for org in matched_orgs:
-                org_thumb = resolve_absolute_image_url(org.avatar_url)
-                org_url = settings.get_organization_deep_link(org.id)
-                results.append({
-                    "type": "article",
-                    "id": f"org_{org.id}",
-                    "title": f"🧭 {org.name}",
-                    "description": f"{org.category} · {org.city_name or ''} · {org.followers_count} подписчиков",
-                    "thumbnail_url": org_thumb,
-                    "thumb_url": org_thumb,
-                    "input_message_content": {
-                        "message_text": (
-                            f"🧭 <b>{html.escape(org.name)}</b>\n"
-                            f"Категория: {html.escape(org.category)}\n"
-                            f"Город: {html.escape(org.city_name or 'Россия')}\n"
-                            f"Подписчиков: {org.followers_count}\n\n"
-                            f"Смотрите актуальные события и афишу организации в Ivently!"
-                        ),
-                        "parse_mode": "HTML"
-                    },
-                    "reply_markup": {
-                        "inline_keyboard": [
-                            [{"text": "Открыть профиль ↗", "url": org_url, "style": "success"}]
-                        ]
-                    }
-                })
-        except Exception as e:
-            logger.warning(f"Error querying organizations for inline search: {e}")
 
     if not results:
         # Graceful empty-state

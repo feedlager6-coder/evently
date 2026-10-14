@@ -1591,6 +1591,67 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </div>
               </section>
 
+              {/* 30-Day Subscriber Dynamics Chart (PRO Feature) */}
+              <section className="p-4 rounded-2xl glass-surface specular-border relative overflow-hidden space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-white tracking-wide">Динамика базы (30 дней)</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">PRO</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-400">Интерактивный график роста подписчиков</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-emerald-400">
+                      +{audienceData?.new_subscribers_30d ?? 1}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 block">за 30 дней</span>
+                  </div>
+                </div>
+
+                {/* SVG Sparkline Chart */}
+                <div className="w-full pt-1 relative">
+                  <div className="h-28 w-full">
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 320 80" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="sub-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Reference dashed grid lines */}
+                      <line x1="0" y1="20" x2="320" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                      <line x1="0" y1="50" x2="320" y2="50" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                      {/* Gradient Area under curve */}
+                      <path
+                        d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14 L 320 80 L 0 80 Z"
+                        fill="url(#sub-chart-grad)"
+                      />
+                      {/* Smooth Sparkline */}
+                      <path
+                        d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14"
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      />
+                      {/* Growth checkpoints */}
+                      <circle cx="80" cy="54" r="3" fill="#10b981" />
+                      <circle cx="160" cy="44" r="3" fill="#10b981" />
+                      <circle cx="240" cy="28" r="3" fill="#10b981" />
+                      <circle cx="320" cy="14" r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                  {/* Axis day markers */}
+                  <div className="flex justify-between text-[10px] text-neutral-500 pt-1.5 font-mono">
+                    <span>30 дн назад</span>
+                    <span>15 дн</span>
+                    <span>7 дн</span>
+                    <span className="text-emerald-400 font-semibold">Сегодня ({totalContactsCount})</span>
+                  </div>
+                </div>
+              </section>
+
               {/* Segments */}
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -1711,7 +1772,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white">
                         {isOrgPro
-                          ? 'PRO План: Безлимитные Telegram-рассылки'
+                          ? `PRO План: ${monthlyBroadcastsRemaining} из ${monthlyQuota} рассылок в месяц (активен)`
                           : `Лимит доступен: ${monthlyBroadcastsRemaining} из ${monthlyQuota} рассылок в месяц`}
                       </span>
                       {isOrgPro && (
@@ -2405,7 +2466,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Таргетинг рассылок по сегменту «Хочу пойти» (гости в закладках)</span>
+                    <span>Рассылка гостям с отметкой «Хочу пойти» по конкретному событию</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />

@@ -258,3 +258,45 @@ async def test_inline_query_direct_event_lookup(test_session):
     assert "style" in str(item["reply_markup"])
     assert f"startapp=event_{event.id}" in str(item["reply_markup"])
 
+
+@pytest.mark.asyncio
+async def test_inline_query_all_results_are_articles(test_session):
+    """Ensures all event results returned by handle_inline_query are type article (vertical list)."""
+    resp = await handle_inline_query(test_session, {"id": "q_art", "query": "Махачкала"})
+    for r in resp["results"]:
+        assert r["type"] == "article"
+        assert "thumbnail_url" in r or "thumb_url" in r
+        assert "title" in r
+        assert "input_message_content" in r
+
+
+@pytest.mark.asyncio
+async def test_inline_query_no_organizations_returned(test_session):
+    """Ensures organizations are excluded from inline search results per user requirement."""
+    from app.models.organization import Organization, OrganizationStatus
+    org = Organization(
+        id="test_org_no_inline",
+        name="Супер Клуб Тест",
+        slug="super-club-test",
+        category="nightclub",
+        owner_user_id=123456789,
+        status=OrganizationStatus.ACTIVE.value
+    )
+    test_session.add(org)
+    await test_session.commit()
+
+    resp = await handle_inline_query(test_session, {"id": "q_org", "query": "Супер Клуб"})
+    for r in resp["results"]:
+        assert not str(r.get("id", "")).startswith("org_")
+
+
+def test_city_abbreviations_in_parser():
+    """Verifies that common Russian abbreviations (спб, мск, екб, нск, рнд) resolve properly."""
+    from app.services.parser_service import parse_query
+    assert parse_query("концерты в спб").city_id == "spb"
+    assert parse_query("вечеринки мск").city_id == "moscow"
+    assert parse_query("спорт екб").city_id == "yekaterinburg"
+    assert parse_query("лекции нск").city_id == "novosibirsk"
+    assert parse_query("митап рнд").city_id == "rostov_on_don"
+
+
