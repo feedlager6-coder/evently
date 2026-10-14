@@ -39,6 +39,7 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
     Standardizes image URLs for Telegram inline previews and photo messages.
     Prevents excessively tall vertical previews by enforcing controlled landscape aspect ratios (16:10)
     for Unsplash assets, and 1:1 square for popup thumbnails.
+    Enforces cache buster (?v=2) and links to _thumb.jpg for local uploads when is_thumbnail=True.
     """
     resolved = resolve_absolute_image_url(url)
     if "images.unsplash.com" in resolved:
@@ -46,6 +47,17 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
         if is_thumbnail:
             return f"{base}?w=400&h=400&auto=format&fit=crop&q=80"
         return f"{base}?w=800&h=500&auto=format&fit=crop&q=85"
+
+    if "/uploads/covers/" in resolved:
+        base_clean = resolved.split("?")[0]
+        if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
+            base_clean = base_clean[:-4] + "_thumb.jpg"
+        return f"{base_clean}?v=2"
+
+    if "files.catbox.moe" in resolved:
+        base_clean = resolved.split("?")[0]
+        return f"{base_clean}?v=2"
+
     return resolved
 
 
@@ -376,6 +388,8 @@ def build_event_inline_result(
         "description": description,
         "thumbnail_url": thumb_url,
         "thumb_url": thumb_url,
+        "thumbnail_width": 320,
+        "thumbnail_height": 320,
         "input_message_content": {
             "message_text": message_text,
             "parse_mode": "HTML",

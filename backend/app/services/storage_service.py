@@ -165,24 +165,43 @@ class StorageService:
         ext = self.validate_image(content, content_type)
         content_type_clean = (content_type or "").lower().split(";")[0].strip()
 
-        # Convert cover images to standard RGB JPEG for Telegram Bot API compatibility
+        # Convert and optimize cover images for Telegram Bot API compatibility
+        thumb_content: Optional[bytes] = None
         if folder == "covers":
             try:
-                from PIL import Image
+                from PIL import Image, ImageOps
                 import io
                 with Image.open(io.BytesIO(content)) as im:
-                    rgb_im = im.convert("RGB")
+                    # 1. Correct EXIF orientation (e.g. from iPhone cameras)
+                    im = ImageOps.exif_transpose(im)
+                    im = im.convert("RGB")
+
+                    # 2. Main cover: resize max to 1200x800, quality 82, progressive
+                    cover_im = im.copy()
+                    cover_im.thumbnail((1200, 800), Image.Resampling.LANCZOS)
                     buf = io.BytesIO()
-                    rgb_im.save(buf, format="JPEG", quality=85, optimize=True)
+                    cover_im.save(buf, format="JPEG", quality=82, optimize=True, progressive=True)
                     content = buf.getvalue()
                     ext = ".jpg"
                     content_type_clean = "image/jpeg"
+
+                    # 3. Square thumbnail 320x320 for Telegram Inline popup
+                    thumb_im = ImageOps.fit(im, (320, 320), Image.Resampling.LANCZOS)
+                    t_buf = io.BytesIO()
+                    thumb_im.save(t_buf, format="JPEG", quality=80, optimize=True)
+                    thumb_content = t_buf.getvalue()
             except Exception as e:
-                logger.warning(f"Image conversion to JPEG skipped: {e}")
+                logger.warning(f"Image processing with Pillow skipped or failed: {e}")
 
-        filename = f"{uuid.uuid4().hex}{ext}"
+        base_id = uuid.uuid4().hex
+        filename = f"{base_id}{ext}"
 
-        # If S3 is configured, upload to S3-compatible persistent storage
+        # 1. Always save locally first as reliable persistent copy
+        local_url = self._save_to_local(content, folder, filename)
+        if thumb_content:
+            self._save_to_local(thumb_content, folder, f"{base_id}_thumb{ext}")
+
+        # 2. If S3 is configured, upload to S3-compatible persistent storage
         if settings.is_s3_storage_configured and settings.STORAGE_BACKEND != "local":
             try:
                 s3_url = await self._upload_to_s3(
@@ -193,12 +212,37 @@ class StorageService:
                 logger.info(f"Uploaded media to S3: {s3_url}")
                 return s3_url
             except Exception as e:
-                logger.error(f"S3 upload failed, falling back to local persistent storage: {e}")
-                # Fall back to local storage if S3 fails
-                return self._save_to_local(content, folder, filename)
+                logger.error(f"S3 upload failed: {e}")
 
-        # Fall back to local persistent storage (Railway volume or disk)
-        return self._save_to_local(content, folder, filename)
+        # 3. Upload cover to public CDN so European Telegram crawlers can access it without TSPU/DPI blocks
+        if folder == "covers":
+            try:
+                cdn_url = await self._upload_to_public_cdn(content, filename)
+                if cdn_url:
+                    logger.info(f"Uploaded cover to public CDN: {cdn_url}")
+                    return cdn_url
+            except Exception as e:
+                logger.warning(f"Public CDN upload failed, falling back to local: {e}")
+
+        return local_url
+
+    async def _upload_to_public_cdn(self, content: bytes, filename: str) -> Optional[str]:
+        """
+        Uploads an image to public CDN (Catbox/Cloudflare) so Telegram Bot API crawlers
+        in Europe can reliably fetch it without being blocked by Russian ISP/TSPU DPI filters.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                files = {"fileToUpload": (filename, content, "image/jpeg")}
+                data = {"reqtype": "fileupload"}
+                resp = await client.post("https://catbox.moe/user/api.php", data=data, files=files)
+                if resp.status_code == 200:
+                    cdn_url = resp.text.strip()
+                    if cdn_url.startswith("https://"):
+                        return cdn_url
+        except Exception as e:
+            logger.warning(f"Public CDN upload error: {e}")
+        return None
 
     def _save_to_local(self, content: bytes, folder: str, filename: str) -> str:
         base_dir = self.get_local_storage_dir()
