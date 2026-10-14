@@ -150,7 +150,7 @@ async def test_discovery_transliteration_and_case(client: AsyncClient, test_sess
 
 
 @pytest.mark.asyncio
-async def test_telegram_inline_search_includes_orgs(test_session: AsyncSession):
+async def test_telegram_inline_search_excludes_orgs(test_session: AsyncSession):
     user = User(
         id=992233,
         telegram_id=992233,
@@ -172,7 +172,7 @@ async def test_telegram_inline_search_includes_orgs(test_session: AsyncSession):
     test_session.add(org)
     await test_session.commit()
 
-    # Query with matching organization
+    # Query with matching organization name
     payload = {
         "id": "inline_query_999",
         "query": "Loft Hall",
@@ -181,9 +181,6 @@ async def test_telegram_inline_search_includes_orgs(test_session: AsyncSession):
     resp = await handle_inline_query(test_session, payload)
     assert resp["inline_query_id"] == "inline_query_999"
     results = resp["results"]
-    assert len(results) >= 1
-    # Check that org result is included
+    # Check that organizations are strictly excluded from inline search results
     org_item = next((r for r in results if r["id"].startswith("org_")), None)
-    assert org_item is not None
-    assert "Loft Hall" in org_item["title"]
-    assert "reply_markup" in org_item
+    assert org_item is None

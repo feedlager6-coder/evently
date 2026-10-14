@@ -27,6 +27,8 @@ interface ScanResultItem {
   status: 'success' | 'already_checked_in' | 'invalid';
   message: string;
   guestName?: string;
+  isPaymentRequiredAtDoor?: boolean;
+  doorPrice?: number;
 }
 
 export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
@@ -36,9 +38,15 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
 }) => {
   const [manualCode, setManualCode] = useState('');
   const [isChecking, setIsChecking] = useState(false);
+  const [isContinuousScan, setIsContinuousScan] = useState(true);
   const [scannerNotice, setScannerNotice] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ScanResultItem | null>(null);
   const [checkInHistory, setCheckInHistory] = useState<ScanResultItem[]>([]);
+
+  // Ref guards against 30fps camera scan flooding (P5)
+  const isProcessingRef = React.useRef(false);
+  const lastScannedCodeRef = React.useRef<string>('');
+  const lastScannedTimeRef = React.useRef<number>(0);
 
   // Load check-in history from localStorage on open
   useEffect(() => {
@@ -64,6 +72,18 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
   const handleProcessCode = async (rawCode: string) => {
     if (!rawCode || !rawCode.trim()) return;
     const clean = rawCode.trim();
+
+    // Debounce guard: suppress duplicate scans of same code within 2.5 seconds
+    const nowMs = Date.now();
+    if (clean === lastScannedCodeRef.current && nowMs - lastScannedTimeRef.current < 2500) {
+      return;
+    }
+    if (isProcessingRef.current) return;
+
+    isProcessingRef.current = true;
+    lastScannedCodeRef.current = clean;
+    lastScannedTimeRef.current = nowMs;
+
     setIsChecking(true);
     setScannerNotice(null);
 
@@ -81,24 +101,30 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
         status: res.status,
         message: res.message,
         guestName: res.guest_name,
+        isPaymentRequiredAtDoor: res.is_payment_required_at_door,
+        doorPrice: res.price_amount,
       };
 
       setLastResult(resultItem);
 
       if (res.status === 'success') {
-        telegram.hapticSuccess();
+        if (res.is_payment_required_at_door) {
+          telegram.hapticNotification('warning');
+        } else {
+          telegram.hapticNotification('success');
+        }
         const updated = [resultItem, ...checkInHistory.filter((c) => c.code !== resultItem.code)];
         setCheckInHistory(updated);
         try {
           localStorage.setItem(`ivently_checkin_history_${event.id}`, JSON.stringify(updated.slice(0, 50)));
         } catch {}
       } else if (res.status === 'already_checked_in') {
-        telegram.hapticImpact('heavy');
+        telegram.hapticNotification('warning');
       } else {
-        telegram.hapticError();
+        telegram.hapticNotification('error');
       }
     } catch (err: any) {
-      telegram.hapticError();
+      telegram.hapticNotification('error');
       setLastResult({
         code: clean,
         time: new Date().toLocaleTimeString('ru-RU'),
@@ -107,6 +133,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
       });
     } finally {
       setIsChecking(false);
+      isProcessingRef.current = false;
       setManualCode('');
     }
   };
@@ -120,7 +147,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
         { text: `Сканируйте QR-код билета: ${event.title}` },
         (scannedText: string) => {
           handleProcessCode(scannedText);
-          return true; // Closes popup in Telegram
+          return !isContinuousScan; // false keeps popup camera open for stream scanning
         }
       );
     } else {
@@ -133,7 +160,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
   const handleTestScan = () => {
     telegram.hapticImpact('light');
     const sampleSuffix = Math.floor(1000 + Math.random() * 9000);
-    const sampleEventPrefix = event.id.replace(/-/g, '').slice(0, 6).toUpperCase();
+    const sampleEventPrefix = event.id.replace(/-/g, '').slice(0, 4).toUpperCase();
     const testCode = `IVN-${sampleEventPrefix}-${sampleSuffix}`;
     handleProcessCode(testCode);
   };
@@ -155,7 +182,7 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
             telegram.hapticImpact('light');
             onClose();
           }}
-          className="p-1.5 rounded-full bg-white/5 text-neutral-400 hover:text-white active:scale-95 transition"
+          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:text-white active:scale-95 transition"
           aria-label="Закрыть"
         >
           <X className="w-5 h-5" />
@@ -188,14 +215,32 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
 
         {/* Primary Action: Open Telegram Camera Scanner */}
         <div className="space-y-2">
-          <button
-            type="button"
-            onClick={handleStartTelegramScanner}
-            className="w-full py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
-          >
-            <Camera className="w-5 h-5 stroke-[2.2]" />
-            <span>Сканировать QR-код билета</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleStartTelegramScanner}
+              className="flex-1 py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm shadow-[0_4px_24px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2"
+            >
+              <Camera className="w-5 h-5 stroke-[2.2]" />
+              <span>Сканировать QR-код</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                telegram.hapticImpact('light');
+                setIsContinuousScan((prev) => !prev);
+              }}
+              title="Потоковое сканирование очереди"
+              className={`px-3 py-3 rounded-2xl border transition flex flex-col items-center justify-center gap-1 text-[10px] font-bold min-w-[64px] ${
+                isContinuousScan
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                  : 'bg-white/5 border-white/10 text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isContinuousScan ? 'Поток: ВКЛ' : 'Поток'}</span>
+            </button>
+          </div>
 
           {scannerNotice && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs leading-relaxed animate-fade-in">
@@ -294,6 +339,13 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
                 <div className="text-[11px] font-mono opacity-80 pt-0.5 truncate">
                   Билет: <span className="font-bold">{lastResult.code}</span>
                 </div>
+
+                {lastResult.isPaymentRequiredAtDoor && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-amber-500/25 border border-amber-400/50 text-amber-200 text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
+                    <span>⚠️ ТРЕБУЕТСЯ ОПЛАТА НА ВХОДЕ: {lastResult.doorPrice ? `${lastResult.doorPrice} ₽` : 'по прайсу'}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -308,8 +360,9 @@ export const CheckInScannerModal: React.FC<CheckInScannerModalProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm('Очистить историю чек-ина этой смены?')) {
+                onClick={async () => {
+                  const confirmed = await telegram.showConfirm('Очистить историю чек-ина этой смены?');
+                  if (confirmed) {
                     setCheckInHistory([]);
                     localStorage.removeItem(`ivently_checkin_history_${event.id}`);
                     telegram.hapticImpact('light');

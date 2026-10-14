@@ -168,6 +168,16 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
               hour: '2-digit',
               minute: '2-digit',
             });
+            const isToday = dateObj.toDateString() === new Date().toDateString();
+            const tomorrowDate = new Date();
+            tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+            const isTomorrow = dateObj.toDateString() === tomorrowDate.toDateString();
+            const dateDisplay = isToday 
+              ? `Сегодня в ${timeStr}` 
+              : isTomorrow 
+              ? `Завтра в ${timeStr}` 
+              : `${dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в ${timeStr}`;
+
             return (
               <div
                 key={`attending-${ev.id}`}
@@ -184,7 +194,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                     Напоминание о событии
                   </span>
                   <span className="text-[11px] text-zinc-400 font-medium">
-                    Сегодня в {timeStr}
+                    {dateDisplay}
                   </span>
                 </div>
                 <h3 className="text-sm font-semibold text-white truncate">{ev.title}</h3>

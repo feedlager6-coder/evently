@@ -5,12 +5,14 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.organization import Organization, OrganizationStatus
 from app.models.event import Event
+from app.models.ticket_checkin import TicketCheckIn
 from app.schemas.event import EventSummary
 from app.schemas.audience import OrganizerAudienceResponse
 from app.schemas.insights import OrganizerInsightsResponse
@@ -239,9 +241,8 @@ class CheckInResponse(BaseModel):
     event_id: str
     event_title: str
     guest_name: Optional[str] = "Гость Ivently"
-
-
-_CHECKED_IN_CACHE: Dict[str, Dict[str, str]] = {}
+    is_payment_required_at_door: bool = False
+    price_amount: Optional[float] = None
 
 
 @router.post("/events/{event_id}/check-in", response_model=CheckInResponse)
@@ -252,7 +253,7 @@ async def check_in_event_ticket(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    Validates and performs check-in for a ticket code or QR payload for the organizer's event.
+    Validates and performs persistent check-in for a ticket code or QR payload for the organizer's event.
     """
     stmt = select(Event).where(Event.id == event_id)
     event = (await session.execute(stmt)).scalar_one_or_none()
@@ -260,8 +261,9 @@ async def check_in_event_ticket(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Мероприятие не найдено")
 
     # Authorize: user must be the organizer or admin
-    is_author = (event.organizer_id == str(user.id)) or (event.created_by_user_id == user.id)
-    if not is_author and user.role != "admin":
+    is_author = (event.organizer_user_id == user.id)
+    is_admin = settings.is_admin(user.telegram_id)
+    if not is_author and not is_admin:
         if event.organization_id:
             org_stmt = select(Organization).where(Organization.id == event.organization_id)
             org = (await session.execute(org_stmt)).scalar_one_or_none()
@@ -273,16 +275,26 @@ async def check_in_event_ticket(
     raw_code = req.ticket_code.strip()
     ticket_id = raw_code
     payload_event_id = None
+    guest_name = "Гость Ivently"
 
     if raw_code.startswith("{") and raw_code.endswith("}"):
         try:
             parsed = json.loads(raw_code)
-            ticket_id = parsed.get("ticket_id") or raw_code
+            ticket_id = (parsed.get("ticket_id") or raw_code).strip()
             payload_event_id = parsed.get("event_id")
+            if parsed.get("guest_name"):
+                guest_name = parsed.get("guest_name")
         except Exception:
             pass
 
-    now_iso = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    now_utc = datetime.now(timezone.utc)
+    now_iso = now_utc.strftime("%H:%M:%S")
+
+    # Payment at door check (C7)
+    is_free = bool(getattr(event, "is_free", False)) or (event.price_amount is not None and event.price_amount == 0)
+    ticket_url = getattr(event, "source_url", None) or getattr(event, "registration_url", None) or getattr(event, "ticket_link", None)
+    is_payment_required_at_door = not is_free and not ticket_url and (event.price_amount is not None and event.price_amount > 0)
+    price_amount = float(event.price_amount) if (event.price_amount is not None and event.price_amount > 0) else None
 
     if payload_event_id and payload_event_id != event_id:
         return CheckInResponse(
@@ -292,12 +304,19 @@ async def check_in_event_ticket(
             checked_in_at=now_iso,
             event_id=event_id,
             event_title=event.title,
+            guest_name=guest_name,
+            is_payment_required_at_door=is_payment_required_at_door,
+            price_amount=price_amount,
         )
 
-    # Check if already checked in
-    event_cache = _CHECKED_IN_CACHE.setdefault(event_id, {})
-    if ticket_id in event_cache:
-        prev_time = event_cache[ticket_id]
+    # Check if already checked in from database
+    existing_stmt = select(TicketCheckIn).where(
+        TicketCheckIn.event_id == event_id,
+        TicketCheckIn.ticket_code == ticket_id
+    )
+    existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        prev_time = existing.created_at.strftime("%H:%M:%S") if existing.created_at else now_iso
         return CheckInResponse(
             status="already_checked_in",
             message=f"Билет уже был использован ранее в {prev_time}",
@@ -305,19 +324,53 @@ async def check_in_event_ticket(
             checked_in_at=prev_time,
             event_id=event_id,
             event_title=event.title,
+            guest_name=existing.guest_name or guest_name,
+            is_payment_required_at_door=is_payment_required_at_door,
+            price_amount=price_amount,
         )
 
-    # Register check-in
-    event_cache[ticket_id] = now_iso
+    # Insert new checkin with atomic unique constraint error handling
+    new_checkin = TicketCheckIn(
+        event_id=event_id,
+        ticket_code=ticket_id,
+        checked_in_by_user_id=user.id,
+        guest_name=guest_name,
+        created_at=now_utc,
+    )
+    session.add(new_checkin)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        existing = (await session.execute(existing_stmt)).scalar_one_or_none()
+        prev_time = existing.created_at.strftime("%H:%M:%S") if (existing and existing.created_at) else now_iso
+        return CheckInResponse(
+            status="already_checked_in",
+            message=f"Билет уже был использован ранее в {prev_time}",
+            ticket_code=ticket_id,
+            checked_in_at=prev_time,
+            event_id=event_id,
+            event_title=event.title,
+            guest_name=guest_name,
+            is_payment_required_at_door=is_payment_required_at_door,
+            price_amount=price_amount,
+        )
+
+    success_msg = "Билет действителен. Вход подтвержден!"
+    if is_payment_required_at_door:
+        formatted_price = int(price_amount) if price_amount and price_amount.is_integer() else price_amount
+        success_msg = f"Билет действителен. ОПЛАТА НА ВХОДЕ: {formatted_price} ₽"
 
     return CheckInResponse(
         status="success",
-        message="Билет действителен. Вход подтвержден!",
+        message=success_msg,
         ticket_code=ticket_id,
         checked_in_at=now_iso,
         event_id=event_id,
         event_title=event.title,
-        guest_name="Гость Ivently",
+        guest_name=guest_name,
+        is_payment_required_at_door=is_payment_required_at_door,
+        price_amount=price_amount,
     )
 
 

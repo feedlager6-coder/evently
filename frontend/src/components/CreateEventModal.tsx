@@ -51,7 +51,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   categories: _categories,
   defaultCityId,
   onEventCreated,
-  myOrganizations: _myOrganizations = [],
+  myOrganizations = [],
   initialOrganizationId,
   initialEvent,
   onEventUpdated,
@@ -322,7 +322,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       return;
     }
     if (!venueName.trim() && !address.trim()) {
-      setError('Укажите площадку или адрес события в Махачкале');
+      setError('Укажите площадку или адрес проведения события');
       telegram.hapticNotification('error');
       return;
     }
@@ -332,14 +332,15 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setError(null);
       telegram.hapticImpact('medium');
 
+      const currentCityName = cities.find((c) => c.id === cityId)?.name || 'Площадка';
       const fullStartAt = `${eventDate}T${eventTime}:00`;
       const payload: EventCreatePayload = {
         title: title.trim(),
         description: description.trim() || 'Без описания',
-        city_id: cityId || 'makhachkala',
+        city_id: cityId || (cities[0]?.id || 'makhachkala'),
         category_id: categoryId,
         start_at: new Date(fullStartAt).toISOString(),
-        venue_name: venueName.trim() || address.trim() || 'Махачкала',
+        venue_name: venueName.trim() || address.trim() || currentCityName,
         address: address.trim() || venueName.trim(),
         latitude: latitude,
         longitude: longitude,
@@ -459,6 +460,57 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
+          )}
+
+          {/* Section 0: Выбор автора / Организации */}
+          {myOrganizations.length > 0 && (
+            <section className="form-section p-4 space-y-2.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+                Публикация от имени
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    setSelectedOrgId(undefined);
+                  }}
+                  className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                    !selectedOrgId
+                      ? 'border-emerald-500/50 bg-emerald-500/10 text-white'
+                      : 'border-white/5 bg-white/[0.02] text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold block truncate">Лично от автора</span>
+                    <span className="text-[10px] text-neutral-500 block">Независимое событие</span>
+                  </div>
+                  {!selectedOrgId && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+                </button>
+
+                {myOrganizations.map((org) => (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      setSelectedOrgId(org.id);
+                    }}
+                    className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                      selectedOrgId === org.id
+                        ? 'border-emerald-500/50 bg-emerald-500/10 text-white'
+                        : 'border-white/5 bg-white/[0.02] text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-1">
+                      <span className="text-xs font-bold block truncate">{org.name}</span>
+                      <span className="text-[10px] text-neutral-500 block">Организация</span>
+                    </div>
+                    {selectedOrgId === org.id && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* Section 1: Обложка события matching Screen 2 */}
@@ -863,7 +915,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 </h3>
                 <p className="text-xs text-neutral-400 flex items-center space-x-1">
                   <MapPin className="w-3.5 h-3.5 shrink-0 text-neutral-500" />
-                  <span>{venueName || 'Махачкала, площадка не указана'}</span>
+                  <span>{venueName || `${cities.find((c) => c.id === cityId)?.name || 'Город'}, площадка не указана`}</span>
                 </p>
                 {description && (
                   <p className="text-xs text-neutral-300 pt-1 line-clamp-3 leading-relaxed border-t border-white/5">

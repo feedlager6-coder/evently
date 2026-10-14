@@ -612,13 +612,13 @@ async def test_19_inline_search_returns_photo_result(test_session):
     assert len(results) >= 1
     target = next((r for r in results if r["id"] == f"event_{event.id}"), None)
     assert target is not None
-    assert target["type"] == "photo"
-    assert "photo_url" in target
+    assert target["type"] == "article"
     assert "thumbnail_url" in target
-    assert "caption" in target
-    assert "🎟 <b>Rock Festival 2026</b>" in target["caption"]
-    assert "🎟 Вход: 1500 ₽" in target["caption"]
-    assert "RUB" not in target["caption"]
+    assert "input_message_content" in target
+    msg_text = target["input_message_content"]["message_text"]
+    assert "🎟 <b>Rock Festival 2026</b>" in msg_text
+    assert "🎟 Вход: 1500 ₽" in msg_text
+    assert "RUB" not in msg_text
     button = target["reply_markup"]["inline_keyboard"][0][0]
     assert button["text"] == "Открыть событие 🧭"
     assert f"startapp=event_{event.id}" in button["url"]
@@ -626,7 +626,7 @@ async def test_19_inline_search_returns_photo_result(test_session):
 
 @pytest.mark.asyncio
 async def test_20_inline_search_fastpath_returns_photo_result(test_session):
-    """20. Fast-path lookup by event_<id> returns InlineQueryResultPhoto with unified button."""
+    """20. Fast-path lookup by event_<id> returns InlineQueryResultArticle with unified button."""
     city = (await test_session.execute(select(City))).scalars().first()
     category = (await test_session.execute(select(Category))).scalars().first()
     org_user = (await test_session.execute(select(User))).scalars().first()
@@ -657,11 +657,13 @@ async def test_20_inline_search_fastpath_returns_photo_result(test_session):
     results = answer.get("results", [])
     assert len(results) == 1
     target = results[0]
-    assert target["type"] == "photo"
-    assert "photo_url" in target
-    assert "🎟 <b>Modern Theater Show</b>" in target["caption"]
-    assert "🎟 Вход бесплатный" in target["caption"]
-    assert "RUB" not in target["caption"]
+    assert target["type"] == "article"
+    assert "thumbnail_url" in target
+    assert "input_message_content" in target
+    msg_text = target["input_message_content"]["message_text"]
+    assert "🎟 <b>Modern Theater Show</b>" in msg_text
+    assert "🎟 Вход бесплатный" in msg_text
+    assert "RUB" not in msg_text
     button = target["reply_markup"]["inline_keyboard"][0][0]
     assert button["text"] == "Открыть событие 🧭"
     assert f"startapp=event_{event.id}" in button["url"]

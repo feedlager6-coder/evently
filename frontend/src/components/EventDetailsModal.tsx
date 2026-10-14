@@ -136,6 +136,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
   const eventDate = new Date(event.start_at);
   const isPast = eventDate.getTime() < Date.now();
+  const isToday = eventDate.toDateString() === new Date().toDateString();
 
   const formattedDayOfWeek = eventDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
@@ -300,8 +301,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             {/* Floating Top Badges on Cover */}
             <div className="absolute top-4 inset-x-4 flex items-center justify-between pointer-events-auto">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-white font-medium text-[11px] tracking-tight shadow-md">
-                  Скоро
+                <span className={`px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] tracking-tight shadow-md font-medium ${
+                  isPast 
+                    ? 'bg-neutral-800/80 text-neutral-400' 
+                    : isToday 
+                    ? 'bg-emerald-500/85 text-black font-bold' 
+                    : 'bg-[#0e0e10]/75 text-white'
+                }`}>
+                  {isPast ? 'Завершено' : isToday ? 'Сегодня' : 'Скоро'}
                 </span>
                 <span className="px-2.5 py-1 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-[#c4c7c8] font-medium text-[11px] tracking-tight shadow-md">
                   {formattedShortDate}
@@ -391,7 +398,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   onClick={() => {
                     telegram.hapticImpact('light');
                     const query = encodeURIComponent(`${event.venue_name || ''} ${event.address || ''} ${event.city_name || ''}`.trim());
-                    window.open(`https://yandex.ru/maps/?text=${query}`, '_blank');
+                    telegram.openLink(`https://yandex.ru/maps/?text=${query}`);
                   }}
                   className="px-3.5 py-1.5 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold shrink-0 active:scale-95 transition-all"
                   type="button"
@@ -405,7 +412,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 onClick={() => {
                   telegram.hapticImpact('light');
                   const query = encodeURIComponent(`${event.venue_name || ''} ${event.address || ''} ${event.city_name || ''}`.trim());
-                  window.open(`https://yandex.ru/maps/?text=${query}`, '_blank');
+                  telegram.openLink(`https://yandex.ru/maps/?text=${query}`);
                 }}
                 className="w-full h-16 bg-[#201f22] relative flex items-center justify-center cursor-pointer hover:bg-[#262529] transition-colors border-t border-white/5"
               >
@@ -708,7 +715,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 <button
                   onClick={() => {
                     telegram.hapticImpact('light');
-                    window.open(ticketUrl, '_blank');
+                    telegram.openLink(ticketUrl);
                   }}
                   disabled={isPast}
                   className="h-11 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"

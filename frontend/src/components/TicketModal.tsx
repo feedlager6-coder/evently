@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { EventResponse, EventSummary } from '../types';
 import { telegram } from '../services/telegram';
-import { ArrowLeft, Share2, Check, Copy } from 'lucide-react';
+import { ArrowLeft, Share2, Check, Copy, AlertCircle } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import QRCode from 'qrcode';
 
@@ -23,9 +23,17 @@ export const TicketModal: React.FC<TicketModalProps> = ({
   const [copiedToast, setCopiedToast] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
+  const currentUser = telegram.getUser();
+  const userIdentifier = currentUser?.id ? String(currentUser.id) : 'GUEST';
+
   const generatedTicketNo = event
-    ? ticketNumber || `IVN-${event.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`
+    ? ticketNumber || `IVN-${event.id.replace(/-/g, '').slice(0, 4).toUpperCase()}-${userIdentifier}`
     : '';
+
+  const isFree = Boolean(event?.is_free) || (event?.price_amount !== null && event?.price_amount !== undefined && Number(event?.price_amount) === 0);
+  const ticketUrl = event ? ((event as any).source_url || (event as any).registration_url || (event as any).ticket_link) : null;
+  const isPaymentRequiredAtDoor = !isFree && !ticketUrl && Boolean(event?.price_amount && Number(event.price_amount) > 0);
+  const doorPrice = event?.price_amount ? Number(event.price_amount) : 0;
 
   useEffect(() => {
     if (!event || !isOpen) return;
@@ -36,6 +44,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
       title: event.title,
       start_at: event.start_at,
       venue: event.venue_name,
+      guest_name: currentUser?.first_name || (currentUser?.username ? `@${currentUser.username}` : 'Гость Ivently'),
       platform: 'ivently_tma_v1',
     });
 
@@ -50,7 +59,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     })
       .then((url) => setQrDataUrl(url))
       .catch((err) => console.error('Failed to generate ticket QR code:', err));
-  }, [event, isOpen, generatedTicketNo]);
+  }, [event, isOpen, generatedTicketNo, currentUser]);
 
   if (!isOpen || !event) return null;
 
@@ -64,19 +73,19 @@ export const TicketModal: React.FC<TicketModalProps> = ({
 
   const handleShareTelegram = () => {
     telegram.hapticImpact('medium');
-    const shareText = `Мой электронный билет на «${event.title}» в Ivently!\n📅 Дата: ${formattedDate}\n📍 Место: ${event.venue_name || 'г. Махачкала'}\n🎟 Номер: ${generatedTicketNo}`;
+    const shareText = `Мой электронный билет на «${event.title}» в Ivently!\n📅 Дата: ${formattedDate}\n📍 Место: ${event.venue_name || 'Локация в приложении'}\n🎟 Номер: ${generatedTicketNo}`;
     const directEventUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/Ivently_bot?start=event_${event.id}`)}&text=${encodeURIComponent(shareText)}`;
 
     if (window.Telegram?.WebApp?.openTelegramLink) {
       window.Telegram.WebApp.openTelegramLink(directEventUrl);
     } else {
-      window.open(directEventUrl, '_blank');
+      telegram.openLink(directEventUrl);
     }
   };
 
   const handleCopyTicketData = () => {
     telegram.hapticImpact('light');
-    const shareText = `Электронный билет Ivently\nСобытие: «${event.title}»\nБилет №: ${generatedTicketNo}\nДата: ${formattedDate}\nЛокация: ${event.venue_name || 'г. Махачкала'}\nКатегория: ${tierName}`;
+    const shareText = `Электронный билет Ivently\nСобытие: «${event.title}»\nБилет №: ${generatedTicketNo}\nДата: ${formattedDate}\nЛокация: ${event.venue_name || 'Локация в приложении'}\nКатегория: ${tierName}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareText);
       setCopiedToast(true);
@@ -134,6 +143,15 @@ export const TicketModal: React.FC<TicketModalProps> = ({
               </span>
             </div>
 
+            {isPaymentRequiredAtDoor && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span className="font-semibold leading-tight">
+                  Оплата на входе: {doorPrice} ₽. Подготовьте оплату для контролера при входе.
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-3.5 items-center">
               <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 bg-[#1c1b1e]">
                 <SafeImage
@@ -172,7 +190,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
                   {event.venue_name || 'Локация в приложении'}
                 </span>
                 <span className="text-[11px] text-[#8e9192] block truncate">
-                  {event.address || (event.city_name ? `г. ${event.city_name}` : 'Махачкала')}
+                  {event.address || (event.city_name ? `г. ${event.city_name}` : 'Адрес уточняется')}
                 </span>
               </div>
             </div>

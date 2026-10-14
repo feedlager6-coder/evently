@@ -47,7 +47,7 @@ declare global {
         enableClosingConfirmation?: () => void;
         disableClosingConfirmation?: () => void;
         openTelegramLink: (url: string) => void;
-        openLink: (url: string) => void;
+        openLink: (url: string, options?: { try_instant_view?: boolean }) => void;
         showScanQrPopup?: (params: { text?: string }, callback?: (text: string) => boolean | void) => void;
         closeScanQrPopup?: () => void;
         onEvent?: (eventType: string, eventHandler: () => void) => void;
@@ -540,6 +540,37 @@ export const telegram = {
     }
 
     return null;
+  },
+
+  openLink(url: string, options?: { try_instant_view?: boolean }) {
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(url, options);
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  },
+
+  showAlert(message: string): Promise<void> {
+    return new Promise((resolve) => {
+      const wa = window.Telegram?.WebApp as any;
+      if (wa && typeof wa.showAlert === 'function') {
+        wa.showAlert(message, () => resolve());
+      } else {
+        alert(message);
+        resolve();
+      }
+    });
+  },
+
+  showConfirm(message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const wa = window.Telegram?.WebApp as any;
+      if (wa && typeof wa.showConfirm === 'function') {
+        wa.showConfirm(message, (confirmed: boolean) => resolve(Boolean(confirmed)));
+      } else {
+        resolve(window.confirm(message));
+      }
+    });
   }
 };
 

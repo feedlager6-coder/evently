@@ -259,7 +259,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <ChevronRight className="w-4 h-4 text-[#8e9192]" />
           </button>
 
-          <div className="w-full p-4 flex items-center justify-between text-left">
+          <button
+            type="button"
+            onClick={() => {
+              telegram.hapticImpact('light');
+              telegram.openTelegramLink('https://t.me/Ivently_bot');
+            }}
+            className="w-full p-4 flex items-center justify-between hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+          >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#4edea3]">
                 <CheckCircle2 className="w-4 h-4" />
@@ -267,12 +274,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div>
                 <span className="font-semibold text-xs text-white block">Уведомления в Telegram</span>
                 <span className="text-[10px] text-[#8e9192]">
-                  Активированы в @Ivently_bot
+                  Открыть бота @Ivently_bot
                 </span>
               </div>
             </div>
-            <span className="text-[11px] font-semibold text-[#4edea3]">Вкл</span>
-          </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-[#4edea3]">Вкл</span>
+              <ChevronRight className="w-4 h-4 text-[#8e9192]" />
+            </div>
+          </button>
 
           {isAdmin && onOpenAdminPanel && (
             <button

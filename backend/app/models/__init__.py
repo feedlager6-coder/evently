@@ -28,6 +28,8 @@ from app.models.payment import (
     WebhookProcessingStatus,
 )
 from app.models.reminder import EventReminder
+from app.models.ticket_checkin import TicketCheckIn
+
 
 __all__ = [
     "City",
@@ -63,4 +65,5 @@ __all__ = [
     "PaymentOperationType",
     "WebhookProcessingStatus",
     "EventReminder",
+    "TicketCheckIn",
 ]

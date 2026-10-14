@@ -1,6 +1,7 @@
 import html
 import logging
 import httpx
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -60,15 +61,31 @@ def format_event_price_line(event: Any) -> Optional[str]:
 
 
 def format_event_date_str(event: Any) -> str:
-    """Formats event date in Russian format '%d.%m.%Y в %H:%M'."""
+    """Formats event date in Russian format '%d.%m.%Y в %H:%M' in Moscow timezone (MSK / UTC+3)."""
     raw_start = getattr(event, "start_at", None)
-    if hasattr(raw_start, "strftime") and callable(getattr(raw_start, "strftime")):
+    if not raw_start:
+        return "Дата уточняется"
+
+    dt: Optional[datetime] = None
+    if isinstance(raw_start, datetime):
+        dt = raw_start
+    elif isinstance(raw_start, str):
         try:
-            res = raw_start.strftime("%d.%m.%Y в %H:%M")
-            if isinstance(res, str):
-                return res
+            dt = datetime.fromisoformat(raw_start.replace("Z", "+00:00"))
         except Exception:
             pass
+
+    if dt:
+        try:
+            msk_tz = timezone(timedelta(hours=3))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc).astimezone(msk_tz)
+            else:
+                dt = dt.astimezone(msk_tz)
+            return dt.strftime("%d.%m.%Y в %H:%M")
+        except Exception:
+            pass
+
     return "Дата уточняется"
 
 
@@ -320,8 +337,24 @@ def build_event_inline_result(
     photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
     thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
 
-    # Always return InlineQueryResultArticle to guarantee consistent, uniform vertical list
-    # with thumbnail, title, venue, date, and price across all clients (never collapsing into bare photo grid)
+    # For user-initiated sharing (savePreparedInlineMessage), send native photo card if valid cover exists
+    if is_share and has_cover and photo_url and (photo_url.startswith("https://") or photo_url.startswith("http://")):
+        return {
+            "type": "photo",
+            "id": result_id,
+            "photo_url": photo_url,
+            "thumbnail_url": thumb_url,
+            "thumb_url": thumb_url,
+            "title": f"🎟 {title_str}",
+            "description": description,
+            "caption": caption,
+            "parse_mode": "HTML",
+            "reply_markup": reply_markup
+        }
+
+    # For inline query search (@Ivently_bot <city>), always return InlineQueryResultArticle
+    # to guarantee consistent, uniform vertical list ("шторка") with thumbnail, title, venue, date, and price
+    # across all clients (never collapsing into bare photo tiles)
     return {
         "type": "article",
         "id": result_id,

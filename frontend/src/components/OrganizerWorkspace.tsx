@@ -55,6 +55,7 @@ interface OrganizerWorkspaceProps {
   onEventClick?: (event: EventSummary) => void;
   onOrgDeleted?: () => void;
   onEventDeleted?: () => void;
+  onRefreshOrganizations?: () => void;
   isAdmin?: boolean;
   paymentReturnOrderId?: string | null;
   initialTab?: WorkspaceTab;
@@ -75,16 +76,28 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onEventClick: _onEventClick,
   onOrgDeleted: _onOrgDeleted,
   onEventDeleted,
+  onRefreshOrganizations,
   isAdmin: _isAdmin = false,
   paymentReturnOrderId: _paymentReturnOrderId,
   initialTab,
   initialBroadcastEventId,
-  initialBroadcastOrgId: _initialBroadcastOrgId,
+  initialBroadcastOrgId,
   initialOpenProModal = false,
   onOpenEditEvent,
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab || 'events');
   const [eventFilter, setEventFilter] = useState<EventSubFilter>('all');
+
+  // Selected organization state for multi-org support
+  const [selectedOrgId, setSelectedOrgId] = useState<string>(
+    initialBroadcastOrgId || organizations[0]?.id || ''
+  );
+
+  useEffect(() => {
+    if (organizations.length > 0 && !organizations.some((o) => o.id === selectedOrgId)) {
+      setSelectedOrgId(organizations[0].id);
+    }
+  }, [organizations, selectedOrgId]);
 
   // Local events state to support instant optimistic delete and updates
   const [localEvents, setLocalEvents] = useState<EventSummary[]>(_events);
@@ -110,7 +123,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       }
     } catch (e: any) {
       telegram.hapticNotification('error');
-      alert(e?.message || 'Не удалось удалить событие');
+      await telegram.showAlert(e?.message || 'Не удалось удалить событие');
     } finally {
       setIsDeletingEvent(false);
     }
@@ -124,8 +137,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const [entitlements, setEntitlements] = useState<OrganizerEntitlementsResponse | null>(null);
   const [_isLoadingEntitlements, setIsLoadingEntitlements] = useState<boolean>(false);
 
-  // Active organization: strictly user's first organization or null (Clean Slate)
-  const activeOrg = organizations[0] || null;
+  // Active organization resolved dynamically from selectedOrgId
+  const activeOrg = organizations.find((o) => o.id === selectedOrgId) || organizations[0] || null;
   const isOrgPro = Boolean(
     entitlements?.plan === 'pro' ||
     (activeOrg as any)?.plan === 'pro' ||
@@ -134,6 +147,37 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const monthlyQuota = entitlements?.limits?.broadcasts_per_month ?? (isOrgPro ? 20 : 1);
   const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
   const monthlyBroadcastsRemaining = entitlements?.limits?.broadcasts_remaining ?? Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
+
+  // Reusable multi-organization selector component
+  const renderOrgSelector = (suffix?: string) => {
+    if (organizations.length <= 1) {
+      return (
+        <p className="text-[11px] text-neutral-400 font-medium truncate">
+          {activeOrg?.name} {suffix ? `• ${suffix}` : ''}
+        </p>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-medium">
+        <select
+          value={selectedOrgId}
+          onChange={(e) => {
+            telegram.hapticImpact('light');
+            setSelectedOrgId(e.target.value);
+          }}
+          className="bg-transparent text-emerald-400 font-bold underline underline-offset-2 cursor-pointer focus:outline-none max-w-[150px] truncate"
+          title="Сменить организацию"
+        >
+          {organizations.map((org) => (
+            <option key={org.id} value={org.id} className="bg-[#141417] text-white">
+              {org.name}
+            </option>
+          ))}
+        </select>
+        {suffix && <span className="text-neutral-500">• {suffix}</span>}
+      </div>
+    );
+  };
 
   // Audience & Broadcast Data State
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
@@ -311,9 +355,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   void handleOpenComposer;
 
   // Handle Revoke pending event
-  const handleRevokePendingEvent = (eventItem: any) => {
+  const handleRevokePendingEvent = async (eventItem: any) => {
     telegram.hapticImpact('medium');
-    if (window.confirm(`Отозвать заявку на модерацию события «${eventItem.title}»? Оно будет переведено в черновики.`)) {
+    const confirmed = await telegram.showConfirm(`Отозвать заявку на модерацию события «${eventItem.title}»? Оно будет переведено в черновики.`);
+    if (confirmed) {
       const revokedDraft = {
         ...eventItem,
         status: 'draft',
@@ -336,17 +381,22 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   // Handle Launch Broadcast (Single Step with confirmation)
   const handleLaunchBroadcast = async () => {
     if (!broadcastMessage.trim()) {
-      alert('Пожалуйста, напишите текст рассылки.');
+      await telegram.showAlert('Пожалуйста, напишите текст рассылки.');
       return;
     }
 
     if (!activeOrg) {
-      alert('Для запуска рассылки необходимо создать организацию.');
+      await telegram.showAlert('Для запуска рассылки необходимо создать организацию.');
+      return;
+    }
+
+    if (monthlyBroadcastsRemaining <= 0) {
+      setIsProModalOpen(true);
       return;
     }
 
     if (targetSegment === 'event_interest' && !selectedEventTargetId) {
-      alert('Пожалуйста, выберите мероприятие для рассылки по заинтересованным гостям.');
+      await telegram.showAlert('Пожалуйста, выберите мероприятие для рассылки по заинтересованным гостям.');
       return;
     }
 
@@ -355,7 +405,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       : (publishedEvents.find(e => e.id === selectedEventTargetId)?.bookmarksCount ?? 0);
 
     const confirmMsg = `Отправить рассылку ${estimatedRecipients > 0 ? `${estimatedRecipients} получателям` : 'подписчикам'}? Это действие нельзя отменить.`;
-    if (!window.confirm(confirmMsg)) {
+    const confirmed = await telegram.showConfirm(confirmMsg);
+    if (!confirmed) {
       return;
     }
 
@@ -387,7 +438,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setTimeout(() => setBroadcastSuccessNotice(null), 5000);
     } catch (e: any) {
       telegram.hapticNotification('error');
-      alert(e?.message || 'Ошибка запуска рассылки');
+      await telegram.showAlert(e?.message || 'Ошибка запуска рассылки');
     } finally {
       setIsSendingBroadcast(false);
     }
@@ -535,9 +586,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         {ev.status === 'published' && !isPast && (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               telegram.hapticImpact('light');
-                              alert('Чтобы запустить рассылку в Telegram, создайте профиль организатора или бренд (это бесплатно). Бот будет отправлять анонсы от имени вашего профиля.');
+                              await telegram.showAlert('Чтобы запустить рассылку в Telegram, создайте профиль организатора или бренд (это бесплатно). Бот будет отправлять анонсы от имени вашего профиля.');
                               onOpenCreateOrg();
                             }}
                             className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-200 font-medium text-center flex items-center justify-center gap-1.5 transition-all active:scale-95"
@@ -741,7 +792,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       PRO
                     </button>
                   </h1>
-                  <p className="text-[11px] text-neutral-400">{activeOrg.name} • Дашборд</p>
+                  {renderOrgSelector('Дашборд')}
                 </div>
               </div>
               <button
@@ -1104,7 +1155,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </button>
                 <div>
                   <h1 className="text-base font-bold text-white tracking-tight">События</h1>
-                  <p className="text-[11px] text-neutral-400">{activeOrg.name}</p>
+                  {renderOrgSelector()}
                 </div>
               </div>
               <button
@@ -1555,9 +1606,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       PRO
                     </button>
                   </h1>
-                  <p className="text-[11px] text-neutral-400 font-medium">
-                    {activeOrg.name} • {totalContactsCount.toLocaleString('ru-RU')} контактов
-                  </p>
+                  {renderOrgSelector(`${totalContactsCount.toLocaleString('ru-RU')} контактов`)}
                 </div>
               </div>
               <button
@@ -1747,7 +1796,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       PRO
                     </button>
                   </h1>
-                  <p className="text-[11px] text-neutral-400 font-medium">{activeOrg.name} • Кампании</p>
+                  {renderOrgSelector('Кампании')}
                 </div>
               </div>
               <button
@@ -1880,11 +1929,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                               >
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setActionMenuBroadcastId(null);
                                     navigator.clipboard.writeText(bc.custom_text || '');
                                     telegram.hapticSuccess();
-                                    alert('Текст рассылки скопирован в буфер');
+                                    await telegram.showAlert('Текст рассылки скопирован в буфер');
                                   }}
                                   className="w-full text-left px-3 py-2 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-white/10 flex items-center gap-2 transition"
                                 >
@@ -1905,9 +1954,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setActionMenuBroadcastId(null);
-                                    if (window.confirm('Скрыть эту рассылку из истории?')) {
+                                    const ok = await telegram.showConfirm('Скрыть эту рассылку из истории?');
+                                    if (ok) {
                                       setBroadcasts((prev) => prev.filter((b) => b.id !== bc.id));
                                       telegram.hapticImpact('light');
                                     }
@@ -1965,7 +2015,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             UNIFIED FLOATING OPTICAL GLASS DOCK
         ========================================================================= */}
         {!isBroadcastModalOpen && (
-          <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[360px] z-50 pointer-events-none">
+          <nav className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[360px] z-50 pointer-events-none">
             <div className="pointer-events-auto relative flex items-center p-1.5 h-16 w-full rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.15),0_12px_36px_rgba(0,0,0,0.75)] select-none">
               {/* 60 FPS Hardware-Accelerated Sliding Optical Lens Indicator */}
               <div
@@ -2059,7 +2109,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => alert('Рассылки доступны 1 раз в 24 часа для защиты аудитории от усталости от уведомлений.')}
+              onClick={async () => await telegram.showAlert('Рассылки доступны 1 раз в 24 часа для защиты аудитории от усталости от уведомлений.')}
               className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-neutral-400"
             >
               <Info className="w-4 h-4" />
@@ -2269,28 +2319,42 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
           {/* Sticky Bottom Bar */}
           <div className="sticky bottom-0 left-0 right-0 p-4 bg-[#0d0d0f]/95 backdrop-blur-md border-t border-white/5 space-y-2 z-20 max-w-[420px] mx-auto w-full">
-            <button
-              type="button"
-              disabled={isSendingBroadcast || !broadcastMessage.trim()}
-              onClick={handleLaunchBroadcast}
-              className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 ${
-                isSendingBroadcast || !broadcastMessage.trim()
-                  ? 'bg-white/20 text-neutral-400 cursor-not-allowed'
-                  : 'bg-emerald-500 hover:bg-emerald-400 text-black'
-              }`}
-            >
-              {isSendingBroadcast ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                  <span>Отправка рассылки...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Запустить рассылку в Telegram</span>
-                </>
-              )}
-            </button>
+            {monthlyBroadcastsRemaining <= 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  telegram.hapticImpact('medium');
+                  setIsProModalOpen(true);
+                }}
+                className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-amber-500 to-emerald-500 text-black shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+              >
+                <Crown className="w-4 h-4 text-black" />
+                <span>Лимит исчерпан — Подключить PRO для рассылок</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isSendingBroadcast || !broadcastMessage.trim()}
+                onClick={handleLaunchBroadcast}
+                className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] shadow-lg flex items-center justify-center gap-2 ${
+                  isSendingBroadcast || !broadcastMessage.trim()
+                    ? 'bg-white/20 text-neutral-400 cursor-not-allowed'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-black'
+                }`}
+              >
+                {isSendingBroadcast ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    <span>Отправка рассылки...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Запустить рассылку в Telegram</span>
+                  </>
+                )}
+              </button>
+            )}
             <p className="text-[10px] text-neutral-500 text-center leading-relaxed">
               Сообщение будет отправлено через официального бота Ivently прямо в личные чаты получателей.
             </p>
@@ -2357,10 +2421,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   navigator.clipboard.writeText(selectedBroadcastForView.custom_text || '');
                   telegram.hapticSuccess();
-                  alert('Текст рассылки скопирован в буфер');
+                  await telegram.showAlert('Текст рассылки скопирован в буфер');
                 }}
                 className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center justify-center gap-1.5"
               >
@@ -2490,13 +2554,17 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 }
                 try {
                   telegram.hapticImpact('heavy');
-                  await api.upgradeOrganizationPro(activeOrg.id);
+                  const updatedEntitlements = await api.upgradeOrganizationPro(activeOrg.id);
                   telegram.hapticSuccess();
-                  alert('Тариф PRO успешно активирован! Вам доступны рассылки в Telegram и расширенная аналитика.');
+                  setEntitlements(updatedEntitlements);
+                  if (onRefreshOrganizations) {
+                    onRefreshOrganizations();
+                  }
+                  await telegram.showAlert('Тариф PRO успешно активирован! Вам доступны рассылки в Telegram и расширенная аналитика.');
                   setIsProModalOpen(false);
                 } catch (e: any) {
                   telegram.hapticNotification('error');
-                  alert(e?.message || 'Ошибка активации PRO');
+                  await telegram.showAlert(e?.message || 'Ошибка активации PRO');
                 }
               }}
               className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg active:scale-95 transition"

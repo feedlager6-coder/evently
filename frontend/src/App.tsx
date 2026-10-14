@@ -271,7 +271,7 @@ export const App: React.FC = () => {
       api.trackEventView(eventId, source, broadcastToken);
     } catch (err: any) {
       console.error('Failed to open event details:', err);
-      alert(err.message || 'Мероприятие не найдено или было удалено');
+      await telegram.showAlert(err.message || 'Мероприятие не найдено или было удалено');
     }
   }, []);
 
@@ -720,7 +720,7 @@ export const App: React.FC = () => {
       loadPersonalEvents();
     } catch (err: any) {
       loadPersonalEvents();
-      alert(err.message || 'Ошибка обновления статуса участия');
+      await telegram.showAlert(err.message || 'Ошибка обновления статуса участия');
     } finally {
       setIsRsvpLoading(false);
     }
@@ -848,7 +848,7 @@ export const App: React.FC = () => {
       setInterestedEvents(prevInterested);
       setAttendingEvents(prevAttending);
       loadPersonalEvents();
-      alert(err.message || 'Ошибка обновления статуса интереса');
+      await telegram.showAlert(err.message || 'Ошибка обновления статуса интереса');
     } finally {
       setIsInterestLoading(false);
     }
@@ -1097,9 +1097,14 @@ export const App: React.FC = () => {
                             telegram.hapticImpact('light');
                             if (hasWeekendEvents) {
                               setDateFilter('weekend');
+                            } else {
+                              const listEl = document.getElementById('events-main-list');
+                              if (listEl) {
+                                listEl.scrollIntoView({ behavior: 'smooth' });
+                              }
                             }
                           }}
-                          className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-0.5 transition-colors"
+                          className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-0.5 transition-colors p-2 -m-2 min-h-[36px]"
                         >
                           <span>Все</span>
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -1247,6 +1252,9 @@ export const App: React.FC = () => {
                 loadPersonalHub(true);
                 loadFeedEvents();
               }}
+              onRefreshOrganizations={() => {
+                loadPersonalHub(true);
+              }}
               onOpenEditEvent={(ev) => {
                 setEditingDraftData(null);
                 setEditingEventData(ev as any);
@@ -1281,6 +1289,11 @@ export const App: React.FC = () => {
               onOpenTicket={(ev) => {
                 setTicketEvent(ev);
                 setIsTicketModalOpen(true);
+              }}
+              onOpenEditEvent={(ev) => {
+                setEditingDraftData(null);
+                setEditingEventData(ev as any);
+                setIsCreateEventModalOpen(true);
               }}
               initialFilter={organizerInitialFilter}
             />
@@ -1393,6 +1406,9 @@ export const App: React.FC = () => {
         onSubscriptionChanged={() => {
           loadMyOrganizations();
           loadPersonalEvents();
+        }}
+        onToggleInterest={(eventId) => {
+          handleToggleInterest(eventId, false);
         }}
       />
 

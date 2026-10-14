@@ -34,6 +34,7 @@ interface OrganizationModalProps {
   onOpenCreateEvent?: (orgId: string) => void;
   onEditOrg?: (org: OrganizationResponse) => void;
   onSubscriptionChanged?: () => void;
+  onToggleInterest?: (eventId: string) => void;
 }
 
 export function getFollowersWord(count: number): string {
@@ -63,6 +64,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   onOpenCreateEvent,
   onEditOrg,
   onSubscriptionChanged,
+  onToggleInterest,
 }) => {
   const [org, setOrg] = useState<OrganizationResponse | null>(null);
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -83,6 +85,12 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
       const eventsData = await api.getOrganizationEvents(orgData.id);
       setEvents(eventsData);
+      setBookmarkedEventIds(
+        eventsData.reduce((acc, ev) => ({
+          ...acc,
+          [ev.id]: Boolean((ev as any).is_interested || (ev as any).is_bookmarked),
+        }), {})
+      );
     } catch (err: any) {
       console.error('Failed to load organization:', err);
       setError(err.message || 'Не удалось загрузить данные организации');
@@ -138,7 +146,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
       onSubscriptionChanged?.();
     } catch (err: any) {
       telegram.hapticError();
-      alert(err.message || 'Ошибка обновления подписки');
+      await telegram.showAlert(err.message || 'Ошибка обновления подписки');
     } finally {
       setIsSubscribing(false);
     }
@@ -186,7 +194,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
     }
   };
 
-  const handleOpenContact = () => {
+  const handleOpenContact = async () => {
     if (!org) return;
     telegram.hapticImpact('light');
     let target = org.social_link || '';
@@ -195,19 +203,35 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
     }
     if (target) {
       const url = target.startsWith('http') ? target : `https://${target.replace(/^@/, 't.me/')}`;
-      window.open(url, '_blank');
+      telegram.openLink(url);
     } else {
-      alert('Контакты организации уточняются');
+      await telegram.showAlert('Контакты организации уточняются');
     }
   };
 
-  const handleToggleBookmark = (e: React.MouseEvent, eventId: string) => {
+  const handleToggleBookmark = async (e: React.MouseEvent, eventId: string) => {
     e.stopPropagation();
     telegram.hapticImpact('light');
+    const wasBookmarked = Boolean(bookmarkedEventIds[eventId]);
     setBookmarkedEventIds((prev) => ({
       ...prev,
-      [eventId]: !prev[eventId],
+      [eventId]: !wasBookmarked,
     }));
+    try {
+      if (wasBookmarked) {
+        await api.removeInterest(eventId);
+      } else {
+        await api.addInterest(eventId);
+      }
+      onToggleInterest?.(eventId);
+    } catch (err: any) {
+      // rollback
+      setBookmarkedEventIds((prev) => ({
+        ...prev,
+        [eventId]: wasBookmarked,
+      }));
+      await telegram.showAlert(err?.message || 'Ошибка обновления закладки');
+    }
   };
 
   const openRouteInYandexMaps = () => {
@@ -215,7 +239,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
     telegram.hapticImpact('light');
     const query = org.address ? `${org.city_name || ''} ${org.address}` : org.name;
     const url = `https://yandex.ru/maps/?text=${encodeURIComponent(query)}`;
-    window.open(url, '_blank');
+    telegram.openLink(url);
   };
 
   const now = new Date();
@@ -315,7 +339,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
             <div className="flex items-center gap-1.5 text-neutral-400 text-xs">
               <MapPin className="w-3.5 h-3.5 text-[#4edea3] shrink-0" />
               <span className="truncate">
-                {event.venue_name || org?.name || 'Локация уточняется'} • {event.city_name || org?.city_name || 'Махачкала'}
+                {event.venue_name || org?.name || 'Локация уточняется'} • {event.city_name || org?.city_name || 'Локация'}
               </span>
             </div>
           </div>
@@ -486,9 +510,11 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                   </div>
                 </div>
                 {/* Verified Shield Badge on bottom-right of avatar */}
-                <div className="w-6 h-6 rounded-full bg-[#10b981] text-[#00311f] flex items-center justify-center absolute bottom-0 right-0 border-2 border-[#08080A] shadow-md">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </div>
+                {Boolean(org.is_verified) && (
+                  <div className="w-6 h-6 rounded-full bg-[#10b981] text-[#00311f] flex items-center justify-center absolute bottom-0 right-0 border-2 border-[#08080A] shadow-md">
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  </div>
+                )}
               </div>
 
               {/* Organization Title */}
@@ -497,21 +523,23 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               </h1>
 
               {/* Verified Organizer Status Badge with Pulsing Dot */}
-              <div className="flex items-center justify-center gap-1.5 mt-1 text-xs font-semibold text-[#4edea3]">
-                <span className="w-2 h-2 rounded-full bg-[#4edea3] animate-pulse" />
-                <span>Верифицированный организатор</span>
-              </div>
+              {Boolean(org.is_verified) && (
+                <div className="flex items-center justify-center gap-1.5 mt-1 text-xs font-semibold text-[#4edea3]">
+                  <span className="w-2 h-2 rounded-full bg-[#4edea3] animate-pulse" />
+                  <span>Верифицированный организатор</span>
+                </div>
+              )}
 
               {/* Category Pill with Sound Wave Icon */}
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1a1a1f] border border-white/5 text-xs text-neutral-300 mt-2.5">
                 <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
-                <span>{org.category || 'Музыкальное сообщество & Лейбл'}</span>
+                <span>{org.category || 'Организатор'}</span>
               </div>
 
               {/* City Pill */}
               <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/5 text-[11px] text-neutral-400 mt-1.5">
                 <MapPin className="w-3 h-3 text-[#4edea3]" />
-                <span>{org.city_name || 'Махачкала'}</span>
+                <span>{org.city_name || 'Локация не указана'}</span>
               </div>
 
               {/* 3. Action Buttons Row: [Подписаться], [Написать], [Редактировать] */}
@@ -755,11 +783,11 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 <div className="p-4 rounded-2xl bg-[#141417] border border-white/5 space-y-2 shadow-sm">
                   <div className="flex items-center gap-2 text-[#4edea3] text-xs font-bold uppercase tracking-wider">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Манифест объединения</span>
+                    <span>О сообществе</span>
                   </div>
                   <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-line">
                     {org.description ||
-                      'Независимое музыкальное сообщество и лейбл. Серия электронных фестивалей, виниловых маркетов и селективных вечеринок в Махачкале. Развиваем локальную андеграундную сцену и объединяем единомышленников.'}
+                      'Официальная страница организатора мероприятий. Подпишитесь, чтобы первыми получать уведомления о новых событиях и анонсах.'}
                   </p>
                 </div>
 
@@ -770,15 +798,15 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                       <MapPin className="w-3.5 h-3.5 text-[#4edea3]" />
                       <span>Локация и адрес</span>
                     </div>
-                    <span className="text-[11px] text-[#4edea3] font-medium">{org.city_name || 'Махачкала'}</span>
+                    <span className="text-[11px] text-[#4edea3] font-medium">{org.city_name || 'Локация не указана'}</span>
                   </div>
 
                   <div className="p-3 rounded-xl bg-[#08080A] border border-white/5 space-y-1">
                     <div className="text-sm font-bold text-white">
-                      {org.address || 'Порт Махачкала, Ангар 2'}
+                      {org.address || 'Адрес уточняется'}
                     </div>
                     <div className="text-xs text-neutral-400">
-                      Резиденция объединения «{org.name}»
+                      {org.address ? `Резиденция «${org.name}»` : 'Контакты и подробности уточняются'}
                     </div>
                   </div>
 

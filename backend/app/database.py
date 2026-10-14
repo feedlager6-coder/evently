@@ -134,6 +134,7 @@ async def init_db(target_engine=None) -> None:
             "CREATE INDEX IF NOT EXISTS idx_payment_orders_org_status ON payment_orders (organization_id, status);",
             "CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_created ON payment_transactions (payment_order_id, created_at);",
             "CREATE INDEX IF NOT EXISTS idx_payment_webhook_logs_event_provider ON payment_webhook_logs (event_id, provider);",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_ticket_checkins_event_code ON ticket_checkins (event_id, ticket_code);",
         ]
         for idx_sql in indexes:
             try:

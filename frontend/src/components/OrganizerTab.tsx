@@ -49,6 +49,7 @@ interface OrganizerTabProps {
   onExplore: () => void;
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
   onOpenTicket?: (event: EventSummary) => void;
+  onOpenEditEvent?: (event: EventSummary) => void;
   initialFilter?: 'going' | 'wishlist' | 'created';
 }
 
@@ -71,6 +72,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onExplore,
   onOpenBroadcastComposer: _onOpenBroadcastComposer,
   onOpenTicket,
+  onOpenEditEvent,
   initialFilter = 'going',
 }) => {
   const [activeFilter, setActiveFilter] = useState<OrganizerFilterType>(initialFilter);
@@ -85,6 +87,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   const activeInterested = interestedEvents.filter((e) => new Date(e.start_at) >= now);
 
   const totalTickets = activeAttending.length;
+  const isOrganizer = organizations.length > 0;
   const hasCreatedEvents = myCreatedEvents.length > 0;
   const totalFilterTabs = hasCreatedEvents ? 3 : 2;
 
@@ -608,7 +611,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             telegram.hapticImpact('light');
-                            onEventClick(event);
+                            if (onOpenEditEvent) {
+                              onOpenEditEvent(event);
+                            } else {
+                              onEventClick(event);
+                            }
                           }}
                           className="py-1.5 px-3 rounded-full bg-white text-[#1a1c1c] font-bold text-xs active:scale-95 transition-all shadow-sm"
                         >

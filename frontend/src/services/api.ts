@@ -1106,6 +1106,8 @@ export const api = {
     ticket_code: string;
     checked_in_at: string;
     guest_name?: string;
+    is_payment_required_at_door?: boolean;
+    price_amount?: number;
   }> {
     const clean = ticketCode.trim();
     const now = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });

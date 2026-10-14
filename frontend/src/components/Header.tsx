@@ -56,39 +56,43 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Actions: Notification Bell + Avatar button */}
-        <div className="flex items-center space-x-2.5 shrink-0">
+        {/* Right Actions: Notification Bell + Avatar button (44x44px minimum touch targets) */}
+        <div className="flex items-center space-x-1 shrink-0">
           <button
             type="button"
             onClick={onOpenNotifications}
-            className="w-9 h-9 rounded-full bg-[#1c1b1e]/80 border border-white/10 hover:border-white/20 flex items-center justify-center text-[#c4c7c8] hover:text-white transition-all active:scale-95 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] relative"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-[#c4c7c8] hover:text-white transition-all active:scale-95 relative"
             aria-label="Уведомления"
           >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981] ring-2 ring-[#1c1b1e]" />
-            )}
+            <div className="w-9 h-9 rounded-full bg-[#1c1b1e]/80 border border-white/10 hover:border-white/20 flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] relative">
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_6px_#10b981] ring-2 ring-[#1c1b1e]" />
+              )}
+            </div>
           </button>
 
           <button
             type="button"
             onClick={onOpenUserProfile}
-            className="w-9 h-9 rounded-full overflow-hidden border border-white/15 shadow-sm shrink-0 ring-1 ring-white/10 bg-[#1c1b1e] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
             aria-label="Профиль пользователя"
             title="Открыть профиль"
           >
-            {user ? (
-              <SafeAvatar
-                src={user.photo_url}
-                name={user.first_name || user.username || 'U'}
-                type="user"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-[#2a2a2c] flex items-center justify-center text-zinc-300">
-                <User className="w-4 h-4 text-zinc-300" />
-              </div>
-            )}
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-white/15 shadow-sm shrink-0 ring-1 ring-white/10 bg-[#1c1b1e] flex items-center justify-center">
+              {user ? (
+                <SafeAvatar
+                  src={user.photo_url}
+                  name={user.first_name || user.username || 'U'}
+                  type="user"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#2a2a2c] flex items-center justify-center text-zinc-300">
+                  <User className="w-4 h-4 text-zinc-300" />
+                </div>
+              )}
+            </div>
           </button>
         </div>
       </div>
