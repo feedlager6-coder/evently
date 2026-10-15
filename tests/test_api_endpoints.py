@@ -28,8 +28,9 @@ async def test_cities_and_categories_endpoints(client):
     cat_resp = await client.get("/api/v1/categories")
     assert cat_resp.status_code == 200
     categories = cat_resp.json()
-    assert len(categories) == 7
+    assert len(categories) == 8
     slugs = [c["slug"] for c in categories]
+    assert "theatre" in slugs
     assert "concerts" in slugs
     assert "sports" in slugs
 
