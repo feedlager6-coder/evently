@@ -71,7 +71,7 @@ async def upload_event_cover(
 async def discover_events(
     city_id: Optional[str] = Query(None, description="City ID filter, e.g. 'makhachkala'"),
     category_id: Optional[str] = Query(None, description="Category slug/ID filter, e.g. 'concerts'"),
-    date_filter: str = Query("all", pattern="^(all|today|tomorrow|weekend)$", description="Date filter"),
+    date_filter: str = Query("all", pattern=r"^(all|today|tomorrow|weekend|\d{4}-\d{2}-\d{2})$", description="Date filter"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: Optional[User] = Depends(get_current_user_optional),

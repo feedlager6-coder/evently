@@ -85,6 +85,7 @@ class EventSummary(BaseModel):
     organization_category: Optional[str] = None
     organization_avatar_url: Optional[str] = None
     allow_event_contact: bool = False
+    organization_is_verified: bool = False
     source_type: str = "user"
     source_name: Optional[str] = None
     broadcast_opens_count: int = 0

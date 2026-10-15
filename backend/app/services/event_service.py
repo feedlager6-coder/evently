@@ -163,6 +163,13 @@ def get_city_timezone_range(city_tz_str: str, date_filter: str) -> Tuple[Optiona
             days_to_sat = 5 - weekday
             start_local = today_start + timedelta(days=days_to_sat)
             end_local = start_local + timedelta(days=2)
+    elif re.match(r"^\d{4}-\d{2}-\d{2}$", date_filter):
+        try:
+            target_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_local = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=tz)
+            end_local = start_local + timedelta(days=1)
+        except Exception:
+            return None, None
     else:
         return None, None
 
@@ -212,7 +219,8 @@ async def list_published_events(
             interest_count_subq.label("interest_count"),
             Organization.name.label("org_name"),
             Organization.category.label("org_category"),
-            Organization.avatar_url.label("org_avatar")
+            Organization.avatar_url.label("org_avatar"),
+            Organization.is_verified.label("org_is_verified"),
         )
         .join(Category, Event.category_id == Category.id)
         .join(City, Event.city_id == City.id)
@@ -229,19 +237,23 @@ async def list_published_events(
         # Apply city timezone-aware date range
         city_res = await session.execute(select(City).where(City.id == city_id))
         city = city_res.scalar_one_or_none()
-        if city and date_filter in ("today", "tomorrow", "weekend"):
+        if city and date_filter and date_filter != "all":
             start_utc, end_utc = get_city_timezone_range(city.timezone, date_filter)
             if start_utc and end_utc:
                 effective_start = max(start_utc, cutoff_utc) if date_filter == "today" else start_utc
                 query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
+            else:
+                query = query.where(Event.start_at >= cutoff_utc)
         else:
             query = query.where(Event.start_at >= cutoff_utc)
-    elif date_filter in ("today", "tomorrow", "weekend"):
+    elif date_filter and date_filter != "all":
         # Default UTC range if city not selected
         start_utc, end_utc = get_city_timezone_range("UTC", date_filter)
         if start_utc and end_utc:
             effective_start = max(start_utc, cutoff_utc) if date_filter == "today" else start_utc
             query = query.where(and_(Event.start_at >= effective_start, Event.start_at < end_utc))
+        else:
+            query = query.where(Event.start_at >= cutoff_utc)
     else:
         query = query.where(Event.start_at >= cutoff_utc)
 
@@ -281,8 +293,14 @@ async def list_published_events(
             term = f"%{clean_text.lower()}%"
             query = query.where(func.lower(Event.title).like(term))
 
-    # Order chronologically
-    query = query.order_by(Event.start_at.asc())
+    # Order by verified PRO user events first, then chronologically
+    query = query.order_by(
+        case(
+            (and_(Event.source_type == "user", Organization.is_verified == True), 1),
+            else_=0
+        ).desc(),
+        Event.start_at.asc()
+    )
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -312,7 +330,7 @@ async def list_published_events(
         interested_event_ids = set(int_res.scalars().all())
 
     summaries: List[EventSummary] = []
-    for event, cat_name, c_name, c_tz, att_count, int_count, org_name, org_category, org_avatar in rows:
+    for event, cat_name, c_name, c_tz, att_count, int_count, org_name, org_category, org_avatar, org_is_verified in rows:
         summaries.append(
             EventSummary(
                 id=event.id,
@@ -339,6 +357,7 @@ async def list_published_events(
                 organization_name=org_name,
                 organization_category=org_category,
                 organization_avatar_url=org_avatar,
+                organization_is_verified=bool(org_is_verified),
                 allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
                 source_type=getattr(event, "source_type", "user") or "user",
                 source_name=getattr(event, "source_name", None),

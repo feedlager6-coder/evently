@@ -70,6 +70,11 @@ export const EventCard: React.FC<EventCardProps> = ({
               <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/80 backdrop-blur-md text-white font-medium text-xs border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
                 {event.category_name || 'Событие'}
               </span>
+              {event.organization_is_verified && (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md text-emerald-400 font-bold text-[10px] border border-emerald-500/30 shadow-sm flex items-center gap-0.5">
+                  ✓ Проверено
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -205,9 +210,14 @@ export const EventCard: React.FC<EventCardProps> = ({
         </h3>
 
         {event.organization_name && (
-          <p className="text-xs text-[#c4c7c8] line-clamp-1 leading-relaxed">
-            {event.organization_name}
-          </p>
+          <div className="flex items-center gap-1.5 text-xs text-[#c4c7c8] line-clamp-1 leading-relaxed">
+            <span className="truncate">{event.organization_name}</span>
+            {event.organization_is_verified && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30 shrink-0">
+                ✓ Проверено
+              </span>
+            )}
+          </div>
         )}
 
         <div className="flex items-center justify-between pt-2">

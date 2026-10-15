@@ -579,10 +579,8 @@ async def export_event_attendees(
 
         attendees_list.append({
             "index": idx,
-            "user_id": guest_user.id,
-            "guest_name": guest_name,
-            "username": username_str,
             "ticket_code": ticket_code,
+            "guest_name": guest_name,
             "registered_at": reg_date_str,
             "is_checked_in": is_checked_in,
             "checkin_status": checkin_status_str,
@@ -596,15 +594,14 @@ async def export_event_attendees(
         output = io.StringIO()
         # UTF-8 BOM so Excel opens Cyrillic without garbled text
         writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(["№", "Имя гостя", "Telegram", "Код билета", "Дата регистрации", "Статус прохода", "Время чек-ина"])
+        writer.writerow(["№", "Код билета", "Имя гостя", "Статус", "Дата регистрации", "Время чек-ина"])
         for item in attendees_list:
             writer.writerow([
                 item["index"],
-                item["guest_name"],
-                item["username"],
                 item["ticket_code"],
-                item["registered_at"],
+                item["guest_name"],
                 item["checkin_status"],
+                item["registered_at"],
                 item["checkin_time"],
             ])
         csv_bytes = ("\ufeff" + output.getvalue()).encode("utf-8")

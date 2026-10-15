@@ -16,6 +16,8 @@ from app.models.event import Event, EventStatus
 from app.models.user import User
 from app.models.city import City
 from app.models.category import Category
+from app.models.attendee import EventAttendee
+from app.models.interest import EventInterest
 from app.services.storage_service import storage_service
 
 logger = logging.getLogger("evently.external_sync")
@@ -36,54 +38,134 @@ KUDAGO_CITY_MAP: Dict[str, str] = {
 }
 
 # Supported cultural regions for Culture.RU official afisha scraper
-CULTURE_REGIONS: List[tuple[str, str]] = [
-    ("respublika-dagestan", "Дагестан"),
-    ("moskva", "Москва"),
-    ("sankt-peterburg", "Санкт-Петербург"),
-    ("respublika-tatarstan", "Татарстан"),
-    ("krasnodarskii-krai", "Краснодарский край"),
-    ("sverdlovskaya-oblast", "Свердловская область"),
-    ("nizhegorodskaya-oblast", "Нижегородская область"),
-    ("chechenskaya-respublika", "Чеченская Республика"),
-    ("respublika-severnaya-osetiya-alaniya", "Северная Осетия"),
-    ("stavropolskii-krai", "Ставропольский край"),
-    ("novosibirskaya-oblast", "Новосибирская область"),
-    ("samarskaya-oblast", "Самарская область"),
-    ("respublika-bashkortostan", "Башкортостан"),
-    ("krasnoyarskii-krai", "Красноярский край"),
+# Format: (culture_ru_slug, region_title, target_city_id)
+CULTURE_REGIONS: List[tuple[str, str, str]] = [
+    # Dagestan & North Caucasus
+    ("respublika-dagestan", "Махачкала (Дагестан)", "makhachkala"),
+    ("kaspiysk", "Каспийск", "kaspiysk"),
+    ("derbent", "Дербент", "derbent"),
+    ("khasavyurt", "Хасавюрт", "khasavyurt"),
+    ("izberbash", "Избербаш", "izberbash"),
+    ("chechenskaya-respublika", "Грозный (Чечня)", "grozny"),
+    ("respublika-severnaya-osetiya-alaniya", "Владикавказ (Северная Осетия)", "vladikavkaz"),
+    ("nalchik", "Нальчик", "nalchik"),
+    ("pyatigorsk", "Пятигорск", "pyatigorsk"),
+    ("stavropol", "Ставрополь", "stavropol"),
+
+    # Federal Centers & Major Metros
+    ("moskva", "Москва", "moscow"),
+    ("sankt-peterburg", "Санкт-Петербург", "spb"),
+    ("kazan", "Казань", "kazan"),
+
+    # South & Volga
+    ("krasnodar", "Краснодар", "krasnodar"),
+    ("sochi", "Сочи", "sochi"),
+    ("rostov-na-donu", "Ростов-на-Дону", "rostov_on_don"),
+    ("volgograd", "Волгоград", "volgograd"),
+    ("saratov", "Саратов", "saratov"),
+    ("voronezh", "Воронеж", "voronezh"),
+    ("samara", "Самара", "samara"),
+    ("nizhegorodskaya-oblast", "Нижний Новгород", "nizhny_novgorod"),
+    ("ufa", "Уфа", "ufa"),
+    ("perm", "Пермь", "perm"),
+
+    # Urals & Siberia
+    ("sverdlovskaya-oblast", "Екатеринбург", "yekaterinburg"),
+    ("chelyabinsk", "Челябинск", "chelyabinsk"),
+    ("tyumen", "Тюмень", "tyumen"),
+    ("omsk", "Омск", "omsk"),
+    ("novosibirsk", "Новосибирск", "novosibirsk"),
+    ("krasnoyarsk", "Красноярск", "krasnoyarsk"),
+    ("irkutsk", "Иркутск", "irkutsk"),
+
+    # Far East & West
+    ("khabarovsk", "Хабаровск", "khabarovsk"),
+    ("vladivostok", "Владивосток", "vladivostok"),
+    ("kaliningrad", "Калининград", "kaliningrad"),
+    ("yaroslavl", "Ярославль", "yaroslavl"),
 ]
 
 # Culture.RU place locale names to Ivently city IDs
 CULTURE_LOCALE_TO_CITY: Dict[str, str] = {
     "mahachkala": "makhachkala",
     "makhachkala": "makhachkala",
+    "махачкала": "makhachkala",
     "derbent": "derbent",
+    "дербент": "derbent",
     "kaspiysk": "kaspiysk",
     "kaspiisk": "kaspiysk",
+    "каспийск": "kaspiysk",
     "hasavyurt": "khasavyurt",
     "khasavyurt": "khasavyurt",
+    "хасавюрт": "khasavyurt",
     "izberbash": "izberbash",
+    "избербаш": "izberbash",
     "moskva": "moscow",
     "moscow": "moscow",
+    "москва": "moscow",
     "sankt-peterburg": "spb",
     "spb": "spb",
+    "санкт-петербург": "spb",
+    "петербург": "spb",
     "kazan": "kazan",
+    "казань": "kazan",
     "krasnodar": "krasnodar",
+    "краснодар": "krasnodar",
     "sochi": "sochi",
+    "сочи": "sochi",
     "ekaterinburg": "yekaterinburg",
     "yekaterinburg": "yekaterinburg",
+    "екатеринбург": "yekaterinburg",
     "novosibirsk": "novosibirsk",
+    "новосибирск": "novosibirsk",
     "nizhnii-novgorod": "nizhny_novgorod",
     "nizhny_novgorod": "nizhny_novgorod",
+    "нижний новгород": "nizhny_novgorod",
     "samara": "samara",
+    "самара": "samara",
     "ufa": "ufa",
+    "уфа": "ufa",
     "krasnoyarsk": "krasnoyarsk",
+    "красноярск": "krasnoyarsk",
     "groznyi": "grozny",
     "grozny": "grozny",
+    "грозный": "grozny",
     "vladikavkaz": "vladikavkaz",
+    "владикавказ": "vladikavkaz",
     "nalchik": "nalchik",
+    "нальчик": "nalchik",
     "pyatigorsk": "pyatigorsk",
+    "пятигорск": "pyatigorsk",
     "stavropol": "stavropol",
+    "ставрополь": "stavropol",
+    "rostov-na-donu": "rostov_on_don",
+    "rostov_on_don": "rostov_on_don",
+    "ростов-на-дону": "rostov_on_don",
+    "ростов": "rostov_on_don",
+    "volgograd": "volgograd",
+    "волгоград": "volgograd",
+    "saratov": "saratov",
+    "саратов": "saratov",
+    "voronezh": "voronezh",
+    "воронеж": "voronezh",
+    "perm": "perm",
+    "пермь": "perm",
+    "chelyabinsk": "chelyabinsk",
+    "челябинск": "chelyabinsk",
+    "tyumen": "tyumen",
+    "тюмень": "tyumen",
+    "omsk": "omsk",
+    "омск": "omsk",
+    "irkutsk": "irkutsk",
+    "иркутск": "irkutsk",
+    "khabarovsk": "khabarovsk",
+    "хабаровск": "khabarovsk",
+    "vladivostok": "vladivostok",
+    "владивосток": "vladivostok",
+    "kaliningrad": "kaliningrad",
+    "калининград": "kaliningrad",
+    "yaroslavl": "yaroslavl",
+    "ярославль": "yaroslavl",
 }
 
 # Fallback substrings in venue address/name for city mapping
@@ -110,24 +192,59 @@ ADDRESS_CITY_FALLBACK: List[tuple[str, str]] = [
     ("нальчик", "nalchik"),
     ("пятигорск", "pyatigorsk"),
     ("ставропол", "stavropol"),
+    ("ростов", "rostov_on_don"),
+    ("волгоград", "volgograd"),
+    ("саратов", "saratov"),
+    ("воронеж", "voronezh"),
+    ("перм", "perm"),
+    ("челябинск", "chelyabinsk"),
+    ("тюмен", "tyumen"),
+    ("омск", "omsk"),
+    ("иркутск", "irkutsk"),
+    ("хабаровск", "khabarovsk"),
+    ("владивосток", "vladivostok"),
+    ("калининград", "kaliningrad"),
+    ("ярославл", "yaroslavl"),
 ]
 
 # Region default city fallback if specific municipal locale is missing
 REGION_DEFAULT_CITY: Dict[str, str] = {
     "respublika-dagestan": "makhachkala",
-    "moskva": "moscow",
-    "sankt-peterburg": "spb",
-    "respublika-tatarstan": "kazan",
+    "kaspiysk": "kaspiysk",
+    "derbent": "derbent",
+    "khasavyurt": "khasavyurt",
+    "izberbash": "izberbash",
     "chechenskaya-respublika": "grozny",
     "respublika-severnaya-osetiya-alaniya": "vladikavkaz",
-    "sverdlovskaya-oblast": "yekaterinburg",
+    "nalchik": "nalchik",
+    "pyatigorsk": "pyatigorsk",
+    "stavropol": "stavropol",
+    "moskva": "moscow",
+    "sankt-peterburg": "spb",
+    "kazan": "kazan",
+    "krasnodar": "krasnodar",
+    "sochi": "sochi",
+    "rostov-na-donu": "rostov_on_don",
+    "volgograd": "volgograd",
+    "saratov": "saratov",
+    "voronezh": "voronezh",
+    "samara": "samara",
     "nizhegorodskaya-oblast": "nizhny_novgorod",
+    "ufa": "ufa",
+    "perm": "perm",
+    "sverdlovskaya-oblast": "yekaterinburg",
+    "chelyabinsk": "chelyabinsk",
+    "tyumen": "tyumen",
+    "omsk": "omsk",
+    "novosibirsk": "novosibirsk",
     "novosibirskaya-oblast": "novosibirsk",
-    "samarskaya-oblast": "samara",
-    "respublika-bashkortostan": "ufa",
+    "krasnoyarsk": "krasnoyarsk",
     "krasnoyarskii-krai": "krasnoyarsk",
-    "stavropolskii-krai": "stavropol",
-    "krasnodarskii-krai": "krasnodar",
+    "irkutsk": "irkutsk",
+    "khabarovsk": "khabarovsk",
+    "vladivostok": "vladivostok",
+    "kaliningrad": "kaliningrad",
+    "yaroslavl": "yaroslavl",
 }
 
 # Category mapping from external tags to Ivently category IDs
@@ -205,6 +322,7 @@ TAG_TO_CATEGORY: Dict[str, str] = {
 }
 
 DEFAULT_COVERS: Dict[str, str] = {
+    "theatre": "https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800",
     "concerts": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800",
     "parties": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800",
     "exhibitions": "https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=800",
@@ -216,7 +334,7 @@ DEFAULT_COVERS: Dict[str, str] = {
 
 
 def clean_html(raw_html: Optional[str]) -> str:
-    """Removes HTML tags, preserves paragraph breaks, and unescapes entities."""
+    """Removes HTML tags, preserves paragraph breaks, unescapes entities, and strips technical prefixes."""
     if not raw_html:
         return ""
     # Replace <br>, </p>, </div>, </li> with newlines to preserve structure
@@ -229,6 +347,8 @@ def clean_html(raw_html: Optional[str]) -> str:
     text = "\n".join(lines)
     # Collapse multiple consecutive empty lines to maximum 2
     text = re.sub(r"\n{3,}", "\n\n", text)
+    # Strip technical HTML prefixes (e.g. "HTML\nВ программе...", "HTML: ...", "html - ...")
+    text = re.sub(r"^\s*(?:HTML|html)\s*[:\-]?\s*", "", text).strip()
     return text.strip()
 
 
@@ -240,14 +360,86 @@ def clean_title(raw_title: Optional[str]) -> str:
     return cleaned[0].upper() + cleaned[1:]
 
 
-def map_category(raw_categories: List[str]) -> str:
-    """Maps array of raw categories to a single valid Ivently category ID."""
-    for cat in raw_categories:
-        cat_lower = str(cat).lower()
-        for key, mapped_id in CATEGORY_MAP.items():
-            if key in cat_lower:
-                return mapped_id
+def resolve_category(
+    title: str = "",
+    raw_tags: Optional[List[str]] = None,
+    raw_genres: Optional[List[str]] = None,
+    raw_categories: Optional[List[str]] = None
+) -> str:
+    """
+    Intelligently maps event to one of the 8 canonical Ivently categories:
+    theatre, exhibitions, education, sports, concerts, parties, business, other.
+    Checks tags, genres, categories, and title keywords according to strict priority.
+    """
+    tags_str = " ".join([str(t).lower() for t in (raw_tags or [])])
+    genres_str = " ".join([str(g).lower() for g in (raw_genres or [])])
+    cats_str = " ".join([str(c).lower() for c in (raw_categories or [])])
+    combined_text = f"{title.lower()} {tags_str} {genres_str} {cats_str}"
+
+    # 1. Theatre / Plays / Opera / Ballet (Highest priority for cultural stages)
+    theatre_keywords = [
+        "спектакл", "театр", "драма", "комеди", "балет", "опера",
+        "мюзикл", "постановк", "сказка", "трагеди", "пьеса", "инсценировк",
+        "актер", "кукол", "оперетт", "режиссер", "сцена", "антреприз"
+    ]
+    if any(k in combined_text for k in theatre_keywords):
+        return "theatre"
+
+    # 2. Exhibitions / Art / Museums / Galleries
+    exhibition_keywords = [
+        "выставк", "экспозици", "музей", "вернисаж", "галере",
+        "живопис", "скульптур", "картин", "арт", "худож"
+    ]
+    if any(k in combined_text for k in exhibition_keywords):
+        return "exhibitions"
+
+    # 3. Lectures / Education / Masterclasses / Literature
+    education_keywords = [
+        "лекци", "мастер-класс", "мастер класс", "урок", "семинар",
+        "воркшоп", "творческая встреч", "творческой встреч", "обучени", "клуб",
+        "просветительск", "читальн", "литератур", "книг", "тренинг"
+    ]
+    if any(k in combined_text for k in education_keywords):
+        return "education"
+
+    # 4. Sports / Active tours / Outdoors / Excursions
+    sports_keywords = [
+        "экскурси", "прогулк", "тур", "поход", "квест", "спорт",
+        "забег", "матч", "турнир", "соревновани", "марафон", "фитнес"
+    ]
+    if any(k in combined_text for k in sports_keywords):
+        return "sports"
+
+    # 5. Concerts / Music / Philharmonic / Symphony
+    concert_keywords = [
+        "концерт", "симфоническ", "оркестр", "филармони", "музык",
+        "романтическ", "ансамбл", "рок", "джаз", "vocal", "вокал",
+        "хор", "песн", "песен", "инструментальн", "акустик"
+    ]
+    if any(k in combined_text for k in concert_keywords):
+        return "concerts"
+
+    # 6. Parties / Festivals / Shows / Standup
+    party_keywords = [
+        "вечеринк", "фестивал", "шоу", "дискотек", "клуб", "dance",
+        "танц", "карнавал", "party", "standup", "стендап"
+    ]
+    if any(k in combined_text for k in party_keywords):
+        return "parties"
+
+    # 7. Business / Meetups / Conferences
+    business_keywords = [
+        "бизнес", "конференци", "форум", "питч", "стартап", "нетворкинг"
+    ]
+    if any(k in combined_text for k in business_keywords):
+        return "business"
+
     return "other"
+
+
+def map_category(raw_categories: List[str]) -> str:
+    """Fallback legacy category mapper."""
+    return resolve_category(raw_categories=raw_categories)
 
 
 def parse_price(price_raw: Any, is_free: bool = False) -> Optional[float]:
@@ -405,11 +597,12 @@ class ExternalSyncService:
         detail_semaphore = asyncio.Semaphore(8)
 
         async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
-            for region_slug, region_title in CULTURE_REGIONS:
+            for region_slug, region_title, target_city_id in CULTURE_REGIONS:
                 if target_slugs:
-                    default_cid = REGION_DEFAULT_CITY.get(region_slug)
+                    default_cid = target_city_id or REGION_DEFAULT_CITY.get(region_slug)
                     region_matches = (
                         region_slug in target_slugs
+                        or (target_city_id and target_city_id in target_slugs)
                         or (default_cid and default_cid in target_slugs)
                     )
                     if not region_matches:
@@ -519,7 +712,7 @@ class ExternalSyncService:
                                             break
 
                                 if not city_id:
-                                    city_id = REGION_DEFAULT_CITY.get(region_slug)
+                                    city_id = target_city_id or REGION_DEFAULT_CITY.get(region_slug)
 
                                 if not city_id or city_id not in active_city_ids:
                                     continue
@@ -541,11 +734,13 @@ class ExternalSyncService:
                                 # 5. Category resolution
                                 raw_tags = [t.get("name", "").lower() for t in item.get("tags", []) if isinstance(t, dict)]
                                 raw_genres = [g.get("name", "").lower() for g in item.get("genres", []) if isinstance(g, dict)]
-                                category_id = "other"
-                                for key in raw_tags + raw_genres:
-                                    if key in TAG_TO_CATEGORY:
-                                        category_id = TAG_TO_CATEGORY[key]
-                                        break
+                                raw_cats = [c.get("name", "").lower() for c in item.get("categories", []) if isinstance(c, dict)]
+                                category_id = resolve_category(
+                                    title=title,
+                                    raw_tags=raw_tags,
+                                    raw_genres=raw_genres,
+                                    raw_categories=raw_cats,
+                                )
 
                                 # 6. Price
                                 price_info = item.get("price") or {}
@@ -763,7 +958,10 @@ class ExternalSyncService:
                                         description = description[:2997] + "..."
 
                                     # Categories
-                                    category_id = map_category(item.get("categories", []))
+                                    category_id = resolve_category(
+                                        title=title,
+                                        raw_categories=item.get("categories", [])
+                                    )
 
                                     # Place
                                     place = item.get("place") or {}
@@ -901,9 +1099,16 @@ class ExternalSyncService:
         total_updated = culture_res["updated"] + kudago_res["updated"]
         combined_errors = culture_res["errors"] + kudago_res["errors"]
 
+        # 3. Auto-clean expired external events older than 3 days
+        cleaned_count = 0
+        try:
+            cleaned_count = await cls.cleanup_expired_external_events(session=session, retention_days=3)
+        except Exception as e:
+            logger.warning("Auto-cleanup of expired external events failed: %s", e)
+
         logger.info(
-            "External sync completed: %d total synced (%d created, %d updated), %d errors",
-            total_synced, total_created, total_updated, len(combined_errors)
+            "External sync completed: %d total synced (%d created, %d updated), %d cleaned, %d errors",
+            total_synced, total_created, total_updated, cleaned_count, len(combined_errors)
         )
 
         return {
@@ -911,6 +1116,7 @@ class ExternalSyncService:
             "total_synced": total_synced,
             "created": total_created,
             "updated": total_updated,
+            "cleaned": cleaned_count,
             "errors": combined_errors,
             "sources": {
                 "culture_ru": culture_res,
@@ -918,3 +1124,48 @@ class ExternalSyncService:
             },
             "synced_at": now.isoformat(),
         }
+
+    @classmethod
+    async def cleanup_expired_external_events(
+        cls,
+        session: AsyncSession,
+        retention_days: int = 3,
+    ) -> int:
+        """
+        Cleans up expired external events older than retention_days (default 3 days ago)
+        that have no attendees and no bookmarks, deleting their cached covers from disk.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        stmt = (
+            select(Event)
+            .where(
+                Event.source_type == "external",
+                Event.start_at < cutoff,
+                ~Event.id.in_(select(EventAttendee.event_id)),
+                ~Event.id.in_(select(EventInterest.event_id)),
+            )
+        )
+        res = await session.execute(stmt)
+        expired_events = res.scalars().all()
+        deleted_count = 0
+        local_covers_dir = storage_service.get_local_storage_dir() / "covers"
+
+        for event in expired_events:
+            # Clean cover file if local
+            if event.cover_image_url and "/uploads/covers/ext_" in event.cover_image_url:
+                filename = event.cover_image_url.split("/uploads/covers/")[-1]
+                file_path = local_covers_dir / filename
+                try:
+                    if file_path.exists():
+                        file_path.unlink()
+                except Exception as e:
+                    logger.warning("Failed to delete expired cover %s: %s", file_path, e)
+            await session.delete(event)
+            deleted_count += 1
+
+        if deleted_count > 0:
+            await session.commit()
+            logger.info("Auto-cleaned %d expired external events and their cached covers", deleted_count)
+
+        return deleted_count
+

@@ -45,6 +45,7 @@ export interface EventSummary {
   organization_name?: string;
   organization_category?: string;
   organization_avatar_url?: string;
+  organization_is_verified?: boolean;
   allow_event_contact?: boolean;
   source_type?: string;
   source_name?: string;
@@ -224,7 +225,7 @@ export interface UserProfile {
   is_admin: boolean;
 }
 
-export type DateFilterType = 'all' | 'today' | 'tomorrow' | 'weekend';
+export type DateFilterType = 'all' | 'today' | 'tomorrow' | 'weekend' | string;
 
 export interface TelegramWebAppUser {
   id: number;

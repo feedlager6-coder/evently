@@ -1926,7 +1926,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-bold text-emerald-400">
-                      +{audienceData?.new_subscribers_30d ?? 1}
+                      +{totalContactsCount > 0 ? (audienceData?.new_subscribers_30d ?? 0) : 0}
                     </span>
                     <span className="text-[10px] text-neutral-500 block">за 30 дней</span>
                   </div>
@@ -1934,36 +1934,49 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
                 {/* SVG Sparkline Chart */}
                 <div className="w-full pt-1 relative">
-                  <div className="h-28 w-full">
-                    <svg className="w-full h-full overflow-visible" viewBox="0 0 320 80" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="sub-chart-grad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      {/* Reference dashed grid lines */}
-                      <line x1="0" y1="20" x2="320" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                      <line x1="0" y1="50" x2="320" y2="50" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                      {/* Gradient Area under curve */}
-                      <path
-                        d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14 L 320 80 L 0 80 Z"
-                        fill="url(#sub-chart-grad)"
-                      />
-                      {/* Smooth Sparkline */}
-                      <path
-                        d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14"
-                        fill="none"
-                        stroke="#10b981"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-                      {/* Growth checkpoints */}
-                      <circle cx="80" cy="54" r="3" fill="#10b981" />
-                      <circle cx="160" cy="44" r="3" fill="#10b981" />
-                      <circle cx="240" cy="28" r="3" fill="#10b981" />
-                      <circle cx="320" cy="14" r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
-                    </svg>
+                  <div className="h-28 w-full relative">
+                    {totalContactsCount > 0 ? (
+                      <svg className="w-full h-full overflow-visible" viewBox="0 0 320 80" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="sub-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+                        {/* Reference dashed grid lines */}
+                        <line x1="0" y1="20" x2="320" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                        <line x1="0" y1="50" x2="320" y2="50" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                        {/* Gradient Area under curve */}
+                        <path
+                          d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14 L 320 80 L 0 80 Z"
+                          fill="url(#sub-chart-grad)"
+                        />
+                        {/* Smooth Sparkline */}
+                        <path
+                          d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14"
+                          fill="none"
+                          stroke="#10b981"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
+                        {/* Growth checkpoints */}
+                        <circle cx="80" cy="54" r="3" fill="#10b981" />
+                        <circle cx="160" cy="44" r="3" fill="#10b981" />
+                        <circle cx="240" cy="28" r="3" fill="#10b981" />
+                        <circle cx="320" cy="14" r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
+                      </svg>
+                    ) : (
+                      <div className="w-full h-full relative flex items-center justify-center">
+                        <svg className="w-full h-full absolute inset-0" viewBox="0 0 320 80" preserveAspectRatio="none">
+                          <line x1="0" y1="65" x2="320" y2="65" stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" strokeWidth="1.5" />
+                        </svg>
+                        <div className="relative z-10 text-center px-4">
+                          <span className="text-[11px] text-neutral-400 font-medium block">
+                            База формируется: контакты появятся после первых регистраций
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {/* Axis day markers */}
                   <div className="flex justify-between text-[10px] text-neutral-500 pt-1.5 font-mono">
@@ -2904,11 +2917,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <ul className="text-xs text-neutral-300 space-y-1.5 pt-1">
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>20 целевых рассылок в месяц (с прямым пушем в ЛС бота)</span>
+                    <span className="font-medium text-white">Приоритет в афише и бейдж «✓ Проверено» для всех событий</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Зелёный бейдж «Верифицированный организатор Ivently»</span>
+                    <span>20 целевых рассылок в месяц (с прямым пушем в ЛС бота)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -2920,7 +2933,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Интерактивный 30-дневный график динамики подписчиков (SVG Sparkline)</span>
+                    <span>Интерактивный 30-дневный график динамики подписчиков</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />

@@ -212,6 +212,17 @@ export const AdminTab: React.FC<AdminTabProps> = ({
         </div>
       )}
 
+      {/* Background Auto-sync Status Card */}
+      <div className="py-2.5 px-3.5 rounded-2xl bg-[#1c1b1e] border border-white/10 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-white/90 font-medium">Фоновая автосинхронизация активна</span>
+        </div>
+        <span className="text-[11px] font-semibold text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+          каждые 6 часов
+        </span>
+      </div>
+
       {/* Municipal / External Events Ingestion Trigger */}
       <button
         type="button"
@@ -222,11 +233,11 @@ export const AdminTab: React.FC<AdminTabProps> = ({
         <div className="flex items-center gap-2">
           <Globe className={`w-4 h-4 ${isSyncingExternal ? 'animate-spin' : ''}`} />
           <span className="text-xs font-bold text-white">
-            {isSyncingExternal ? 'Синхронизация открытых событий...' : 'Синхронизировать внешние события'}
+            {isSyncingExternal ? 'Синхронизация открытых событий...' : 'Запустить обновление вручную'}
           </span>
         </div>
         <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-          KudaGo & Open API
+          Культура.РФ & Open API
         </span>
       </button>
 

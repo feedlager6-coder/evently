@@ -1192,9 +1192,45 @@ export const App: React.FC = () => {
                       <h2 className="text-[15px] font-extrabold text-white tracking-tight">
                         Все события
                       </h2>
-                      <span className="text-xs font-medium text-[#8e9192]">
-                        По дате ▾
-                      </span>
+                      <label className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-1 cursor-pointer transition-colors px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
+                        <Calendar className="w-3.5 h-3.5 text-[#308ce8]" />
+                        <span>
+                          {/^\d{4}-\d{2}-\d{2}$/.test(dateFilter)
+                            ? (() => {
+                                const parts = dateFilter.split('-');
+                                const day = parseInt(parts[2], 10);
+                                const mIdx = parseInt(parts[1], 10) - 1;
+                                const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+                                return `${day} ${months[mIdx] || ''}`;
+                              })()
+                            : 'По дате ▾'}
+                        </span>
+                        <input
+                          type="date"
+                          value={/^\d{4}-\d{2}-\d{2}$/.test(dateFilter) ? dateFilter : ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              telegram.hapticImpact('light');
+                              setDateFilter(e.target.value);
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        {/^\d{4}-\d{2}-\d{2}$/.test(dateFilter) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              telegram.hapticImpact('light');
+                              setDateFilter('all');
+                            }}
+                            className="p-0.5 text-white/60 hover:text-white ml-0.5"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </label>
                     </div>
 
                     <div className="space-y-4">

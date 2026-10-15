@@ -359,6 +359,7 @@ CITIES_DATA = [
 ]
 
 CATEGORIES_DATA = [
+    {"id": "theatre", "name": "Спектакли и театр", "slug": "theatre", "is_active": True},
     {"id": "concerts", "name": "Концерты", "slug": "concerts", "is_active": True},
     {"id": "parties", "name": "Вечеринки", "slug": "parties", "is_active": True},
     {"id": "sports", "name": "Спорт", "slug": "sports", "is_active": True},
@@ -850,9 +851,12 @@ async def seed_database(session: AsyncSession) -> None:
     existing_cities_res = await session.execute(select(City))
     existing_cities = {c.id: c for c in existing_cities_res.scalars().all()}
 
+    supported_active_city_ids = {c["id"] for c in CITIES_DATA}
+
     for raw_c in cities_to_seed:
         c_data = {k: v for k, v in raw_c.items() if k in valid_keys}
         city_id = c_data["id"]
+        c_data["is_active"] = city_id in supported_active_city_ids
         if city_id not in existing_cities:
             session.add(City(**c_data))
         else:
@@ -863,7 +867,7 @@ async def seed_database(session: AsyncSession) -> None:
             existing_city.currency = c_data["currency"]
             existing_city.latitude = c_data.get("latitude")
             existing_city.longitude = c_data.get("longitude")
-            existing_city.is_active = c_data.get("is_active", True)
+            existing_city.is_active = c_data["is_active"]
 
     # Deactivate Warsaw if present from previous deployment and migrate references
     waw_res = await session.execute(select(City).where(City.id == "warsaw"))
