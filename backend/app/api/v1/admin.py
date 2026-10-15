@@ -216,4 +216,23 @@ async def admin_get_reminder_diagnostics(
     return get_reminder_diagnostics()
 
 
+@router.post("/events/sync-external")
+async def admin_sync_external_events(
+    city_slugs: Optional[List[str]] = Query(None, description="Optional city slugs like msk, spb, kzn, sochi"),
+    max_per_city: int = Query(15, ge=1, le=50),
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Triggers automated synchronization of upcoming events from external partner APIs (KudaGo, Timepad).
+    Restricted to platform administrators.
+    """
+    from app.services.external_sync_service import ExternalSyncService
+    return await ExternalSyncService.sync_kudago_events(
+        session=session,
+        city_slugs=city_slugs,
+        max_events_per_city=max_per_city,
+    )
+
+
 

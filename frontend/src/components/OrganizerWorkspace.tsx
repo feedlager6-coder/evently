@@ -3,6 +3,7 @@ import type {
   OrganizationSummary,
   EventSummary,
   OrganizerAudienceResponse,
+  OrganizerInsightsResponse,
   BroadcastItem,
   BroadcastCreateRequest,
   OrganizerEntitlementsResponse,
@@ -35,6 +36,7 @@ import {
   Check,
   Store,
   ChevronRight,
+  DownloadCloud,
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { CheckInScannerModal } from './CheckInScannerModal';
@@ -147,6 +149,13 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const monthlyQuota = entitlements?.limits?.broadcasts_per_month ?? (isOrgPro ? 20 : 1);
   const monthlyBroadcastsUsed = broadcasts.filter(b => b.organization_id === activeOrg?.id).length;
   const monthlyBroadcastsRemaining = entitlements?.limits?.broadcasts_remaining ?? Math.max(0, monthlyQuota - monthlyBroadcastsUsed);
+  const proExpiresDate = entitlements?.expires_at
+    ? new Date(entitlements.expires_at).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null;
 
   // Check pending Pro payment order on mount / return / visibilitychange / focus / 4s interval
   const isCheckingPaymentRef = useRef(false);
@@ -267,6 +276,34 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   // Audience & Broadcast Data State
   const [audienceData, setAudienceData] = useState<OrganizerAudienceResponse | null>(null);
   const [_isLoadingAudience, setIsLoadingAudience] = useState<boolean>(false);
+  const [insights, setInsights] = useState<OrganizerInsightsResponse | null>(null);
+  const [exportingEventId, setExportingEventId] = useState<string | null>(null);
+
+  // Handle Export Attendees
+  const handleExportAttendees = async (eventId: string, eventTitle: string) => {
+    try {
+      setExportingEventId(eventId);
+      telegram.hapticImpact('medium');
+      const { blob, filename } = await api.exportEventAttendees(eventId, 'csv');
+      if (blob) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `attendees_${eventId.slice(0, 8)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        telegram.hapticSuccess();
+        await telegram.showAlert(`Список гостей события «${eventTitle}» успешно скачан в CSV!`);
+      }
+    } catch (err: any) {
+      telegram.hapticNotification('error');
+      await telegram.showAlert(err.message || 'Ошибка выгрузки списка гостей');
+    } finally {
+      setExportingEventId(null);
+    }
+  };
 
   // Broadcast Wizard Modal State (Single Clean Screen)
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
@@ -363,9 +400,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       }
     };
 
+    const loadInsights = async () => {
+      try {
+        const data = await api.getOrganizerInsights();
+        setInsights(data);
+      } catch (err) {
+        console.warn('Failed to load real insights:', err);
+      }
+    };
+
     loadAudience();
     loadBroadcasts();
     loadEntitlements();
+    loadInsights();
   }, [activeOrg?.id]);
 
   // 6-hour operational buffer: events remain active for 6 hours after start_at (or until end_at)
@@ -603,6 +650,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Creator Pro Nudge Banner */}
+          {totalEventBookmarks > 0 && (
+            <div
+              onClick={() => {
+                telegram.hapticImpact('medium');
+                onOpenCreateOrg();
+              }}
+              className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-[#141417] border border-amber-500/30 cursor-pointer active:scale-[0.99] transition shadow-md space-y-1.5"
+            >
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>🔥 Ваши события сохранили в закладки {totalEventBookmarks} чел.</span>
+              </div>
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                Создайте профиль бренда и подключите PRO, чтобы отправить им приглашение напрямую в личные сообщения Telegram.
+              </p>
+            </div>
+          )}
 
           {/* Author's Events Section */}
           <div className="space-y-3">
@@ -1026,10 +1092,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                           </linearGradient>
                         </defs>
-                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2" fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="2.5" />
                         <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2 L280,40 L0,40 Z" fill="url(#metricGlow)" />
-                        <circle className="animate-ping" cx="280" cy="2" fill="#ffffff" opacity="0.75" r="3.5" />
-                        <circle cx="280" cy="2" fill="#10b981" r="3.5" />
+                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2" fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="2" />
+                        <circle cx="280" cy="2" fill="#10b981" r="3" />
                       </svg>
                     </div>
                   </div>
@@ -1089,6 +1154,84 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       осталось в месяце
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* Conversion Funnel & Traffic Sources */}
+              <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 space-y-4 shadow-md">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Воронка конверсии</span>
+                  </h3>
+                  <span className="text-[11px] font-semibold text-emerald-400">
+                    {totalEventViews > 0
+                      ? `${((totalEventAttendees / totalEventViews) * 100).toFixed(1)}% общая`
+                      : '0% общая'}
+                  </span>
+                </div>
+
+                {/* 3-step Funnel */}
+                <div className="grid grid-cols-3 gap-2 text-center relative">
+                  {/* Step 1: Views */}
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 relative">
+                    <div className="text-[10px] text-neutral-400 font-medium">1. Просмотры</div>
+                    <div className="text-sm font-extrabold text-white mt-0.5">{totalEventViews.toLocaleString('ru-RU')}</div>
+                    <div className="text-[10px] text-neutral-500 mt-0.5">100%</div>
+                  </div>
+
+                  {/* Step 2: Bookmarks */}
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 relative">
+                    <div className="text-[10px] text-neutral-400 font-medium">2. В закладках</div>
+                    <div className="text-sm font-extrabold text-white mt-0.5">{totalEventBookmarks.toLocaleString('ru-RU')}</div>
+                    <div className="text-[10px] text-emerald-400 mt-0.5 font-semibold">
+                      {totalEventViews > 0 ? `${((totalEventBookmarks / totalEventViews) * 100).toFixed(1)}%` : '0%'}
+                    </div>
+                  </div>
+
+                  {/* Step 3: Attending */}
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 relative">
+                    <div className="text-[10px] text-emerald-400 font-medium">3. Идут</div>
+                    <div className="text-sm font-extrabold text-emerald-300 mt-0.5">{totalEventAttendees.toLocaleString('ru-RU')}</div>
+                    <div className="text-[10px] text-emerald-400 mt-0.5 font-semibold">
+                      {totalEventBookmarks > 0 ? `${((totalEventAttendees / totalEventBookmarks) * 100).toFixed(1)}%` : '0%'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Traffic Sources */}
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Источники переходов
+                  </span>
+                  {insights?.sources && insights.sources.length > 0 ? (
+                    <div className="space-y-2">
+                      {insights.sources.map((src, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-neutral-300 font-medium flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              {src.label}
+                            </span>
+                            <span className="text-neutral-400">
+                              <strong className="text-white font-semibold">{src.views_count}</strong> ({src.percentage}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${Math.min(100, src.percentage)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-xs text-neutral-400 py-1">
+                      <span>Лента афиши и поиск бота</span>
+                      <span className="text-neutral-500">Данные накапливаются</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1205,22 +1348,77 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 )}
               </div>
 
-              {/* PRO Features Showcase Banner */}
-              <div
-                onClick={() => setIsProModalOpen(true)}
-                className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 transition active:scale-[0.99] flex items-center justify-between gap-3 shadow-md"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Возможности Ivently PRO</span>
+              {/* PRO Active Status Card or Showcase Banner */}
+              {isOrgPro ? (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-[#102219] via-[#141417] to-[#141417] border border-emerald-500/30 space-y-3.5 shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-extrabold text-white">Тариф PRO активен</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                            PRO
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-neutral-400">
+                          {proExpiresDate ? `Действует до ${proExpiresDate}` : 'Подписка активна'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   </div>
-                  <p className="text-[11px] text-neutral-400">
-                    20 рассылок в Telegram, таргетинг на гостей в закладках и бейдж верификации.
-                  </p>
+
+                  {/* Broadcasts Quota Progress */}
+                  <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-400">Рассылки в Telegram</span>
+                      <span className="text-white font-bold">
+                        {monthlyBroadcastsRemaining} <span className="text-neutral-500 font-normal">из {monthlyQuota}</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${monthlyQuota > 0 ? Math.min(100, (monthlyBroadcastsRemaining / monthlyQuota) * 100) : 0}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-neutral-500 pt-0.5">
+                      <span>Верифицированный бренд</span>
+                      <span>Без ограничений по базе</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsProModalOpen(true)}
+                    className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98] shadow-md"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Продлить PRO ещё на 30 дней (499 ₽)</span>
+                  </button>
                 </div>
-                <ChevronRight className="w-4 h-4 text-emerald-400 shrink-0" />
-              </div>
+              ) : (
+                <div
+                  onClick={() => setIsProModalOpen(true)}
+                  className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 transition active:scale-[0.99] flex items-center justify-between gap-3 shadow-md"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Возможности Ivently PRO</span>
+                    </div>
+                    <p className="text-[11px] text-neutral-400">
+                      20 рассылок в Telegram, таргетинг на гостей в закладках и бейдж верификации.
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-emerald-400 shrink-0" />
+                </div>
+              )}
             </main>
           </div>
         )}
@@ -1853,6 +2051,96 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     Анонс по интересам событий
                   </button>
                 </div>
+              </section>
+
+              {/* Event Response & Guests Export Section */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-[13px] font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Отклик по событиям</span>
+                    </h2>
+                    <p className="text-[11px] text-neutral-400">Статистика и 1-клик выгрузка гостей в CSV</p>
+                  </div>
+                </div>
+
+                {((audienceData?.recent_events && audienceData.recent_events.length > 0) || activePublishedEvents.length > 0) ? (
+                  <div className="space-y-2.5">
+                    {((audienceData?.recent_events && audienceData.recent_events.length > 0)
+                      ? audienceData.recent_events
+                      : activePublishedEvents.map((ev) => ({
+                          id: ev.id,
+                          title: ev.title,
+                          start_at: ev.start_at,
+                          venue_name: ev.venue_name,
+                          views_count: ev.views_count,
+                          interest_count: ev.bookmarksCount,
+                          attendee_count: ev.ticketsSold,
+                        }))
+                    ).map((ev) => (
+                      <div key={ev.id} className="p-3.5 rounded-2xl bg-[#131316] border border-white/8 space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-white truncate">{ev.title}</h4>
+                            <p className="text-[11px] text-neutral-400 truncate mt-0.5">{ev.venue_name || 'Площадка не указана'}</p>
+                          </div>
+                          <span className="text-[11px] text-neutral-400 shrink-0 font-medium">
+                            {ev.start_at ? new Date(ev.start_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—'}
+                          </span>
+                        </div>
+
+                        {/* Event mini metrics */}
+                        <div className="flex items-center gap-3 text-xs text-neutral-300 py-1 px-2.5 rounded-xl bg-white/5">
+                          <span className="flex items-center gap-1">
+                            <Eye className="w-3.5 h-3.5 text-neutral-400" />
+                            <strong>{ev.views_count || 0}</strong>
+                          </span>
+                          <span className="text-neutral-500">•</span>
+                          <span className="flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            <strong>{ev.interest_count || 0}</strong> в закладках
+                          </span>
+                          <span className="text-neutral-500">•</span>
+                          <span className="flex items-center gap-1">
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            <strong>{ev.attendee_count || 0}</strong> гостей
+                          </span>
+                        </div>
+
+                        {/* Export Action Button */}
+                        <div className="pt-1 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            disabled={exportingEventId === ev.id}
+                            onClick={() => handleExportAttendees(ev.id, ev.title)}
+                            className="flex-1 py-2 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border border-emerald-500/20 disabled:opacity-50"
+                          >
+                            <DownloadCloud className={`w-3.5 h-3.5 ${exportingEventId === ev.id ? 'animate-bounce' : ''}`} />
+                            <span>{exportingEventId === ev.id ? 'Формирование CSV...' : 'Экспорт гостей (CSV)'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEventTargetId(ev.id);
+                              openBroadcastWizard('event_interest');
+                            }}
+                            className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 font-medium text-xs flex items-center justify-center gap-1.5 transition active:scale-95"
+                            title="Рассылка по этому событию"
+                          >
+                            <Send className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Анонс</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 rounded-2xl bg-[#131316] border border-white/5 text-center space-y-1.5">
+                    <p className="text-xs font-semibold text-white">Нет событий для анализа отклика</p>
+                    <p className="text-[11px] text-neutral-400">Опубликуйте мероприятие, чтобы видеть отклик и экспортировать гостей.</p>
+                  </div>
+                )}
               </section>
             </main>
           </div>
@@ -2569,6 +2857,24 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </p>
             </div>
 
+            {/* Active PRO Status Banner */}
+            {isOrgPro && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-white">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Тариф PRO активен</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-300">
+                    {proExpiresDate ? `Действует до ${proExpiresDate}` : 'Подписка активна'}
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                  {monthlyBroadcastsRemaining} рассылок
+                </span>
+              </div>
+            )}
+
             {/* Comparison Deck */}
             <div className="space-y-3">
               {/* Free Tier */}
@@ -2625,6 +2931,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Выгрузка списка гостей события в CSV / Excel для отчетов и учета</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Интерактивный 30-дневный график динамики подписчиков (SVG Sparkline)</span>
                   </li>
                   <li className="flex items-center gap-2">
@@ -2677,7 +2987,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               }}
               className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg active:scale-95 transition"
             >
-              Подключить PRO (499 ₽ / мес)
+              {isOrgPro ? 'Продлить PRO ещё на 30 дней (499 ₽)' : 'Подключить PRO (499 ₽ / мес)'}
             </button>
           </div>
         </div>

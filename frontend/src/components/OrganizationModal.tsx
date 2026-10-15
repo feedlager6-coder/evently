@@ -511,9 +511,17 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </div>
                 {/* Verified Shield Badge on bottom-right of avatar */}
                 {Boolean(org.is_verified) && (
-                  <div className="w-6 h-6 rounded-full bg-[#10b981] text-[#00311f] flex items-center justify-center absolute bottom-0 right-0 border-2 border-[#08080A] shadow-md">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      telegram.hapticImpact('light');
+                      telegram.showAlert('Верифицированный организатор Ivently — официальный статус проверенного бренда. Включает зелёную галочку в карточках событий, расширенную базу и приоритет в поиске. Активируется в тарифе PRO.');
+                    }}
+                    className="w-6 h-6 rounded-full bg-[#10b981] text-[#00311f] flex items-center justify-center absolute bottom-0 right-0 border-2 border-[#08080A] shadow-md active:scale-90 transition cursor-pointer"
+                    title="Верифицированный организатор (нажмите для информации)"
+                  >
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  </div>
+                  </button>
                 )}
               </div>
 
@@ -524,10 +532,18 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
               {/* Verified Organizer Status Badge with Pulsing Dot */}
               {Boolean(org.is_verified) && (
-                <div className="flex items-center justify-center gap-1.5 mt-1 text-xs font-semibold text-[#4edea3]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    telegram.hapticImpact('light');
+                    telegram.showAlert('Верифицированный организатор Ivently — официальный статус проверенного бренда. Включает зелёную галочку в карточках событий, расширенную базу и приоритет в поиске. Активируется в тарифе PRO.');
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 mt-1 text-xs font-semibold text-[#4edea3] hover:opacity-85 active:scale-95 transition cursor-pointer mx-auto"
+                >
                   <span className="w-2 h-2 rounded-full bg-[#4edea3] animate-pulse" />
                   <span>Верифицированный организатор</span>
-                </div>
+                  <Info className="w-3 h-3 opacity-70" />
+                </button>
               )}
 
               {/* Category Pill with Sound Wave Icon */}

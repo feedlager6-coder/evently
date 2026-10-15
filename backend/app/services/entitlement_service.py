@@ -151,20 +151,31 @@ class EntitlementService:
     async def get_monthly_broadcast_usage(
         cls,
         session: AsyncSession,
-        organization_id: str
+        organization_id: str,
+        since_dt: Optional[datetime] = None,
     ) -> int:
         """
         Returns number of active/queued/completed marketing broadcasts sent by this organization
         in the current calendar month (from 1st of month 00:00:00 UTC).
-        Transactional broadcasts (event updates), failed broadcasts (0 sent), cancelled,
-        and other organizations' broadcasts do NOT count toward this marketing quota.
+        For Pro plans with active subscription, only broadcasts sent since plan start (or start of month)
+        are counted toward the Pro marketing quota, ensuring a full 20 broadcasts upon upgrading.
+        Transactional broadcasts, failed broadcasts (0 sent), and other organizations'
+        broadcasts do NOT count toward this marketing quota.
         """
         now = utc_now()
         start_of_month = datetime(now.year, now.month, 1, 0, 0, 0, tzinfo=timezone.utc)
+        effective_start = start_of_month
+
+        if since_dt is not None:
+            effective_start = max(start_of_month, ensure_utc(since_dt))
+        else:
+            plan, plan_status, starts_at, _ = await cls.get_organization_plan(session, organization_id)
+            if plan == PlanType.PRO.value and starts_at:
+                effective_start = max(start_of_month, ensure_utc(starts_at))
 
         stmt = select(func.count(Broadcast.id)).where(
             Broadcast.organization_id == organization_id,
-            Broadcast.created_at >= start_of_month,
+            Broadcast.created_at >= effective_start,
             Broadcast.broadcast_type == BroadcastType.MARKETING.value,
             Broadcast.status.in_([
                 BroadcastStatus.COMPLETED.value,
@@ -190,7 +201,9 @@ class EntitlementService:
         Returns complete, structured entitlements payload for frontend capability awareness.
         """
         plan, plan_status, starts_at, expires_at = await cls.get_organization_plan(session, organization_id)
-        broadcast_usage = await cls.get_monthly_broadcast_usage(session, organization_id)
+        broadcast_usage = await cls.get_monthly_broadcast_usage(
+            session, organization_id, since_dt=starts_at if plan == PlanType.PRO.value else None
+        )
 
         monthly_limit = (
             settings.PRO_BROADCASTS_PER_MONTH
@@ -291,13 +304,15 @@ class EntitlementService:
         if broadcast_type == BroadcastType.TRANSACTIONAL.value:
             return
 
-        plan, plan_status, _, _ = await cls.get_organization_plan(session, organization_id)
+        plan, plan_status, starts_at, _ = await cls.get_organization_plan(session, organization_id)
         limit = (
             settings.PRO_BROADCASTS_PER_MONTH
             if plan == PlanType.PRO.value
             else settings.FREE_BROADCASTS_PER_MONTH
         )
-        used = await cls.get_monthly_broadcast_usage(session, organization_id)
+        used = await cls.get_monthly_broadcast_usage(
+            session, organization_id, since_dt=starts_at if plan == PlanType.PRO.value else None
+        )
 
         if used >= limit:
             raise HTTPException(
@@ -327,6 +342,7 @@ class EntitlementService:
     ) -> OrganizationPlan:
         """
         Upserts OrganizationPlan record for an organization (used in testing, admin, and dev tooling).
+        Also manages auto-verification badge (is_verified) for organizations with active PRO plan.
         """
         stmt = select(OrganizationPlan).where(OrganizationPlan.organization_id == organization_id)
         res = await session.execute(stmt)
@@ -350,10 +366,19 @@ class EntitlementService:
             )
             session.add(record)
 
+        # Auto-verify organization when active PRO is granted
+        org = await session.get(Organization, organization_id)
+        if org:
+            if plan == PlanType.PRO.value and status_val == PlanStatus.ACTIVE.value:
+                org.is_verified = True
+            elif plan != PlanType.PRO.value or status_val != PlanStatus.ACTIVE.value:
+                org.is_verified = False
+            org.updated_at = now
+
         await session.commit()
         await session.refresh(record)
         logger.info(
-            "Organization %s plan set to %s (status=%s, expires_at=%s)",
-            organization_id, plan, status_val, expires_at
+            "Organization %s plan set to %s (status=%s, expires_at=%s, is_verified=%s)",
+            organization_id, plan, status_val, expires_at, getattr(org, 'is_verified', False)
         )
         return record

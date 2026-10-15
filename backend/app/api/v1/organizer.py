@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import json
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
@@ -31,7 +31,7 @@ from app.schemas.entitlement import (
     EntitlementLimits,
 )
 from app.api.deps import get_current_user
-from app.services.event_service import get_organizer_events, compute_ticket_signature
+from app.services.event_service import get_organizer_events, compute_ticket_signature, build_signed_ticket_code
 from app.services.audience_service import get_organizer_audience
 from app.services.insights_service import get_organizer_insights
 from app.services.entitlement_service import EntitlementService, CAPABILITY_REGISTRY
@@ -506,6 +506,118 @@ async def check_in_event_ticket(
         is_payment_required_at_door=is_payment_required_at_door,
         price_amount=price_amount,
     )
+
+
+@router.get("/events/{event_id}/attendees/export")
+async def export_event_attendees(
+    event_id: str,
+    format: str = Query("json", pattern="^(json|csv)$"),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Exports registered attendees and their door check-in statuses for a specific event.
+    Authorized for the event creator, organization owner, or admin.
+    Returns structured JSON or downloadable UTF-8 CSV with BOM for Excel compatibility.
+    """
+    event = await session.get(Event, event_id)
+    if not event or event.status == "deleted":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+
+    is_admin_user = settings.is_admin(user.telegram_id)
+    is_creator = event.organizer_user_id == user.id
+
+    is_org_owner = False
+    if event.organization_id:
+        org = await session.get(Organization, event.organization_id)
+        if org and org.owner_user_id == user.id:
+            is_org_owner = True
+
+    if not (is_admin_user or is_creator or is_org_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="У вас нет прав на экспорт списка гостей этого события"
+        )
+
+    # Query all attendees joining User
+    stmt = (
+        select(EventAttendee, User)
+        .join(User, EventAttendee.user_id == User.id)
+        .where(EventAttendee.event_id == event_id)
+        .order_by(EventAttendee.created_at.asc())
+    )
+    rows = (await session.execute(stmt)).all()
+
+    # Query all check-ins for this event
+    checkin_stmt = select(TicketCheckIn).where(TicketCheckIn.event_id == event_id)
+    checkins = (await session.execute(checkin_stmt)).scalars().all()
+    checkin_map = {ci.ticket_code: ci for ci in checkins}
+
+    attendees_list = []
+    checked_in_count = 0
+
+    for idx, (attendee, guest_user) in enumerate(rows, start=1):
+        guest_name = f"{guest_user.first_name or ''} {guest_user.last_name or ''}".strip() or "Гость"
+        username_str = f"@{guest_user.username}" if guest_user.username else "—"
+        ticket_code = attendee.ticket_code or build_signed_ticket_code(event_id, guest_user.id)
+        reg_date_str = attendee.created_at.strftime("%d.%m.%Y %H:%M") if attendee.created_at else "—"
+
+        is_checked_in = False
+        checkin_time_str = "—"
+        if ticket_code in checkin_map:
+            is_checked_in = True
+            ci_time = checkin_map[ticket_code].created_at
+            checkin_time_str = ci_time.strftime("%d.%m.%Y %H:%M:%S") if ci_time else "Да"
+            checked_in_count += 1
+
+        checkin_status_str = "Прошел чек-ин" if is_checked_in else "Ожидается"
+
+        attendees_list.append({
+            "index": idx,
+            "user_id": guest_user.id,
+            "guest_name": guest_name,
+            "username": username_str,
+            "ticket_code": ticket_code,
+            "registered_at": reg_date_str,
+            "is_checked_in": is_checked_in,
+            "checkin_status": checkin_status_str,
+            "checkin_time": checkin_time_str,
+        })
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        # UTF-8 BOM so Excel opens Cyrillic without garbled text
+        writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(["№", "Имя гостя", "Telegram", "Код билета", "Дата регистрации", "Статус прохода", "Время чек-ина"])
+        for item in attendees_list:
+            writer.writerow([
+                item["index"],
+                item["guest_name"],
+                item["username"],
+                item["ticket_code"],
+                item["registered_at"],
+                item["checkin_status"],
+                item["checkin_time"],
+            ])
+        csv_bytes = ("\ufeff" + output.getvalue()).encode("utf-8")
+        filename = f"attendees_{event_id[:8]}.csv"
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
+    return {
+        "event_id": event_id,
+        "event_title": event.title,
+        "total_attendees": len(attendees_list),
+        "checked_in_count": checked_in_count,
+        "attendees": attendees_list,
+    }
 
 
 

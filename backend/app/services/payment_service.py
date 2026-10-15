@@ -395,8 +395,15 @@ class PaymentService:
                     updated_at=now
                 ))
 
+                # Auto-verify organization when PRO is activated
+                org_stmt = select(Organization).where(Organization.id == order.organization_id)
+                org = (await session.execute(org_stmt)).scalar_one_or_none()
+                if org:
+                    org.is_verified = True
+                    org.updated_at = now
+
                 logger.info(
-                    "PRO ACTIVATED: Order %s extended organization %s Pro until %s",
+                    "PRO ACTIVATED: Order %s extended organization %s Pro until %s (is_verified=True)",
                     order.id, order.organization_id, new_expires
                 )
 
@@ -599,8 +606,16 @@ class PaymentService:
                     plan_record.status = PlanStatus.CANCELLED.value
                     plan_record.expires_at = now
                     plan_record.updated_at = now
+
+                    # Reset verified status
+                    org_stmt = select(Organization).where(Organization.id == order.organization_id)
+                    org = (await session.execute(org_stmt)).scalar_one_or_none()
+                    if org:
+                        org.is_verified = False
+                        org.updated_at = now
+
                     logger.warning(
-                        "REVOKED PRO PLAN: Organization %s plan reverted to Free due to refund on order %s",
+                        "REVOKED PRO PLAN: Organization %s plan reverted to Free and is_verified=False due to refund on order %s",
                         order.organization_id, order.id
                     )
             else:

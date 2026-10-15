@@ -626,6 +626,40 @@ export const api = {
     return res.json();
   },
 
+  async exportEventAttendees(eventId: string, format: 'json' | 'csv' = 'csv'): Promise<{ blob?: Blob; data?: any; filename: string }> {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/events/${encodeURIComponent(eventId)}/attendees/export?format=${format}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Не удалось выгрузить список гостей'));
+    }
+    if (format === 'csv') {
+      const blob = await res.blob();
+      return { blob, filename: `attendees_${eventId.slice(0, 8)}.csv` };
+    }
+    const data = await res.json();
+    return { data, filename: `attendees_${eventId.slice(0, 8)}.json` };
+  },
+
+  async adminSyncExternalEvents(citySlugs?: string[], maxPerCity: number = 15): Promise<any> {
+    const params = new URLSearchParams();
+    if (citySlugs && citySlugs.length > 0) {
+      citySlugs.forEach((s) => params.append('city_slugs', s));
+    }
+    params.set('max_per_city', String(maxPerCity));
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events/sync-external?${params.toString()}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(extractErrorMessage(err, 'Ошибка синхронизации внешних событий'));
+    }
+    return res.json();
+  },
+
   async getAdminEvents(status: EventStatus = 'pending'): Promise<EventSummary[]> {
     const res = await fetchWithTimeout(`${API_BASE}/admin/events?status=${status}&status_filter=${status}`, {
       headers: getAuthHeaders(),

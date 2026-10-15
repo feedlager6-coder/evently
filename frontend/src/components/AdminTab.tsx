@@ -18,6 +18,7 @@ import {
   Clock,
   Eye,
   ShieldCheck,
+  Globe,
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 
@@ -47,6 +48,28 @@ export const AdminTab: React.FC<AdminTabProps> = ({
   const [rejectReason, setRejectReason] = useState('Несоответствие правилам публикации событий');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // External Events Sync state
+  const [isSyncingExternal, setIsSyncingExternal] = useState(false);
+
+  const handleSyncExternalEvents = async () => {
+    try {
+      setIsSyncingExternal(true);
+      setError(null);
+      telegram.hapticImpact('medium');
+      const res = await api.adminSyncExternalEvents();
+      telegram.hapticSuccess();
+      await telegram.showAlert(
+        `Синхронизация завершена!\nСоздано новых событий: ${res.created}\nОбновлено существующих: ${res.updated}\nОшибок: ${res.errors.length}`
+      );
+      onRefresh();
+    } catch (err: any) {
+      telegram.hapticNotification('error');
+      setError(err.message || 'Ошибка синхронизации внешних событий');
+    } finally {
+      setIsSyncingExternal(false);
+    }
+  };
 
   // Organizations & Pro testing state
   const [organizations, setOrganizations] = useState<AdminOrganizationItem[]>([]);
@@ -188,6 +211,24 @@ export const AdminTab: React.FC<AdminTabProps> = ({
           <span>{error}</span>
         </div>
       )}
+
+      {/* Municipal / External Events Ingestion Trigger */}
+      <button
+        type="button"
+        disabled={isSyncingExternal}
+        onClick={handleSyncExternalEvents}
+        className="w-full py-2.5 px-4 rounded-2xl bg-[#1c1b1e] hover:bg-[#252428] border border-emerald-500/30 text-emerald-400 flex items-center justify-between transition-all active:scale-[0.98] shadow-sm disabled:opacity-50"
+      >
+        <div className="flex items-center gap-2">
+          <Globe className={`w-4 h-4 ${isSyncingExternal ? 'animate-spin' : ''}`} />
+          <span className="text-xs font-bold text-white">
+            {isSyncingExternal ? 'Синхронизация открытых событий...' : 'Синхронизировать внешние события'}
+          </span>
+        </div>
+        <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+          KudaGo & Open API
+        </span>
+      </button>
 
       {/* Primary Segmented Switcher (Optical Glass Pill Tabs matching Stitch) */}
       <div className="p-1 rounded-2xl bg-[#1c1b1e] border border-white/10 flex items-center gap-1 shadow-inner text-xs">
