@@ -1,10 +1,13 @@
+import io
 import logging
 import re
 import html
 import json
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import httpx
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -13,6 +16,7 @@ from app.models.event import Event, EventStatus
 from app.models.user import User
 from app.models.city import City
 from app.models.category import Category
+from app.services.storage_service import storage_service
 
 logger = logging.getLogger("evently.external_sync")
 
@@ -212,13 +216,20 @@ DEFAULT_COVERS: Dict[str, str] = {
 
 
 def clean_html(raw_html: Optional[str]) -> str:
-    """Removes HTML tags and unescapes entities."""
+    """Removes HTML tags, preserves paragraph breaks, and unescapes entities."""
     if not raw_html:
         return ""
-    text = re.sub(r"<[^>]+>", " ", raw_html)
+    # Replace <br>, </p>, </div>, </li> with newlines to preserve structure
+    text = re.sub(r"<(?:br|/p|/div|/li)[^>]*>", "\n\n", raw_html, flags=re.IGNORECASE)
+    # Remove remaining HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
     text = html.unescape(text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    # Normalize spaces within each line
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+    text = "\n".join(lines)
+    # Collapse multiple consecutive empty lines to maximum 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def clean_title(raw_title: Optional[str]) -> str:
@@ -269,13 +280,51 @@ def append_partner_utm(url: Optional[str]) -> Optional[str]:
     return clean_url
 
 
+async def download_and_cache_cover(
+    http_client: httpx.AsyncClient,
+    image_url: Optional[str],
+    ext_id: str,
+) -> Optional[str]:
+    """
+    Downloads external image on Russian server, resizes to max 800x500 maintaining aspect ratio,
+    optimizes as JPEG quality=82 (~50 KB), and saves to local uploads/covers/ext_{ext_id}.jpg.
+    Returns relative URL path '/uploads/covers/ext_{ext_id}.jpg' for fast delivery through VPN.
+    """
+    if not image_url or not image_url.startswith("http"):
+        return None
+
+    try:
+        local_covers_dir = storage_service.get_local_storage_dir() / "covers"
+        local_covers_dir.mkdir(parents=True, exist_ok=True)
+        target_filename = f"ext_{ext_id}.jpg"
+        target_path = local_covers_dir / target_filename
+        relative_url = f"/uploads/covers/{target_filename}"
+
+        # If already cached on disk and valid size, reuse immediately without re-downloading
+        if target_path.exists() and target_path.stat().st_size > 1024:
+            return relative_url
+
+        resp = await http_client.get(image_url, timeout=10.0)
+        if resp.status_code == 200 and len(resp.content) > 100:
+            with Image.open(io.BytesIO(resp.content)) as img:
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                img.thumbnail((800, 500), Image.Resampling.LANCZOS)
+                img.save(str(target_path), format="JPEG", quality=82, optimize=True)
+            return relative_url
+    except Exception as e:
+        logger.warning("Failed to cache cover for ext_id %s from %s: %s", ext_id, image_url, e)
+
+    return image_url
+
+
 class ExternalSyncService:
     """
     Automated network importer for 100% authentic live events across Russian cities.
     Sources:
-      1. Portal «Культура.РФ» (official national cultural portal with live regional feeds)
+      1. Portal «Культура.РФ» (National culture portal, primary live feed across Russia)
       2. KudaGo Public API (where reachable)
-    Zero hardcoded mock events: every event in DB is fetched over HTTP with working links.
+    Zero mock events: genuine descriptions, local high-speed cover caching, direct ticket links.
     Idempotent: updates existing events by (source_name, external_id) without creating duplicates.
     Resilient: uses database savepoints so individual parsing errors never roll back entire transaction.
     """
@@ -334,7 +383,8 @@ class ExternalSyncService:
     ) -> Dict[str, Any]:
         """
         Fetches authentic live events from Portal «Культура.РФ» across all Russian regions.
-        Zero mock data: real titles, CDN covers, official venue locations, dates, and ticket links.
+        Zero mock data: real titles, local cached CDN covers, official venue locations, dates,
+        full parsed descriptions, and direct ticketing cashier links (saleLink).
         """
         now = datetime.now(timezone.utc)
         total_synced = 0
@@ -352,9 +402,10 @@ class ExternalSyncService:
         active_cities_res = await session.execute(select(City.id).where(City.is_active == True))
         active_city_ids = set(active_cities_res.scalars().all())
 
+        detail_semaphore = asyncio.Semaphore(8)
+
         async with httpx.AsyncClient(timeout=12.0, headers=headers, follow_redirects=True) as client:
             for region_slug, region_title in CULTURE_REGIONS:
-                # If specific target cities requested, check if this region matches
                 if target_slugs:
                     default_cid = REGION_DEFAULT_CITY.get(region_slug)
                     region_matches = (
@@ -383,13 +434,52 @@ class ExternalSyncService:
                     if not items:
                         continue
 
-                    for item in items[:max_events_per_region]:
+                    selected_items = items[:max_events_per_region]
+
+                    # Parallel worker for fetching detailed event page (text and saleLink)
+                    async def fetch_item_details(item_data: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+                        raw_i = item_data.get("_id") or item_data.get("id")
+                        if not raw_i:
+                            return None, None
+                        clean_i = str(raw_i).split("_")[0]
+                        slug_i = item_data.get("name") or ""
+                        page_u = f"https://www.culture.ru/events/{clean_i}/{slug_i}"
+
+                        async with detail_semaphore:
+                            try:
+                                d_res = await client.get(page_u, timeout=8.0)
+                                if d_res.status_code == 200:
+                                    dm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', d_res.text, re.DOTALL)
+                                    if dm:
+                                        d_data = json.loads(dm.group(1))
+                                        ev = d_data.get("props", {}).get("pageProps", {}).get("event", {})
+                                        raw_t = ev.get("text") or ""
+                                        d_desc = clean_html(raw_t)
+                                        s_link = ev.get("saleLink")
+                                        if isinstance(s_link, str) and s_link.strip().startswith("http"):
+                                            s_link = s_link.strip()
+                                        else:
+                                            s_link = None
+                                        return (d_desc if len(d_desc) > 20 else None), s_link
+                            except Exception as e:
+                                logger.debug("Detail fetch error for %s: %s", clean_i, e)
+                        return None, None
+
+                    # Concurrently fetch details for all items in this region
+                    details_results = await asyncio.gather(*(fetch_item_details(it) for it in selected_items))
+
+                    for item, (detail_desc, detail_sale_link) in zip(selected_items, details_results):
                         try:
                             async with session.begin_nested():
                                 raw_id = item.get("_id") or item.get("id")
                                 if not raw_id:
                                     continue
-                                ext_id = f"cul_{raw_id}"
+
+                                # Clean single ID without duplicates (fix for 404 links)
+                                clean_id = str(raw_id).split("_")[0]
+                                ext_id = f"cul_{clean_id}"
+                                slug_name = item.get("name") or ""
+                                official_culture_url = f"https://www.culture.ru/events/{clean_id}/{slug_name}"
 
                                 title = clean_title(item.get("title") or item.get("name"))
                                 if not title:
@@ -434,7 +524,6 @@ class ExternalSyncService:
                                 if not city_id or city_id not in active_city_ids:
                                     continue
 
-                                # If target_slugs specified, respect city filter
                                 if target_slugs and city_id not in target_slugs:
                                     continue
 
@@ -464,7 +553,6 @@ class ExternalSyncService:
                                 if isinstance(price_info, dict) and price_info.get("min") is not None:
                                     price_amount = float(price_info["min"])
 
-                                # Check microdata for price & covers
                                 md = item.get("microdata")
                                 if isinstance(md, str):
                                     try:
@@ -485,47 +573,56 @@ class ExternalSyncService:
                                 if any(t.get("name") == "besplatno" for t in item.get("tags", []) if isinstance(t, dict)):
                                     price_amount = 0.0
 
-                                # 7. Cover Image
-                                cover_image_url = None
+                                # 7. Cover Image: download and cache locally for instant VPN loading
+                                remote_cover_url = None
                                 if md.get("image") and isinstance(md["image"], dict) and md["image"].get("url"):
-                                    cover_image_url = md["image"]["url"]
+                                    remote_cover_url = md["image"]["url"]
 
-                                if not cover_image_url and item.get("thumbnailFile"):
+                                if not remote_cover_url and item.get("thumbnailFile"):
                                     pub_id = item["thumbnailFile"].get("publicId")
                                     if pub_id:
-                                        cover_image_url = f"https://cdn.culture.ru/images/{pub_id}"
+                                        remote_cover_url = f"https://cdn.culture.ru/images/{pub_id}"
 
-                                if not cover_image_url:
-                                    cover_image_url = DEFAULT_COVERS.get(category_id, DEFAULT_COVERS["other"])
+                                if not remote_cover_url:
+                                    remote_cover_url = DEFAULT_COVERS.get(category_id, DEFAULT_COVERS["other"])
 
-                                # 8. Source URL (official event link)
-                                source_url = md.get("url")
-                                if not source_url:
-                                    slug_name = item.get("name") or ""
-                                    source_url = f"https://www.culture.ru/events/{raw_id}/{slug_name}"
-                                source_url = append_partner_utm(source_url)
+                                # Cache cover locally on Russian server
+                                cover_image_url = await download_and_cache_cover(
+                                    http_client=client,
+                                    image_url=remote_cover_url,
+                                    ext_id=ext_id,
+                                ) or remote_cover_url
 
-                                # 9. Rich Authentic Description
-                                tag_titles = [t.get("title") for t in item.get("tags", []) if isinstance(t, dict) and t.get("title")]
-                                tags_part = f" Тематика: {', '.join(tag_titles[:4])}." if tag_titles else ""
-                                pushkin_part = " Доступно по Пушкинской карте." if item.get("isPushkinsCard") else ""
-                                age_part = f" Возрастное ограничение: {item.get('ageRestriction')}." if item.get("ageRestriction") else ""
-                                description = (
-                                    f"Официальное культурное событие «{title}». Площадка: {venue_name} ({address})."
-                                    f"{tags_part}{pushkin_part}{age_part} "
-                                    f"Билеты, расписание сеансов и официальные анонсы доступны на портале «Культура.РФ»."
-                                )
+                                # 8. Source URL: prioritize direct cashier link (saleLink), fallback to clean official page
+                                raw_source_url = detail_sale_link or official_culture_url
+                                source_url = append_partner_utm(raw_source_url)
+
+                                # 9. Full Authentic Description (from page text)
+                                if detail_desc:
+                                    description = detail_desc
+                                else:
+                                    tag_titles = [t.get("title") for t in item.get("tags", []) if isinstance(t, dict) and t.get("title")]
+                                    tags_part = f" Тематика: {', '.join(tag_titles[:4])}." if tag_titles else ""
+                                    pushkin_part = " Доступно по Пушкинской карте." if item.get("isPushkinsCard") else ""
+                                    age_part = f" Возрастное ограничение: {item.get('ageRestriction')}." if item.get("ageRestriction") else ""
+                                    description = (
+                                        f"Официальное культурное событие «{title}». Площадка: {venue_name} ({address})."
+                                        f"{tags_part}{pushkin_part}{age_part} "
+                                        f"Билеты, расписание сеансов и официальные анонсы доступны на портале «Культура.РФ»."
+                                    )
+
                                 if len(description) > 3000:
                                     description = description[:2997] + "..."
 
-                                # 10. Idempotent Upsert
+                                # 10. Idempotent Upsert (matches ext_id or previous raw_id)
                                 existing_stmt = select(Event).where(
                                     Event.source_name == "culture_ru",
-                                    Event.external_id == ext_id
+                                    Event.external_id.in_([ext_id, f"cul_{raw_id}"])
                                 )
                                 existing_event = (await session.execute(existing_stmt)).scalar_one_or_none()
 
                                 if existing_event:
+                                    existing_event.external_id = ext_id
                                     existing_event.title = title
                                     existing_event.description = description
                                     existing_event.cover_image_url = cover_image_url
@@ -678,11 +775,17 @@ class ExternalSyncService:
 
                                     # Cover
                                     images = item.get("images", [])
-                                    cover_image_url = None
+                                    remote_cover = None
                                     if images and isinstance(images, list) and images[0].get("image"):
-                                        cover_image_url = images[0]["image"]
-                                    if not cover_image_url:
-                                        cover_image_url = DEFAULT_COVERS.get(category_id, DEFAULT_COVERS["other"])
+                                        remote_cover = images[0]["image"]
+                                    if not remote_cover:
+                                        remote_cover = DEFAULT_COVERS.get(category_id, DEFAULT_COVERS["other"])
+
+                                    cover_image_url = await download_and_cache_cover(
+                                        http_client=client,
+                                        image_url=remote_cover,
+                                        ext_id=f"kudago_{ext_id}",
+                                    ) or remote_cover
 
                                     # Price
                                     is_free = bool(item.get("is_free", False))

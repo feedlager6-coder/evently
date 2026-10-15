@@ -18,7 +18,9 @@ import {
   Lock,
   Handshake,
   Building2,
-  X
+  X,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
@@ -584,6 +586,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               </span>
             )}
           </div>
+
+          {/* VPN hint for external sources */}
+          {event.source_type === 'external' && event.source_url?.includes('culture.ru') && (
+            <div className="pt-2 flex items-center gap-1.5 text-[#8e9192] text-[11px] border-t border-white/5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[#f59e0b]" />
+              <span>Если сайт билетной кассы не загружается, временно отключите VPN</span>
+            </div>
+          )}
         </div>
 
         {/* Broadcast Entry for Organizers */}
@@ -674,99 +684,144 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       {/* Sticky Bottom Optical Glass Action Dock (Matching Stitch Obsidian Optical) */}
       <div className="fixed dock-bottom inset-x-0 mx-auto w-full max-w-[480px] px-4 z-50 pointer-events-none">
         <div className="p-1.5 rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] border border-white/12 flex items-center justify-between gap-2 pointer-events-auto">
-          {/* Mutually Exclusive Intent Segmented Toggle Group */}
-          <div 
-            aria-label="Статус участия" 
-            className="flex items-center bg-[#2a2a2c]/80 p-1 rounded-full flex-1 min-w-0" 
-            role="radiogroup"
-          >
-            {/* Radio Option 1: "Я иду" */}
-            <button
-              onClick={handleGoingClick}
-              disabled={isRsvpLoading || isInterestLoading || isPast}
-              aria-checked={Boolean(event.is_attending)}
-              role="radio"
-              type="button"
-              className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                event.is_attending
-                  ? 'bg-white text-black shadow-md'
-                  : 'text-[#c4c7c8] hover:text-white'
-              } disabled:opacity-50`}
-            >
-              {isRsvpLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Check className={`w-3.5 h-3.5 ${event.is_attending ? 'text-black' : 'text-[#c4c7c8]'}`} />
-              )}
-              <span className="truncate">Я иду</span>
-            </button>
+          {event.source_type === 'external' ? (
+            <>
+              {/* External Event: Single "Хочу пойти" / "В закладках ✓" button */}
+              <button
+                onClick={handleInterestedClick}
+                disabled={isInterestLoading || isPast || !onToggleInterest}
+                type="button"
+                className={`flex-1 h-11 px-4 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md ${
+                  event.current_user_interested
+                    ? 'bg-[#2a2a2c] text-[#4edea3] border border-[#10b981]/40'
+                    : 'bg-[#2a2a2c] text-white hover:bg-[#353437]'
+                } disabled:opacity-50`}
+              >
+                {isInterestLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-[#4edea3]" />
+                ) : (
+                  <Heart className={`w-4 h-4 ${event.current_user_interested ? 'fill-[#4edea3] text-[#4edea3]' : 'text-white'}`} />
+                )}
+                <span className="truncate">
+                  {event.current_user_interested ? 'В закладках ✓' : 'Хочу пойти'}
+                </span>
+              </button>
 
-            {/* Radio Option 2: "Хочу пойти" */}
-            <button
-              onClick={handleInterestedClick}
-              disabled={isInterestLoading || isRsvpLoading || isPast || !onToggleInterest}
-              aria-checked={Boolean(event.current_user_interested)}
-              role="radio"
-              type="button"
-              className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                event.current_user_interested
-                  ? 'bg-white text-black shadow-md'
-                  : 'text-[#c4c7c8] hover:text-white'
-              } disabled:opacity-50`}
-            >
-              {isInterestLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Heart className={`w-3.5 h-3.5 ${event.current_user_interested ? 'fill-black text-black' : 'text-[#c4c7c8]'}`} />
-              )}
-              <span className="truncate">Хочу</span>
-            </button>
-          </div>
-
-          {/* Ticket / Registration Action Button */}
-          {(() => {
-            const ticketUrl = event.source_url || (event as any).registration_url || (event as any).ticket_link;
-            
-            // 1. If user is already attending, show dedicated "Мой билет" QR trigger
-            if (event.is_attending) {
-              return (
+              {/* External Event: Ticket / Website button */}
+              {event.source_url && (
                 <button
                   onClick={() => {
                     telegram.hapticImpact('light');
-                    if (onOpenTicket) {
-                      onOpenTicket(event);
-                    }
-                  }}
-                  className="h-11 px-4 rounded-full bg-[#10b981] text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md"
-                  type="button"
-                >
-                  <Ticket className="w-4 h-4 text-black" />
-                  <span>Мой билет</span>
-                </button>
-              );
-            }
-
-            // 2. If event has external ticket/registration URL
-            if (ticketUrl) {
-              return (
-                <button
-                  onClick={() => {
-                    telegram.hapticImpact('light');
-                    telegram.openLink(ticketUrl);
+                    telegram.openLink(event.source_url!);
                   }}
                   disabled={isPast}
-                  className="h-11 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                  className="flex-1 h-11 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
                   type="button"
                 >
-                  <Ticket className="w-4 h-4" />
-                  <span>{isFree ? 'Регистрация' : 'Купить билет'}</span>
+                  <ExternalLink className="w-4 h-4 text-black" />
+                  <span className="truncate">
+                    {isFree ? 'Подробнее на сайте' : 'Билеты на сайте'}
+                  </span>
                 </button>
-              );
-            }
+              )}
+            </>
+          ) : (
+            <>
+              {/* Mutually Exclusive Intent Segmented Toggle Group */}
+              <div 
+                aria-label="Статус участия" 
+                className="flex items-center bg-[#2a2a2c]/80 p-1 rounded-full flex-1 min-w-0" 
+                role="radiogroup"
+              >
+                {/* Radio Option 1: "Я иду" */}
+                <button
+                  onClick={handleGoingClick}
+                  disabled={isRsvpLoading || isInterestLoading || isPast}
+                  aria-checked={Boolean(event.is_attending)}
+                  role="radio"
+                  type="button"
+                  className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                    event.is_attending
+                      ? 'bg-white text-black shadow-md'
+                      : 'text-[#c4c7c8] hover:text-white'
+                  } disabled:opacity-50`}
+                >
+                  {isRsvpLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className={`w-3.5 h-3.5 ${event.is_attending ? 'text-black' : 'text-[#c4c7c8]'}`} />
+                  )}
+                  <span className="truncate">Я иду</span>
+                </button>
 
-            // 3. Otherwise, for standard in-app events, the segmented control spans cleanly without duplication
-            return null;
-          })()}
+                {/* Radio Option 2: "Хочу пойти" */}
+                <button
+                  onClick={handleInterestedClick}
+                  disabled={isInterestLoading || isRsvpLoading || isPast || !onToggleInterest}
+                  aria-checked={Boolean(event.current_user_interested)}
+                  role="radio"
+                  type="button"
+                  className={`flex-1 py-2 px-3 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                    event.current_user_interested
+                      ? 'bg-white text-black shadow-md'
+                      : 'text-[#c4c7c8] hover:text-white'
+                  } disabled:opacity-50`}
+                >
+                  {isInterestLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Heart className={`w-3.5 h-3.5 ${event.current_user_interested ? 'fill-black text-black' : 'text-[#c4c7c8]'}`} />
+                  )}
+                  <span className="truncate">Хочу</span>
+                </button>
+              </div>
+
+              {/* Ticket / Registration Action Button */}
+              {(() => {
+                const ticketUrl = event.source_url || (event as any).registration_url || (event as any).ticket_link;
+                
+                // 1. If user is already attending, show dedicated "Мой билет" QR trigger
+                if (event.is_attending) {
+                  return (
+                    <button
+                      onClick={() => {
+                        telegram.hapticImpact('light');
+                        if (onOpenTicket) {
+                          onOpenTicket(event);
+                        }
+                      }}
+                      className="h-11 px-4 rounded-full bg-[#10b981] text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md"
+                      type="button"
+                    >
+                      <Ticket className="w-4 h-4 text-black" />
+                      <span>Мой билет</span>
+                    </button>
+                  );
+                }
+
+                // 2. If event has external ticket/registration URL
+                if (ticketUrl) {
+                  return (
+                    <button
+                      onClick={() => {
+                        telegram.hapticImpact('light');
+                        telegram.openLink(ticketUrl);
+                      }}
+                      disabled={isPast}
+                      className="h-11 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all shadow-md disabled:opacity-50"
+                      type="button"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      <span>{isFree ? 'Регистрация' : 'Купить билет'}</span>
+                    </button>
+                  );
+                }
+
+                // 3. Otherwise, for standard in-app events, the segmented control spans cleanly without duplication
+                return null;
+              })()}
+            </>
+          )}
         </div>
       </div>
 
