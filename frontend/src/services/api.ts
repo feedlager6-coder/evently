@@ -626,8 +626,8 @@ export const api = {
     return res.json();
   },
 
-  async exportEventAttendees(eventId: string, format: 'json' | 'csv' = 'csv'): Promise<{ blob?: Blob; data?: any; filename: string }> {
-    const res = await fetchWithTimeout(`${API_BASE}/organizer/events/${encodeURIComponent(eventId)}/attendees/export?format=${format}`, {
+  async exportEventAttendees(eventId: string, format: 'json' | 'csv' = 'csv', sendToTelegram: boolean = true): Promise<{ blob?: Blob; data?: any; filename: string }> {
+    const res = await fetchWithTimeout(`${API_BASE}/organizer/events/${encodeURIComponent(eventId)}/attendees/export?format=${format}&send_to_telegram=${sendToTelegram}`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {

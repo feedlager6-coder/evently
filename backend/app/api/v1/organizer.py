@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import json
@@ -6,6 +7,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
+
+logger = logging.getLogger("evently.organizer")
 
 from app.config import settings
 from app.database import get_db
@@ -512,6 +515,7 @@ async def check_in_event_ticket(
 async def export_event_attendees(
     event_id: str,
     format: str = Query("json", pattern="^(json|csv)$"),
+    send_to_telegram: bool = Query(True),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db)
 ):
@@ -519,6 +523,7 @@ async def export_event_attendees(
     Exports registered attendees and their door check-in statuses for a specific event.
     Authorized for the event creator, organization owner, or admin.
     Returns structured JSON or downloadable UTF-8 CSV with BOM for Excel compatibility.
+    When send_to_telegram=True and user has telegram_id, delivers the CSV directly to their Telegram bot chat.
     """
     event = await session.get(Event, event_id)
     if not event or event.status == "deleted":
@@ -587,6 +592,7 @@ async def export_event_attendees(
     if format == "csv":
         import csv
         import io
+        import httpx
         output = io.StringIO()
         # UTF-8 BOM so Excel opens Cyrillic without garbled text
         writer = csv.writer(output, delimiter=";", quoting=csv.QUOTE_MINIMAL)
@@ -603,6 +609,29 @@ async def export_event_attendees(
             ])
         csv_bytes = ("\ufeff" + output.getvalue()).encode("utf-8")
         filename = f"attendees_{event_id[:8]}.csv"
+
+        # Direct delivery to organizer's Telegram chat if requested and user has Telegram ID
+        if send_to_telegram and user.telegram_id and settings.is_live_bot:
+            try:
+                bot_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendDocument"
+                safe_title = event.title or "Событие"
+                caption = f"📋 Список гостей: {safe_title}\nВсего гостей: {len(attendees_list)}\nПрошли чек-ин: {checked_in_count}"
+                async with httpx.AsyncClient(timeout=10.0) as bot_client:
+                    files = {
+                        "document": (filename, csv_bytes, "text/csv")
+                    }
+                    data = {
+                        "chat_id": str(user.telegram_id),
+                        "caption": caption
+                    }
+                    resp = await bot_client.post(bot_url, data=data, files=files)
+                    if resp.status_code != 200:
+                        logger.warning("Telegram sendDocument failed: %s %s", resp.status_code, resp.text)
+                    else:
+                        logger.info("Successfully sent attendee CSV for event %s to user telegram %s", event_id, user.telegram_id)
+            except Exception as e:
+                logger.error("Error sending attendee CSV to telegram chat: %s", e)
+
         return Response(
             content=csv_bytes,
             media_type="text/csv; charset=utf-8",

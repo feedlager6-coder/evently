@@ -228,8 +228,9 @@ async def admin_sync_external_events(
     Restricted to platform administrators.
     """
     from app.services.external_sync_service import ExternalSyncService
-    return await ExternalSyncService.sync_kudago_events(
+    return await ExternalSyncService.sync_external_events(
         session=session,
+        admin_user_id=admin.id,
         city_slugs=city_slugs,
         max_events_per_city=max_per_city,
     )

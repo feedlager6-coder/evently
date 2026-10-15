@@ -295,7 +295,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         telegram.hapticSuccess();
-        await telegram.showAlert(`Список гостей события «${eventTitle}» успешно скачан в CSV!`);
+        await telegram.showAlert(`Файл со списком гостей события «${eventTitle}» отправлен вам в чат с ботом @Ivently_bot!`);
       }
     } catch (err: any) {
       telegram.hapticNotification('error');
@@ -1063,9 +1063,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
-                  {/* Subscribers Bento Card with SVG Sparkline */}
+                  {/* Subscribers Bento Card */}
                   <div className="col-span-2 rounded-2xl bg-[#141417] border border-white/8 p-4 relative overflow-hidden shadow-md">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start">
                       <div>
                         <span className="text-xs font-medium text-neutral-400">Подписчики бренда</span>
                         <div className="flex items-baseline gap-2 mt-0.5">
@@ -1081,21 +1081,6 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                       <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-400">
                         <Users className="w-4 h-4" />
                       </div>
-                    </div>
-
-                    {/* SVG Sparkline Curve */}
-                    <div className="w-full h-10 mt-1">
-                      <svg className="w-full h-full overflow-visible" fill="none" preserveAspectRatio="none" viewBox="0 0 280 40">
-                        <defs>
-                          <linearGradient id="metricGlow" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2 L280,40 L0,40 Z" fill="url(#metricGlow)" />
-                        <path d="M0,32 C40,28 70,30 110,18 C150,8 190,22 230,12 C255,6 270,4 280,2" fill="none" stroke="#10b981" strokeLinecap="round" strokeWidth="2" />
-                        <circle cx="280" cy="2" fill="#10b981" r="3" />
-                      </svg>
                     </div>
                   </div>
 

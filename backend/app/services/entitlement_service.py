@@ -201,6 +201,14 @@ class EntitlementService:
         Returns complete, structured entitlements payload for frontend capability awareness.
         """
         plan, plan_status, starts_at, expires_at = await cls.get_organization_plan(session, organization_id)
+        
+        # Auto-heal: Ensure active PRO organizations have is_verified = True
+        if plan == PlanType.PRO.value and plan_status == PlanStatus.ACTIVE.value:
+            org = await session.get(Organization, organization_id)
+            if org and not org.is_verified:
+                org.is_verified = True
+                await session.commit()
+
         broadcast_usage = await cls.get_monthly_broadcast_usage(
             session, organization_id, since_dt=starts_at if plan == PlanType.PRO.value else None
         )

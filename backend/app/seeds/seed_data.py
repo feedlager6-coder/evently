@@ -906,13 +906,17 @@ async def seed_database(session: AsyncSession) -> None:
             admin_user.default_city_id = "makhachkala"
             await session.commit()
 
-    # 4. Seed Events (30 events across SPb, Makhachkala, Moscow)
-    events_data = generate_seed_events(organizer_id=admin_user.id)
-    for ev_data in events_data:
-        existing = await session.execute(select(Event).where(Event.id == ev_data["id"]))
-        if not existing.scalar_one_or_none():
-            event = Event(organizer_user_id=admin_user.id, **ev_data)
-            session.add(event)
-    await session.commit()
-    logger.info("Database successfully seeded with 15 Russian cities, 7 categories, and 30 demo events.")
+    # 4. Seed Events (30 events across SPb, Makhachkala, Moscow) - only in dev/test, skipped in production
+    from app.config import settings
+    if settings.APP_ENV != "production":
+        events_data = generate_seed_events(organizer_id=admin_user.id)
+        for ev_data in events_data:
+            existing = await session.execute(select(Event).where(Event.id == ev_data["id"]))
+            if not existing.scalar_one_or_none():
+                event = Event(organizer_user_id=admin_user.id, **ev_data)
+                session.add(event)
+        await session.commit()
+        logger.info("Database successfully seeded with cities, categories, and 30 demo events (non-production).")
+    else:
+        logger.info("Production environment detected: demo events seeding skipped. Only cities and categories initialized.")
 
