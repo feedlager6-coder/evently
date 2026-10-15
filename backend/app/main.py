@@ -176,6 +176,40 @@ async def lifespan(app: FastAPI):
 
     reminder_task = asyncio.create_task(reminder_loop())
 
+    # Periodic external events synchronizer (Culture.RU live municipal feeds)
+    # Initial run at +30s warmup, then every 6 hours
+    async def external_events_sync_loop():
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            return
+
+        logger.info("🚀 External events background sync loop started (runs every 6h)")
+        while True:
+            try:
+                async with AsyncSessionLocal() as session:
+                    from app.services.external_sync_service import ExternalSyncService
+                    logger.info("Starting scheduled external events synchronization...")
+                    result = await ExternalSyncService.sync_external_events(session)
+                    logger.info(
+                        "Scheduled external sync complete: %d total synced (%d created, %d updated)",
+                        result.get("total_synced", 0),
+                        result.get("created", 0),
+                        result.get("updated", 0),
+                    )
+            except asyncio.CancelledError:
+                logger.info("External events sync loop cancelled during shutdown")
+                break
+            except Exception as e:
+                logger.error(f"Error in scheduled external events sync: {e}", exc_info=True)
+
+            try:
+                await asyncio.sleep(6 * 3600)
+            except asyncio.CancelledError:
+                break
+
+    external_sync_task = asyncio.create_task(external_events_sync_loop())
+
     yield
 
     # Shutdown: Cancel background tasks and close connections
@@ -189,6 +223,12 @@ async def lifespan(app: FastAPI):
     reminder_task.cancel()
     try:
         await reminder_task
+    except asyncio.CancelledError:
+        pass
+
+    external_sync_task.cancel()
+    try:
+        await external_sync_task
     except asyncio.CancelledError:
         pass
 
