@@ -35,6 +35,7 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { TicketModal } from './components/TicketModal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { CheckInScannerModal } from './components/CheckInScannerModal';
+import { CalendarModal } from './components/CalendarModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
 import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
@@ -60,6 +61,7 @@ export const App: React.FC = () => {
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Discovery Feed state
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -1192,7 +1194,18 @@ export const App: React.FC = () => {
                       <h2 className="text-[15px] font-extrabold text-white tracking-tight">
                         Все события
                       </h2>
-                      <label className="text-xs font-semibold text-[#8e9192] hover:text-white flex items-center gap-1 cursor-pointer transition-colors px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          telegram.hapticImpact('light');
+                          setIsCalendarOpen(true);
+                        }}
+                        className={`text-xs font-semibold flex items-center gap-1.5 transition-colors px-3 py-1.5 rounded-full border active:scale-95 ${
+                          /^\d{4}-\d{2}-\d{2}$/.test(dateFilter)
+                            ? 'bg-[#10b981]/15 text-[#4edea3] border-[#10b981]/30 shadow-[0_2px_8px_rgba(16,185,129,0.15)]'
+                            : 'text-[#8e9192] hover:text-white bg-white/5 border-white/8'
+                        }`}
+                      >
                         <Calendar className="w-3.5 h-3.5 text-[#308ce8]" />
                         <span>
                           {/^\d{4}-\d{2}-\d{2}$/.test(dateFilter)
@@ -1203,22 +1216,10 @@ export const App: React.FC = () => {
                                 const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
                                 return `${day} ${months[mIdx] || ''}`;
                               })()
-                            : 'По дате ▾'}
+                            : 'По дате'}
                         </span>
-                        <input
-                          type="date"
-                          value={/^\d{4}-\d{2}-\d{2}$/.test(dateFilter) ? dateFilter : ''}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              telegram.hapticImpact('light');
-                              setDateFilter(e.target.value);
-                            }
-                          }}
-                          className="sr-only"
-                        />
                         {/^\d{4}-\d{2}-\d{2}$/.test(dateFilter) && (
-                          <button
-                            type="button"
+                          <span
                             onClick={(e) => {
                               e.stopPropagation();
                               e.preventDefault();
@@ -1228,9 +1229,9 @@ export const App: React.FC = () => {
                             className="p-0.5 text-white/60 hover:text-white ml-0.5"
                           >
                             ✕
-                          </button>
+                          </span>
                         )}
-                      </label>
+                      </button>
                     </div>
 
                     <div className="space-y-4">
@@ -1646,6 +1647,14 @@ export const App: React.FC = () => {
         isOpen={Boolean(activeScannerEvent)}
         onClose={() => setActiveScannerEvent(null)}
         event={activeScannerEvent}
+      />
+
+      {/* Date Picker Russian Calendar Modal */}
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        selectedDate={dateFilter}
+        onSelectDate={(d) => setDateFilter(d as DateFilterType)}
       />
 
       {/* Bottom Navigation — only render when no full-screen sheet or workspace is active */}

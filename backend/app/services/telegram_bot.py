@@ -28,10 +28,13 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
         return fallback
     if clean.startswith("http://") or clean.startswith("https://"):
         return clean
-    public_host = settings.effective_public_host or "https://iventlyapp.ru"
+    base_host = (settings.APP_PUBLIC_HOST or settings.PUBLIC_HOST or settings.effective_public_host or "https://iventlyapp.ru")
+    if "railway.app" in base_host:
+        base_host = "https://iventlyapp.ru"
+    base_host = base_host.rstrip('/')
     if clean.startswith("/"):
-        return f"{public_host}{clean}"
-    return f"{public_host}/{clean}"
+        return f"{base_host}{clean}"
+    return f"{base_host}/{clean}"
 
 
 def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -> str:
@@ -50,7 +53,8 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
 
     if "/uploads/covers/" in resolved:
         base_clean = resolved.split("?")[0]
-        if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
+        # Never append _thumb.jpg to external covers (ext_*) as they have no separate thumb file
+        if is_thumbnail and "/ext_" not in base_clean and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
             base_clean = base_clean[:-4] + "_thumb.jpg"
         return f"{base_clean}?v=2"
 

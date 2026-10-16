@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import type { Category, DateFilterType } from '../types';
-import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass, Drama, Calendar, X } from 'lucide-react';
+import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass, Drama } from 'lucide-react';
 import { telegram } from '../services/telegram';
 
 interface FilterBarProps {
@@ -29,17 +29,6 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   other: <Compass className="w-3.5 h-3.5" />,
 };
 
-function formatShortDate(iso: string): string {
-  const parts = iso.split('-');
-  if (parts.length === 3) {
-    const day = parseInt(parts[2], 10);
-    const mIdx = parseInt(parts[1], 10) - 1;
-    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-    return `${day} ${months[mIdx] || ''}`;
-  }
-  return iso;
-}
-
 export const FilterBar: React.FC<FilterBarProps> = ({
   dateFilter,
   onSelectDate,
@@ -47,14 +36,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   selectedCategoryId,
   onSelectCategory,
 }) => {
-  const dateInputRef = useRef<HTMLInputElement>(null);
-  const isCustomDate = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter);
-
   return (
     <div className="space-y-3 pt-1 pb-1">
       {/* Segmented Date Filter Bar */}
       <div className="px-4">
-        <div className="flex items-center gap-1 p-1 bg-[#0e0e10]/85 backdrop-blur-xl rounded-full border border-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 p-1 bg-[#0e0e10]/85 backdrop-blur-xl rounded-full border border-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
           {DATE_OPTIONS.map((opt) => {
             const isSelected = dateFilter === opt.id;
             return (
@@ -65,7 +51,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                   telegram.hapticImpact('light');
                   onSelectDate(opt.id);
                 }}
-                className={`flex-1 min-w-[64px] py-2 px-2.5 rounded-full text-center text-xs transition-all duration-200 ${
+                className={`flex-1 py-2 px-1 rounded-full text-center text-xs whitespace-nowrap transition-all duration-200 ${
                   isSelected
                     ? 'bg-[#39393b] text-white font-semibold shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_8px_rgba(0,0,0,0.4)]'
                     : 'text-[#c4c7c8] hover:text-white font-medium'
@@ -75,58 +61,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               </button>
             );
           })}
-
-          {/* Calendar Custom Date Picker Button */}
-          <div className="relative shrink-0">
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={isCustomDate ? dateFilter : ''}
-              onChange={(e) => {
-                if (e.target.value) {
-                  telegram.hapticImpact('light');
-                  onSelectDate(e.target.value);
-                }
-              }}
-              className="sr-only"
-            />
-            {isCustomDate ? (
-              <div className="flex items-center gap-1 py-1.5 px-3 rounded-full bg-[#39393b] text-white font-semibold text-xs shadow-[inset_0_1px_2px_rgba(255,255,255,0.3),0_2px_8px_rgba(0,0,0,0.4)]">
-                <Calendar className="w-3 h-3 text-[#308ce8]" />
-                <span>{formatShortDate(dateFilter)}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    telegram.hapticImpact('light');
-                    onSelectDate('all');
-                  }}
-                  className="p-0.5 hover:text-red-400 transition-colors ml-0.5"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  telegram.hapticImpact('light');
-                  const el = dateInputRef.current;
-                  if (el) {
-                    if (typeof (el as any).showPicker === 'function') {
-                      (el as any).showPicker();
-                    } else {
-                      el.click();
-                    }
-                  }
-                }}
-                className="flex items-center gap-1 py-2 px-2.5 rounded-full text-center text-xs text-[#c4c7c8] hover:text-white font-medium transition-all"
-              >
-                <Calendar className="w-3 h-3 text-[#8e9192]" />
-                <span>Дата</span>
-              </button>
-            )}
-          </div>
         </div>
       </div>
 

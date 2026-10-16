@@ -428,7 +428,23 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         </div>
 
         {/* Organizer Entity Card */}
-        {event.organization_name ? (
+        {event.source_type === 'external' ? (
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#1c1b1e] shadow-sm border border-white/5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-[#2a2a2c] shrink-0 border border-white/10 flex items-center justify-center text-white/70">
+                <Building2 className="w-6 h-6 text-[#4edea3]" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-white font-semibold text-sm truncate">
+                  {event.venue_name || 'Городская афиша'}
+                </span>
+                <span className="text-[#8e9192] text-xs">
+                  Официальная площадка • Городская афиша
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : event.organization_name ? (
           <div 
             onClick={() => {
               if (onOpenOrgModal && event.organization_id) {

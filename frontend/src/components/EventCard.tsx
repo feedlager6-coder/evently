@@ -155,13 +155,14 @@ export const EventCard: React.FC<EventCardProps> = ({
         {/* Top Badges */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            {isFree ? (
-              <span className="px-2.5 py-1 rounded-full bg-[#10b981]/25 backdrop-blur-md text-[#4edea3] font-semibold text-[10px] border border-[#10b981]/40 shadow-[0_2px_8px_rgba(16,185,129,0.2)]">
-                Вход свободный
-              </span>
-            ) : (
+            {event.category_name && (
               <span className="px-2.5 py-1 rounded-full bg-[#08080a]/80 backdrop-blur-md text-white font-medium text-[11px] border border-white/15">
                 {event.category_name}
+              </span>
+            )}
+            {isFree && (
+              <span className="px-2.5 py-1 rounded-full bg-[#10b981]/25 backdrop-blur-md text-[#4edea3] font-semibold text-[10px] border border-[#10b981]/40 shadow-[0_2px_8px_rgba(16,185,129,0.2)]">
+                Бесплатно
               </span>
             )}
 
@@ -195,11 +196,6 @@ export const EventCard: React.FC<EventCardProps> = ({
           <span className="px-2.5 py-1 rounded-full bg-[#08080a]/85 backdrop-blur-md text-white font-bold text-[11px] border border-white/10 shadow-sm">
             {formattedDate}
           </span>
-          {event.category_name && (
-            <span className="px-2.5 py-1 rounded-full bg-[#08080a]/85 backdrop-blur-md text-[#c4c7c8] font-medium text-[11px] border border-white/10">
-              {event.category_name}
-            </span>
-          )}
         </div>
       </div>
 
@@ -209,7 +205,11 @@ export const EventCard: React.FC<EventCardProps> = ({
           {event.title}
         </h3>
 
-        {event.organization_name && (
+        {event.source_type === 'external' ? (
+          <div className="flex items-center gap-1.5 text-xs text-[#c4c7c8] line-clamp-1 leading-relaxed">
+            <span className="truncate">{event.venue_name || 'Городская афиша'}</span>
+          </div>
+        ) : event.organization_name ? (
           <div className="flex items-center gap-1.5 text-xs text-[#c4c7c8] line-clamp-1 leading-relaxed">
             <span className="truncate">{event.organization_name}</span>
             {event.organization_is_verified && (
@@ -218,7 +218,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               </span>
             )}
           </div>
-        )}
+        ) : null}
 
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-1.5 text-[#c4c7c8] text-xs min-w-0">

@@ -1935,37 +1935,62 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 {/* SVG Sparkline Chart */}
                 <div className="w-full pt-1 relative">
                   <div className="h-28 w-full relative">
-                    {totalContactsCount > 0 ? (
-                      <svg className="w-full h-full overflow-visible" viewBox="0 0 320 80" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="sub-chart-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        {/* Reference dashed grid lines */}
-                        <line x1="0" y1="20" x2="320" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                        <line x1="0" y1="50" x2="320" y2="50" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                        {/* Gradient Area under curve */}
-                        <path
-                          d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14 L 320 80 L 0 80 Z"
-                          fill="url(#sub-chart-grad)"
-                        />
-                        {/* Smooth Sparkline */}
-                        <path
-                          d="M 0 65 Q 40 60, 80 54 T 160 44 T 240 28 T 320 14"
-                          fill="none"
-                          stroke="#10b981"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                        />
-                        {/* Growth checkpoints */}
-                        <circle cx="80" cy="54" r="3" fill="#10b981" />
-                        <circle cx="160" cy="44" r="3" fill="#10b981" />
-                        <circle cx="240" cy="28" r="3" fill="#10b981" />
-                        <circle cx="320" cy="14" r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
-                      </svg>
-                    ) : (
+                    {totalContactsCount > 0 ? (() => {
+                      const new30 = audienceData?.new_subscribers_30d ?? 0;
+                      const new7 = audienceData?.new_subscribers_7d ?? 0;
+                      const v0 = Math.max(0, totalContactsCount - new30);
+                      const v1 = Math.max(0, Math.round(v0 + (totalContactsCount - new7 - v0) * 0.4));
+                      const v2 = Math.max(0, totalContactsCount - new7);
+                      const v3 = Math.max(0, Math.round(v2 + (totalContactsCount - v2) * 0.6));
+                      const v4 = totalContactsCount;
+
+                      const dataPoints = [v0, v1, v2, v3, v4];
+                      const minVal = Math.min(...dataPoints);
+                      const maxVal = Math.max(...dataPoints);
+                      const range = maxVal - minVal;
+
+                      const xs = [10, 85, 160, 240, 310];
+                      const pts = dataPoints.map((val, idx) => {
+                        const y = range === 0 ? 45 : 65 - ((val - minVal) / range) * 45;
+                        return { x: xs[idx], y, val };
+                      });
+
+                      const linePath = `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+                      const areaPath = `M ${pts[0].x} 80 L ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + ` L ${pts[pts.length - 1].x} 80 Z`;
+
+                      return (
+                        <svg className="w-full h-full overflow-visible" viewBox="0 0 320 80" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="sub-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                              <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                            </linearGradient>
+                          </defs>
+                          {/* Reference dashed grid lines */}
+                          <line x1="0" y1="20" x2="320" y2="20" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                          <line x1="0" y1="50" x2="320" y2="50" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                          {/* Gradient Area under curve */}
+                          <path
+                            d={areaPath}
+                            fill="url(#sub-chart-grad)"
+                          />
+                          {/* Smooth Sparkline */}
+                          <path
+                            d={linePath}
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          {/* Growth checkpoints */}
+                          {pts.slice(0, 4).map((p, i) => (
+                            <circle key={i} cx={p.x} cy={p.y} r="3" fill="#10b981" />
+                          ))}
+                          <circle cx={pts[4].x} cy={pts[4].y} r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
+                        </svg>
+                      );
+                    })() : (
                       <div className="w-full h-full relative flex items-center justify-center">
                         <svg className="w-full h-full absolute inset-0" viewBox="0 0 320 80" preserveAspectRatio="none">
                           <line x1="0" y1="65" x2="320" y2="65" stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" strokeWidth="1.5" />

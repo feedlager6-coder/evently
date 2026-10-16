@@ -7,7 +7,10 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import httpx
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -393,25 +396,29 @@ def resolve_category(
     # 1. Theatre / Plays / Opera / Ballet (Highest priority for cultural stages)
     theatre_keywords = [
         "спектакл", "театр", "драма", "комеди", "балет", "опера",
-        "мюзикл", "постановк", "сказка", "трагеди", "пьеса", "инсценировк",
-        "актер", "кукол", "оперетт", "режиссер", "сцена", "антреприз"
+        "мюзикл", "постановк", "сказка", "сказк", "трагеди", "пьеса", "инсценировк",
+        "актер", "кукол", "оперетт", "режиссер", "сцена", "антреприз",
+        "утренник", "бенефис", "театрализованн", "театральн", "драматическ"
     ]
     if any(k in combined_text for k in theatre_keywords):
         return "theatre"
 
-    # 2. Exhibitions / Art / Museums / Galleries
+    # 2. Exhibitions / Art / Museums / Galleries / Cinema
     exhibition_keywords = [
         "выставк", "экспозици", "музей", "вернисаж", "галере",
-        "живопис", "скульптур", "картин", "арт", "худож"
+        "живопис", "скульптур", "картин", "арт", "худож",
+        "показ", "кино", "фильм", "кинопоказ", "кинопросмотр", "фото", "иллюстративн", "ретроспектив"
     ]
     if any(k in combined_text for k in exhibition_keywords):
         return "exhibitions"
 
-    # 3. Lectures / Education / Masterclasses / Literature
+    # 3. Lectures / Education / Masterclasses / Literature / Quizzes
     education_keywords = [
         "лекци", "мастер-класс", "мастер класс", "урок", "семинар",
-        "воркшоп", "творческая встреч", "творческой встреч", "обучени", "клуб",
-        "просветительск", "читальн", "литератур", "книг", "тренинг"
+        "воркшоп", "творческая встреч", "творческой встреч", "творческий вечер", "обучени",
+        "просветительск", "читальн", "литератур", "книг", "книжн", "тренинг",
+        "викторин", "квиз", "чтени", "беседа", "эрудит", "познавательн", "час интерес",
+        "диспут", "библиотек", "краеведен", "интеллектуальн", "лаборатори", "встреч"
     ]
     if any(k in combined_text for k in education_keywords):
         return "education"
@@ -419,31 +426,35 @@ def resolve_category(
     # 4. Sports / Active tours / Outdoors / Excursions
     sports_keywords = [
         "экскурси", "прогулк", "тур", "поход", "квест", "спорт",
-        "забег", "матч", "турнир", "соревновани", "марафон", "фитнес"
+        "забег", "матч", "турнир", "соревновани", "марафон", "фитнес",
+        "пешеходн", "маршрут", "путешестви"
     ]
     if any(k in combined_text for k in sports_keywords):
         return "sports"
 
-    # 5. Concerts / Music / Philharmonic / Symphony
+    # 5. Concerts / Music / Philharmonic / Symphony / Songs
     concert_keywords = [
         "концерт", "симфоническ", "оркестр", "филармони", "музык",
         "романтическ", "ансамбл", "рок", "джаз", "vocal", "вокал",
-        "хор", "песн", "песен", "инструментальн", "акустик"
+        "хор", "песн", "песен", "инструментальн", "акустик",
+        "романс", "мелоди", "сольн", "гитар", "пианино", "фортепиано", "бард", "симфони"
     ]
     if any(k in combined_text for k in concert_keywords):
         return "concerts"
 
-    # 6. Parties / Festivals / Shows / Standup
+    # 6. Parties / Festivals / Shows / Standup / Holidays
     party_keywords = [
         "вечеринк", "фестивал", "шоу", "дискотек", "клуб", "dance",
-        "танц", "карнавал", "party", "standup", "стендап"
+        "танц", "карнавал", "party", "standup", "стендап",
+        "праздник", "гуляни", "развлекательн", "игры", "игров", "квест-игр", "фольклор", "забав"
     ]
     if any(k in combined_text for k in party_keywords):
         return "parties"
 
     # 7. Business / Meetups / Conferences
     business_keywords = [
-        "бизнес", "конференци", "форум", "питч", "стартап", "нетворкинг"
+        "бизнес", "конференци", "форум", "питч", "стартап", "нетворкинг",
+        "круглый стол", "стратеги", "презентаци"
     ]
     if any(k in combined_text for k in business_keywords):
         return "business"
@@ -512,6 +523,9 @@ async def download_and_cache_cover(
 
         resp = await http_client.get(image_url, timeout=10.0)
         if resp.status_code == 200 and len(resp.content) > 100:
+            if Image is None:
+                target_path.write_bytes(resp.content)
+                return relative_url
             with Image.open(io.BytesIO(resp.content)) as img:
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
