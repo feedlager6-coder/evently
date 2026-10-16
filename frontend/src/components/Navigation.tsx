@@ -15,11 +15,15 @@ export const Navigation: React.FC<NavigationProps> = ({
   onChangeTab,
   isAdmin,
 }) => {
-  const handleTabClick = (tab: TabType) => {
-    if (tab !== currentTab) {
-      telegram.hapticImpact('light');
+  const handleTabAction = (e: React.SyntheticEvent, tab: TabType) => {
+    e.stopPropagation();
+    if (tab === 'feed' && currentTab === 'feed') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    onChangeTab(tab);
+    if (tab !== currentTab) {
+      telegram.hapticSelection();
+      onChangeTab(tab);
+    }
   };
 
   const isFeedActive = currentTab === 'feed';
@@ -29,6 +33,12 @@ export const Navigation: React.FC<NavigationProps> = ({
   // 0: feed, 1: my_events, 2: admin
   const activeIndex = isFeedActive ? 0 : isMyEventsActive ? 1 : isAdminActive ? 2 : 0;
   const totalTabs = isAdmin ? 3 : 2;
+
+  const buttonStyle: React.CSSProperties = {
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitTapHighlightColor: 'transparent',
+  };
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe pointer-events-none">
@@ -51,7 +61,9 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           {/* Feed Tab */}
           <button
-            onClick={() => handleTabClick('feed')}
+            style={buttonStyle}
+            onPointerDown={(e) => handleTabAction(e, 'feed')}
+            onClick={(e) => handleTabAction(e, 'feed')}
             className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
               isFeedActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
@@ -64,7 +76,9 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           {/* My Events Tab (Personal Hub) */}
           <button
-            onClick={() => handleTabClick('my_events')}
+            style={buttonStyle}
+            onPointerDown={(e) => handleTabAction(e, 'my_events')}
+            onClick={(e) => handleTabAction(e, 'my_events')}
             className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
               isMyEventsActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
@@ -78,7 +92,9 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Admin Tab (only if admin) */}
           {isAdmin && (
             <button
-              onClick={() => handleTabClick('admin')}
+              style={buttonStyle}
+              onPointerDown={(e) => handleTabAction(e, 'admin')}
+              onClick={(e) => handleTabAction(e, 'admin')}
               className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
                 isAdminActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
               }`}

@@ -61,7 +61,7 @@ interface EventDetailsModalProps {
   isRsvpLoading: boolean;
   onToggleInterest?: (eventId: string, currentStatus: boolean) => Promise<void>;
   isInterestLoading?: boolean;
-  onOpenOrgModal?: (orgId: string) => void;
+  onOpenOrgModal?: (orgId: string, initialData?: { name?: string; avatar_url?: string; is_verified?: boolean; category?: string }) => void;
   onOpenCompanyModal?: (event: EventResponse) => void;
   isOrganizer?: boolean;
   onEditEvent?: (event: EventResponse) => void;
@@ -94,16 +94,6 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const [isCompanyOptedIn, setIsCompanyOptedIn] = useState<boolean>(false);
 
   const canEdit = Boolean(isOrganizer || event?.is_organizer);
-
-  // Setup Telegram BackButton
-  useEffect(() => {
-    if (isOpen) {
-      telegram.showBackButton(onClose);
-      return () => {
-        telegram.hideBackButton();
-      };
-    }
-  }, [isOpen, onClose]);
 
   // Load companion search status
   useEffect(() => {
@@ -227,14 +217,24 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
   const handleGoingClick = async () => {
     if (isRsvpLoading || isInterestLoading) return;
-    telegram.hapticImpact('medium');
-    await onToggleRsvp(event.id, Boolean(event.is_attending));
+    const isAttending = Boolean(event.is_attending);
+    if (!isAttending) {
+      telegram.hapticNotification('success');
+    } else {
+      telegram.hapticImpact('light');
+    }
+    await onToggleRsvp(event.id, isAttending);
   };
 
   const handleInterestedClick = async () => {
     if (isInterestLoading || isRsvpLoading || !onToggleInterest) return;
-    telegram.hapticImpact('light');
-    await onToggleInterest(event.id, Boolean(event.current_user_interested));
+    const isInterested = Boolean(event.current_user_interested);
+    if (!isInterested) {
+      telegram.hapticNotification('success');
+    } else {
+      telegram.hapticImpact('light');
+    }
+    await onToggleInterest(event.id, isInterested);
   };
 
   return (
@@ -449,7 +449,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             onClick={() => {
               if (onOpenOrgModal && event.organization_id) {
                 telegram.hapticImpact('light');
-                onOpenOrgModal(event.organization_id);
+                onOpenOrgModal(event.organization_id, {
+                  name: event.organization_name,
+                  avatar_url: event.organization_avatar_url,
+                  is_verified: event.organization_is_verified,
+                  category: event.organization_category,
+                });
               }
             }}
             className="flex items-center justify-between p-3.5 rounded-2xl bg-[#1c1b1e] hover:bg-[#201f22] transition-colors cursor-pointer shadow-sm"
@@ -481,7 +486,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 e.stopPropagation();
                 if (onOpenOrgModal && event.organization_id) {
                   telegram.hapticImpact('light');
-                  onOpenOrgModal(event.organization_id);
+                  onOpenOrgModal(event.organization_id, {
+                    name: event.organization_name,
+                    avatar_url: event.organization_avatar_url,
+                    is_verified: event.organization_is_verified,
+                    category: event.organization_category,
+                  });
                 }
               }}
               className="px-4 py-2 rounded-full bg-[#2a2a2c] hover:bg-[#353437] text-white text-xs font-semibold active:scale-95 transition-all shrink-0"

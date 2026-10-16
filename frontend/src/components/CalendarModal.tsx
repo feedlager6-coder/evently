@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, RotateCcw } from 'lucide-react';
 import { telegram } from '../services/telegram';
+import { haptics } from '../utils/haptics';
 
 interface CalendarModalProps {
   isOpen: boolean;
@@ -40,12 +41,12 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
   // Navigation handlers
   const handlePrevMonth = () => {
-    telegram.hapticImpact('light');
+    haptics.selectionChanged();
     setViewDate(new Date(currentYear, currentMonth - 1, 1));
   };
 
   const handleNextMonth = () => {
-    telegram.hapticImpact('light');
+    haptics.selectionChanged();
     setViewDate(new Date(currentYear, currentMonth + 1, 1));
   };
 
@@ -57,20 +58,20 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const handleDayClick = (day: number) => {
-    telegram.hapticImpact('light');
+    haptics.selectionChanged();
     const isoString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     onSelectDate(isoString);
     onClose();
   };
 
   const handleReset = () => {
-    telegram.hapticImpact('light');
+    haptics.selectionChanged();
     onSelectDate('all');
     onClose();
   };
 
   const handleToday = () => {
-    telegram.hapticImpact('light');
+    haptics.selectionChanged();
     onSelectDate(todayStr);
     onClose();
   };

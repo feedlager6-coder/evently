@@ -144,6 +144,7 @@ export interface OrganizationSummary {
   latitude?: number;
   longitude?: number;
   avatar_url?: string;
+  logo_url?: string;
   features?: string[];
   status: string;
   is_verified: boolean;

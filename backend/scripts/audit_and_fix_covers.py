@@ -35,54 +35,60 @@ async def audit_and_fix_covers():
     covers_dir = uploads_dir / "covers"
     covers_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"=== STEP 1: AUDITING PUBLISHED EVENT COVERS IN {covers_dir} ===")
+    print(f"=== STEP 1: AUDITING COVERS AND GENERATING 160x160 SQUARE _thumb.jpg IN {covers_dir} ===")
+    from PIL import ImageOps
     converted_count = 0
     missing_count = 0
     ok_count = 0
+    thumbs_created = 0
 
-    async with AsyncSessionLocal() as session:
-        events_res = await session.execute(
-            select(Event.id, Event.title, Event.cover_image_url)
-            .where(Event.status == EventStatus.PUBLISHED.value)
-        )
-        published_events = events_res.all()
-        print(f"Total published events in database: {len(published_events)}")
+    # Scan all cover files on disk to guarantee every single cover has a valid 160x160 square thumbnail
+    all_cover_files = [f for f in covers_dir.glob("*.jpg") if not f.name.endswith("_thumb.jpg") and not f.name.endswith(".tmp.jpg")]
+    print(f"Total main cover files found on disk: {len(all_cover_files)}")
 
-        for ev_id, title, cover_url in published_events:
-            if not cover_url:
-                continue
+    for fpath in all_cover_files:
+        try:
+            base_name = fpath.stem
+            thumb_path = covers_dir / f"{base_name}_thumb.jpg"
 
-            # Check if it's a local upload
-            if "/uploads/covers/" in cover_url:
-                fname = cover_url.split("/uploads/covers/")[-1].split("?")[0]
-                fpath = covers_dir / fname
-                if not fpath.exists():
-                    print(f"  [MISSING] Event {ev_id} '{title[:30]}': {fname} does not exist!")
-                    missing_count += 1
-                    continue
+            with Image.open(fpath) as img:
+                fmt = img.format
+                mode = img.mode
+                is_progressive = bool(img.info.get("progressive", False))
+                needs_reencode = (fmt != "JPEG") or (mode != "RGB") or is_progressive
 
-                try:
-                    with Image.open(fpath) as img:
-                        fmt = img.format
-                        mode = img.mode
-                        is_progressive = bool(img.info.get("progressive", False))
+                if needs_reencode:
+                    rgb = img.convert("RGB")
+                    tmp_path = fpath.with_suffix(".tmp.jpg")
+                    rgb.save(tmp_path, "JPEG", quality=82, optimize=True, progressive=False)
+                    tmp_path.replace(fpath)
+                    converted_count += 1
+                else:
+                    ok_count += 1
 
-                        needs_reencode = (fmt != "JPEG") or (mode != "RGB") or is_progressive
+                # Check or create 160x160 square thumbnail
+                thumb_valid = False
+                if thumb_path.exists() and thumb_path.stat().st_size > 500:
+                    try:
+                        with Image.open(thumb_path) as timg:
+                            if timg.size == (160, 160) and timg.format == "JPEG" and timg.mode == "RGB":
+                                thumb_valid = True
+                    except Exception:
+                        thumb_valid = False
 
-                        if needs_reencode:
-                            print(f"  [RE-ENCODING] {fname}: fmt={fmt}, mode={mode}, prog={is_progressive} -> baseline RGB JPEG")
-                            rgb = img.convert("RGB")
-                            # Save to temporary path first then replace
-                            tmp_path = fpath.with_suffix(".tmp.jpg")
-                            rgb.save(tmp_path, "JPEG", quality=85, optimize=True, progressive=False)
-                            tmp_path.replace(fpath)
-                            converted_count += 1
-                        else:
-                            ok_count += 1
-                except Exception as e:
-                    print(f"  [ERROR] Failed to inspect {fname}: {e}")
+                if not thumb_valid:
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    thumb_img = ImageOps.fit(img, (160, 160), Image.Resampling.LANCZOS)
+                    tmp_thumb = thumb_path.with_suffix(".tmp_thumb.jpg")
+                    thumb_img.save(tmp_thumb, format="JPEG", quality=78, optimize=True, progressive=False)
+                    tmp_thumb.replace(thumb_path)
+                    thumbs_created += 1
 
-    print(f"Audit complete: {ok_count} OK, {converted_count} re-encoded, {missing_count} missing.\n")
+        except Exception as e:
+            print(f"  [ERROR] Processing {fpath.name}: {e}")
+
+    print(f"Audit complete: {ok_count} main covers OK, {converted_count} re-encoded, {thumbs_created} thumbnails generated (160x160, ~8KB).\n")
 
     print("=== STEP 2: TESTING INLINE QUERY (query='') ===")
     async with AsyncSessionLocal() as session:
@@ -105,11 +111,13 @@ async def audit_and_fix_covers():
                 pil_format = None
                 pil_size = None
 
+                file_kb = 0.0
                 if thumb_url:
                     try:
                         r = await client.get(thumb_url)
                         status_code = r.status_code
                         content_type = r.headers.get("content-type")
+                        file_kb = len(r.content) / 1024.0
                         if status_code == 200:
                             import io
                             img = Image.open(io.BytesIO(r.content))
@@ -121,7 +129,7 @@ async def audit_and_fix_covers():
 
                 print(f"  [{idx}] {title[:35]} (type={item_type}, id={item_id})")
                 print(f"      thumb_url: {thumb_url}")
-                print(f"      dims: {w}x{h} | HTTP: {status_code} | Content-Type: {content_type} | PIL: {pil_format} {pil_size}")
+                print(f"      dims: {w}x{h} | size: {file_kb:.1f} KB | HTTP: {status_code} | Content-Type: {content_type} | PIL: {pil_format} {pil_size}")
 
     print("\n=== STEP 3: TESTING AUDIENCE METRICS FOR ORGANIZERS ===")
     async with AsyncSessionLocal() as session:

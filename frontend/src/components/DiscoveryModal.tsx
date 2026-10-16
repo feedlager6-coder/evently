@@ -70,11 +70,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
     }
   }, [initialQuery]);
 
-  // Handle Telegram BackButton and search autofocus
+  // Handle search autofocus
   useEffect(() => {
     if (isOpen) {
-      telegram.showBackButton(onClose);
-
       const triggerFocus = () => {
         if (inputRef.current) {
           inputRef.current.focus({ preventScroll: true });
@@ -90,10 +88,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
         cancelAnimationFrame(raf);
         clearTimeout(timer50);
         clearTimeout(timer150);
-        telegram.hideBackButton();
       };
     }
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // Perform search with debounce
   const executeSearch = useCallback(async (searchQuery: string, cityId?: string) => {

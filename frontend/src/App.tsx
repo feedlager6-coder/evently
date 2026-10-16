@@ -152,6 +152,13 @@ export const App: React.FC = () => {
 
   // Organizations Modals state
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [selectedOrgInitialData, setSelectedOrgInitialData] = useState<{
+    name?: string;
+    avatar_url?: string;
+    logo_url?: string;
+    is_verified?: boolean;
+    category?: string;
+  } | null>(null);
   const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
   const [isCreateOrgModalOpen, setIsCreateOrgModalOpen] = useState(false);
   const [editingOrgData, setEditingOrgData] = useState<OrganizationResponse | null>(null);
@@ -219,11 +226,12 @@ export const App: React.FC = () => {
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
 
   // Helper to open Organization details
-  const openOrgById = useCallback((orgId: string) => {
+  const openOrgById = useCallback((orgId: string, initialData?: { name?: string; avatar_url?: string; logo_url?: string; is_verified?: boolean; category?: string } | null) => {
     setIsCityModalOpen(false);
     setIsOrganizerWorkspaceOpen(false);
     setIsCreateEventModalOpen(false);
     setSelectedOrgId(orgId);
+    setSelectedOrgInitialData(initialData || null);
     setIsOrgModalOpen(true);
     telegram.consumeStartParam();
   }, []);
@@ -630,25 +638,80 @@ export const App: React.FC = () => {
     }
   }, [currentTab, loadPersonalHub, loadAdminEvents]);
 
-  // BackButton support for Organizer Workspace and modals
+  // Centralized Telegram.WebApp.BackButton modal stack manager
   useEffect(() => {
-    if (isOrganizerWorkspaceOpen) {
-      telegram.showBackButton(() => {
-        setIsOrganizerWorkspaceOpen(false);
-      });
+    let closer: (() => void) | null = null;
+
+    if (activeScannerEvent) {
+      closer = () => setActiveScannerEvent(null);
+    } else if (isTicketModalOpen) {
+      closer = () => {
+        setIsTicketModalOpen(false);
+        setTicketEvent(null);
+      };
+    } else if (isCompanyModalOpen) {
+      closer = () => setIsCompanyModalOpen(false);
+    } else if (isSubscriptionsModalOpen) {
+      closer = () => setIsSubscriptionsModalOpen(false);
+    } else if (isNotificationCenterOpen) {
+      closer = () => setIsNotificationCenterOpen(false);
+    } else if (isUserProfileModalOpen) {
+      closer = () => setIsUserProfileModalOpen(false);
+    } else if (isCityModalOpen) {
+      closer = () => setIsCityModalOpen(false);
+    } else if (isCalendarOpen) {
+      closer = () => setIsCalendarOpen(false);
+    } else if (isSearchOpen) {
+      closer = () => setIsSearchOpen(false);
     } else if (isCreateEventModalOpen) {
-      telegram.showBackButton(() => {
+      closer = () => {
+        setPreselectedOrgForEventCreate(undefined);
+        setEditingEventData(null);
+        setEditingDraftData(null);
         setIsCreateEventModalOpen(false);
-      });
+      };
+    } else if (isCreateOrgModalOpen) {
+      closer = () => {
+        setIsCreateOrgModalOpen(false);
+        setEditingOrgData(null);
+      };
+    } else if (isOrgModalOpen) {
+      closer = () => {
+        setIsOrgModalOpen(false);
+        setSelectedOrgId(null);
+        setSelectedOrgInitialData(null);
+      };
+    } else if (isDetailsOpen) {
+      closer = () => {
+        setIsDetailsOpen(false);
+        telegram.resetConsumedStartParam();
+        isDeepLinkActiveRef.current = false;
+      };
+    } else if (isOrganizerWorkspaceOpen) {
+      closer = () => setIsOrganizerWorkspaceOpen(false);
+    }
+
+    if (closer) {
+      telegram.showBackButton(closer);
     } else {
       telegram.hideBackButton();
     }
-    return () => {
-      if (isOrganizerWorkspaceOpen || isCreateEventModalOpen) {
-        telegram.hideBackButton();
-      }
-    };
-  }, [isOrganizerWorkspaceOpen, isCreateEventModalOpen]);
+  }, [
+    activeScannerEvent,
+    isTicketModalOpen,
+    isCompanyModalOpen,
+    isSubscriptionsModalOpen,
+    isNotificationCenterOpen,
+    isUserProfileModalOpen,
+    isCityModalOpen,
+    isCalendarOpen,
+    isSearchOpen,
+    isCreateEventModalOpen,
+    isCreateOrgModalOpen,
+    isOrgModalOpen,
+    isDetailsOpen,
+    isOrganizerWorkspaceOpen,
+  ]);
 
   const handleCardClick = async (event: EventSummary) => {
     openEventById(event.id, 'discovery');
@@ -1285,7 +1348,7 @@ export const App: React.FC = () => {
                 setEditingOrgData(org as any);
                 setIsCreateOrgModalOpen(true);
               }}
-              onOrgClick={(org) => openOrgById(org.id)}
+              onOrgClick={(org) => openOrgById(org.id, { name: org.name, avatar_url: org.avatar_url, logo_url: (org as any).logo_url, is_verified: org.is_verified })}
               onOrgDeleted={() => {
                 loadPersonalHub(true);
                 loadFeedEvents();
@@ -1394,9 +1457,9 @@ export const App: React.FC = () => {
           setEditingEventData(ev);
           setIsCreateEventModalOpen(true);
         }}
-        onOpenOrgModal={(orgId) => {
+        onOpenOrgModal={(orgId, initialData) => {
           setIsDetailsOpen(false);
-          openOrgById(orgId);
+          openOrgById(orgId, initialData);
         }}
         onOpenCompanyModal={(ev) => {
           setCompanyEvent(ev);
@@ -1430,9 +1493,11 @@ export const App: React.FC = () => {
       <OrganizationModal
         isOpen={isOrgModalOpen}
         orgIdOrSlug={selectedOrgId}
+        initialData={selectedOrgInitialData}
         onClose={() => {
           setIsOrgModalOpen(false);
           setSelectedOrgId(null);
+          setSelectedOrgInitialData(null);
         }}
         onEventClick={(ev) => openEventById(ev.id)}
         onOpenCreateEvent={(orgId) => {

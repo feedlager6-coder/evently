@@ -28,6 +28,13 @@ import { SafeImage } from './SafeImage';
 
 interface OrganizationModalProps {
   orgIdOrSlug: string | null;
+  initialData?: {
+    name?: string;
+    avatar_url?: string;
+    logo_url?: string;
+    is_verified?: boolean;
+    category?: string;
+  } | null;
   isOpen: boolean;
   onClose: () => void;
   onEventClick: (event: EventSummary) => void;
@@ -58,6 +65,7 @@ export function formatFollowers(count: number): string {
 
 export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   orgIdOrSlug,
+  initialData,
   isOpen,
   onClose,
   onEventClick,
@@ -111,6 +119,22 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   }, [isOpen, orgIdOrSlug, loadData]);
 
   if (!isOpen) return null;
+
+  const displayOrg: OrganizationResponse | null = org || (initialData ? {
+    id: orgIdOrSlug || '',
+    name: initialData.name || '',
+    slug: orgIdOrSlug || '',
+    avatar_url: initialData.avatar_url || initialData.logo_url || null,
+    logo_url: initialData.logo_url || initialData.avatar_url || null,
+    is_verified: Boolean(initialData.is_verified),
+    category: initialData.category || null,
+    city_name: null,
+    followers_count: 0,
+    is_subscribed: false,
+    is_owner: false,
+    rating: 5.0,
+    created_at: new Date().toISOString(),
+  } as unknown as OrganizationResponse : null);
 
   const handleToggleSubscribe = async () => {
     if (!org || isSubscribing || org.is_owner) return;
@@ -436,13 +460,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
           </button>
         </header>
 
-        {/* Loading State */}
-        {isLoading ? (
+        {/* Loading State: only show full-screen spinner if we have no displayOrg */}
+        {isLoading && !displayOrg ? (
           <div className="flex-1 py-32 flex flex-col items-center justify-center space-y-3 text-neutral-400">
             <Loader2 className="w-8 h-8 animate-spin text-[#4edea3]" />
             <span className="text-xs font-medium">Загрузка профиля организации...</span>
           </div>
-        ) : error ? (
+        ) : error && !displayOrg ? (
           <div className="p-6 m-4 text-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 space-y-3">
             <AlertCircle className="w-7 h-7 mx-auto text-red-400" />
             <div className="text-sm font-bold">{error}</div>
@@ -454,10 +478,12 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               Повторить попытку
             </button>
           </div>
-        ) : org ? (
-          <div className="flex-1 flex flex-col space-y-5 pt-3">
+        ) : displayOrg ? (() => {
+          const org = displayOrg;
+          return (
+            <div className="flex-1 flex flex-col space-y-5 pt-3">
             {/* Owner Management Banner (if user is creator of this org) */}
-            {org.is_owner && (
+            {org?.is_owner && (
               <div className="mx-4 p-3 rounded-2xl bg-[#1c1b1e] border border-white/10 flex items-center justify-between shadow-lg">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-[#10b981]/20 text-[#4edea3] flex items-center justify-center">
@@ -502,15 +528,17 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-b from-white/25 via-white/10 to-transparent shadow-[0_0_28px_rgba(16,185,129,0.25)] flex items-center justify-center">
                   <div className="w-full h-full rounded-full overflow-hidden bg-[#18181b] border border-white/10">
                     <SafeAvatar
-                      src={org.avatar_url}
-                      name={org.name}
-                      alt={org.name}
-                      className="w-full h-full object-cover"
+                      src={org?.avatar_url || (org as any)?.logo_url || initialData?.avatar_url || initialData?.logo_url}
+                      name={org?.name || initialData?.name || ''}
+                      alt={org?.name || initialData?.name || ''}
+                      type="org"
+                      sizeClassName="w-full h-full"
+                      className="w-full h-full object-cover rounded-full"
                     />
                   </div>
                 </div>
                 {/* Verified Shield Badge on bottom-right of avatar */}
-                {Boolean(org.is_verified) && (
+                {Boolean(org?.is_verified ?? initialData?.is_verified) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -527,7 +555,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
               {/* Organization Title */}
               <h1 className="text-2xl font-extrabold text-white tracking-tight mt-3">
-                {org.name}
+                {org?.name || initialData?.name || ''}
               </h1>
 
               {/* Verified Organizer Status Badge with Pulsing Dot */}
@@ -549,13 +577,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {/* Category Pill with Sound Wave Icon */}
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1a1a1f] border border-white/5 text-xs text-neutral-300 mt-2.5">
                 <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
-                <span>{org.category || 'Организатор'}</span>
+                <span>{org?.category || initialData?.category || 'Организатор'}</span>
               </div>
 
               {/* City Pill */}
               <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/5 text-[11px] text-neutral-400 mt-1.5">
                 <MapPin className="w-3 h-3 text-[#4edea3]" />
-                <span>{org.city_name || 'Локация не указана'}</span>
+                <span>{org?.city_name || 'Локация не указана'}</span>
               </div>
 
               {/* 3. Action Buttons Row: [Подписаться], [Написать], [Редактировать] */}
@@ -563,19 +591,19 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 {/* Subscribe Button */}
                 <button
                   onClick={handleToggleSubscribe}
-                  disabled={isSubscribing || org.is_owner}
+                  disabled={isSubscribing || Boolean(org?.is_owner)}
                   type="button"
                   className={`h-10 min-w-[140px] px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md ${
-                    org.is_owner
+                    org?.is_owner
                       ? 'bg-[#2a2a2e] text-neutral-400 cursor-default opacity-80 border border-transparent'
-                      : org.is_subscribed
+                      : org?.is_subscribed
                       ? 'bg-[#201f22] text-[#4edea3] border border-[#10b981]/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
                       : 'bg-white text-[#1a1c1c] border border-transparent shadow-[0_2px_12px_rgba(255,255,255,0.2)] hover:bg-neutral-100'
                   }`}
                 >
                   {isSubscribing ? (
                     <Loader2 className="w-4 h-4 animate-spin text-[#4edea3]" />
-                  ) : org.is_subscribed ? (
+                  ) : org?.is_subscribed ? (
                     <>
                       <Check className="w-4 h-4 text-[#4edea3]" />
                       <span>Вы подписаны</span>
@@ -589,7 +617,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </button>
 
                 {/* Direct Message (Send / Telegram) Button */}
-                {org.social_link ? (
+                {org?.social_link ? (
                   <button
                     onClick={handleOpenContact}
                     type="button"
@@ -905,8 +933,9 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                 </div>
               </section>
             )}
-          </div>
-        ) : null}
+            </div>
+          );
+        })() : null}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Category, DateFilterType } from '../types';
 import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass, Drama } from 'lucide-react';
-import { telegram } from '../services/telegram';
+import { haptics } from '../utils/haptics';
 
 interface FilterBarProps {
   dateFilter: DateFilterType;
@@ -48,7 +48,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 key={opt.id}
                 type="button"
                 onClick={() => {
-                  telegram.hapticImpact('light');
+                  haptics.selectionChanged();
                   onSelectDate(opt.id);
                 }}
                 className={`flex-1 py-2 px-1 rounded-full text-center text-xs whitespace-nowrap transition-all duration-200 ${
@@ -70,7 +70,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <button
           type="button"
           onClick={() => {
-            if (selectedCategoryId) telegram.hapticImpact('light');
+            if (selectedCategoryId) haptics.selectionChanged();
             onSelectCategory(undefined);
           }}
           className={`flex items-center gap-1.5 px-4 h-9 rounded-full text-xs shrink-0 transition-all active:scale-95 ${
@@ -91,7 +91,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               key={cat.id}
               type="button"
               onClick={() => {
-                telegram.hapticImpact('light');
+                haptics.selectionChanged();
                 onSelectCategory(isSelected ? undefined : cat.id);
               }}
               className={`flex items-center gap-1.5 px-4 h-9 rounded-full text-xs shrink-0 transition-all active:scale-95 ${

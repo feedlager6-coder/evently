@@ -55,7 +55,7 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
 
     if "/uploads/" in resolved:
         base_clean = resolved.split("?")[0]
-        if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg") and "/ext_" not in base_clean:
+        if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
             # Check if _thumb.jpg actually exists on disk before using it
             try:
                 from app.services.storage_service import storage_service
@@ -68,11 +68,11 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
                         base_clean = base_clean[:idx + len("/uploads/")] + candidate_rel
             except Exception:
                 pass
-        return f"{base_clean}?v=4"
+        return f"{base_clean}?v=5"
 
     if "files.catbox.moe" in resolved:
         base_clean = resolved.split("?")[0]
-        return f"{base_clean}?v=4"
+        return f"{base_clean}?v=5"
 
     return resolved
 
@@ -382,7 +382,6 @@ def build_event_inline_result(
             "id": result_id,
             "photo_url": photo_url,
             "thumbnail_url": thumb_url,
-            "thumb_url": thumb_url,
             "title": f"🎟 {title_str}",
             "description": description,
             "caption": caption,
@@ -403,9 +402,8 @@ def build_event_inline_result(
         "title": f"🎟 {title_str}",
         "description": description,
         "thumbnail_url": thumb_url,
-        "thumb_url": thumb_url,
-        "thumbnail_width": 100,
-        "thumbnail_height": 100,
+        "thumbnail_width": 160,
+        "thumbnail_height": 160,
         "input_message_content": {
             "message_text": message_text,
             "parse_mode": "HTML",

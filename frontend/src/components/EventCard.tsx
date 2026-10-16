@@ -2,7 +2,7 @@ import React from 'react';
 import type { EventSummary } from '../types';
 import { Calendar, MapPin, Users, Bookmark } from 'lucide-react';
 import { SafeImage } from './SafeImage';
-import { telegram } from '../services/telegram';
+import { haptics } from '../utils/haptics';
 
 interface EventCardProps {
   event: EventSummary;
@@ -37,9 +37,18 @@ export const EventCard: React.FC<EventCardProps> = ({
   const isPast = eventDate < new Date();
   const isCancelled = event.status === 'cancelled';
 
+  const handleCardClick = () => {
+    haptics.impactLight();
+    onClick();
+  };
+
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    telegram.hapticImpact('light');
+    if (!event.current_user_interested) {
+      haptics.notificationSuccess();
+    } else {
+      haptics.impactLight();
+    }
     if (onToggleInterest) {
       onToggleInterest(event);
     }
@@ -49,7 +58,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   if (isHero) {
     return (
       <section
-        onClick={onClick}
+        onClick={handleCardClick}
         className="relative w-full rounded-[28px] overflow-hidden bg-[#1c1b1e] border border-white/12 shadow-[0_16px_36px_rgba(0,0,0,0.65)] group cursor-pointer transition-all active:scale-[0.99]"
       >
         <div className="relative h-[360px] w-full flex flex-col justify-between p-4">
@@ -135,7 +144,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   // Standard Feed Card Presentation matching Stitch
   return (
     <article
-      onClick={onClick}
+      onClick={handleCardClick}
       className={`group relative flex flex-col rounded-3xl overflow-hidden bg-[#141416] border border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-all card-press cursor-pointer hover:border-white/20 active:scale-[0.99] ${
         isPast ? 'opacity-85 hover:opacity-100' : ''
       }`}

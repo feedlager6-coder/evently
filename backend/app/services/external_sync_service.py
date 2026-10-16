@@ -8,9 +8,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import httpx
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except ImportError:
     Image = None
+    ImageOps = None
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -515,10 +516,22 @@ async def download_and_cache_cover(
         local_covers_dir.mkdir(parents=True, exist_ok=True)
         target_filename = f"ext_{ext_id}.jpg"
         target_path = local_covers_dir / target_filename
+        thumb_filename = f"ext_{ext_id}_thumb.jpg"
+        thumb_path = local_covers_dir / thumb_filename
         relative_url = f"/uploads/covers/{target_filename}"
 
-        # If already cached on disk and valid size, reuse immediately without re-downloading
+        # If already cached on disk and valid size, ensure thumbnail exists and return
         if target_path.exists() and target_path.stat().st_size > 1024:
+            if not thumb_path.exists() or thumb_path.stat().st_size < 100:
+                try:
+                    if Image and ImageOps:
+                        with Image.open(str(target_path)) as img:
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            thumb_img = ImageOps.fit(img, (160, 160), Image.Resampling.LANCZOS)
+                            thumb_img.save(str(thumb_path), format="JPEG", quality=78, optimize=True, progressive=False)
+                except Exception as e:
+                    logger.warning("Failed to generate thumb from cached cover ext_%s: %s", ext_id, e)
             return relative_url
 
         resp = await http_client.get(image_url, timeout=10.0)
@@ -529,8 +542,18 @@ async def download_and_cache_cover(
             with Image.open(io.BytesIO(resp.content)) as img:
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
-                img.thumbnail((800, 500), Image.Resampling.LANCZOS)
-                img.save(str(target_path), format="JPEG", quality=82, optimize=True)
+                # Main cover: max 800x500
+                cover_img = img.copy()
+                cover_img.thumbnail((800, 500), Image.Resampling.LANCZOS)
+                cover_img.save(str(target_path), format="JPEG", quality=82, optimize=True)
+
+                # Square thumbnail: strictly 160x160 px for Telegram Bot API inline popup
+                if ImageOps:
+                    thumb_img = ImageOps.fit(img, (160, 160), Image.Resampling.LANCZOS)
+                else:
+                    thumb_img = img.copy()
+                    thumb_img.thumbnail((160, 160), Image.Resampling.LANCZOS)
+                thumb_img.save(str(thumb_path), format="JPEG", quality=78, optimize=True, progressive=False)
             return relative_url
     except Exception as e:
         logger.warning("Failed to cache cover for ext_id %s from %s: %s", ext_id, image_url, e)

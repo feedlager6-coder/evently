@@ -20,6 +20,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
 }) => {
   const [currentSrc, setCurrentSrc] = useState<string>(src && src.trim() ? src.trim() : fallbackSrc);
   const [isError, setIsError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     // Immediately replace known 404 / dead Unsplash URLs to avoid waiting for SSL handshake timeout
@@ -27,16 +28,19 @@ export const SafeImage: React.FC<SafeImageProps> = ({
     if (!clean || clean.includes('photo-1520523839898-50712140e698')) {
       setCurrentSrc(fallbackSrc);
       setIsError(false);
+      setIsLoaded(false);
       return;
     }
     setCurrentSrc(clean);
     setIsError(false);
+    setIsLoaded(false);
   }, [src, fallbackSrc]);
 
   const handleError = () => {
     console.warn('[Ivently Media] Image failed to load:', currentSrc);
     if (currentSrc !== fallbackSrc) {
       setCurrentSrc(fallbackSrc);
+      setIsLoaded(false);
     } else {
       setIsError(true);
     }
@@ -52,12 +56,17 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   }
 
   return (
-    <img
-      src={currentSrc}
-      alt={alt}
-      loading={loading}
-      onError={handleError}
-      className={className}
-    />
+    <div className="relative w-full h-full overflow-hidden bg-gradient-to-br from-[#1a1a1d] via-[#141416] to-[#0c0c0e]">
+      <img
+        src={currentSrc}
+        alt={alt}
+        loading={loading}
+        onLoad={() => setIsLoaded(true)}
+        onError={handleError}
+        className={`${className} transition-opacity duration-300 ease-out ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </div>
   );
 };

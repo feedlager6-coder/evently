@@ -185,10 +185,10 @@ class StorageService:
                     ext = ".jpg"
                     content_type_clean = "image/jpeg"
 
-                    # 3. Square thumbnail 320x320 for Telegram Inline popup
-                    thumb_im = ImageOps.fit(im, (320, 320), Image.Resampling.LANCZOS)
+                    # 3. Square thumbnail strictly 160x160 px for Telegram Bot API inline popup
+                    thumb_im = ImageOps.fit(im, (160, 160), Image.Resampling.LANCZOS)
                     t_buf = io.BytesIO()
-                    thumb_im.save(t_buf, format="JPEG", quality=80, optimize=True)
+                    thumb_im.save(t_buf, format="JPEG", quality=78, optimize=True, progressive=False)
                     thumb_content = t_buf.getvalue()
             except Exception as e:
                 logger.warning(f"Image processing with Pillow skipped or failed: {e}")

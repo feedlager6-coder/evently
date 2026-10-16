@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 
 class OrganizationCreate(BaseModel):
@@ -155,6 +155,7 @@ class OrganizationSummary(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     avatar_url: Optional[str] = None
+    logo_url: Optional[str] = None
     features: Optional[List[str]] = None
     status: str = "active"
     is_verified: bool = False
@@ -164,6 +165,21 @@ class OrganizationSummary(BaseModel):
     is_owner: bool = False
     plan: Optional[str] = "free"
     created_at: datetime
+
+    @model_validator(mode="after")
+    def sync_avatar_and_logo(self) -> "OrganizationSummary":
+        val = self.avatar_url or self.logo_url
+        if val:
+            if val.startswith("/"):
+                try:
+                    from app.config import settings
+                    base = settings.effective_public_host.rstrip("/")
+                    val = f"{base}{val}"
+                except Exception:
+                    pass
+            self.avatar_url = val
+            self.logo_url = val
+        return self
 
     model_config = ConfigDict(from_attributes=True)
 

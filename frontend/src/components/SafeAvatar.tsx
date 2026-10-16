@@ -10,6 +10,21 @@ interface SafeAvatarProps {
   type?: 'org' | 'user';
 }
 
+export function resolveAvatarUrl(url?: string | null): string | undefined {
+  if (!url || typeof url !== 'string' || !url.trim()) return undefined;
+  const clean = url.trim();
+  if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:')) {
+    return clean;
+  }
+  if (clean.startsWith('/')) {
+    const origin = (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http'))
+      ? window.location.origin.replace(/\/+$/, '')
+      : 'https://iventlyapp.ru';
+    return `${origin}${clean}`;
+  }
+  return clean;
+}
+
 export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   src,
   name = '',
@@ -18,16 +33,17 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   sizeClassName = 'w-full h-full',
   type = 'org',
 }) => {
+  const resolvedSrc = resolveAvatarUrl(src);
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
 
-  // Reset state if src changes
+  // Reset state if resolvedSrc changes
   useEffect(() => {
-    if (src && src.trim()) {
+    if (resolvedSrc) {
       setImageState('loading');
     } else {
       setImageState('error');
     }
-  }, [src]);
+  }, [resolvedSrc]);
 
   const cleanName = name.trim();
   const nameParts = cleanName.split(/\s+/).filter(Boolean);
@@ -53,7 +69,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
     );
   };
 
-  if (!src || !src.trim() || imageState === 'error') {
+  if (!resolvedSrc || imageState === 'error') {
     return renderFallback();
   }
 
@@ -67,7 +83,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
       )}
 
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt || name}
         loading="eager"
         referrerPolicy="no-referrer"
