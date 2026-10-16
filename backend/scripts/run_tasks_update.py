@@ -23,8 +23,8 @@ async def main():
         logger.info("=== STEP 2: Cleaning technical HTML prefixes from descriptions ===")
         res = await session.execute(
             text(
-                "UPDATE events SET description = regexp_replace(description, '^\\s*(?i:html)\\s*[:\\-]?\\s*', '') "
-                "WHERE description ~* '^\\s*html\\b'"
+                "UPDATE events SET description = regexp_replace(regexp_replace(description, '\\[/?(?i:html)\\]', '', 'g'), '^\\s*(?i:html)\\s*[:\\-]?\\s*', '') "
+                "WHERE description ~* '\\[/?html\\]|^\\s*html\\b'"
             )
         )
         await session.commit()

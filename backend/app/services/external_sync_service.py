@@ -360,7 +360,8 @@ def clean_html(raw_html: Optional[str]) -> str:
     text = "\n".join(lines)
     # Collapse multiple consecutive empty lines to maximum 2
     text = re.sub(r"\n{3,}", "\n\n", text)
-    # Strip technical HTML prefixes (e.g. "HTML\nВ программе...", "HTML: ...", "html - ...")
+    # Strip technical HTML prefixes and BBCode tags (e.g. "[HTML]", "[/HTML]", "HTML\nВ программе...", "HTML: ...", "html - ...")
+    text = re.sub(r"\[/?(?:HTML|html)\]", "", text)
     text = re.sub(r"^\s*(?:HTML|html)\s*[:\-]?\s*", "", text).strip()
     return text.strip()
 
