@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sparkles, Ticket, Shield } from 'lucide-react';
 import { telegram } from '../services/telegram';
+import { resetScrollContainerInstant } from '../utils/scroll';
 
 export type TabType = 'feed' | 'my_events' | 'admin' | 'organizer';
 
@@ -38,7 +39,8 @@ export const Navigation: React.FC<NavigationProps> = ({
       return;
     }
     if (tab !== currentTab) {
-      telegram.hapticSelection();
+      resetScrollContainerInstant('app-scroll-container');
+      telegram.hapticImpact('light');
       onChangeTab(tab);
     }
   };

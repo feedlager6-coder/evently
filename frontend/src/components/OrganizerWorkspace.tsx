@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import { api } from '../services/api';
 import { telegram } from '../services/telegram';
+import { resetScrollContainerInstant } from '../utils/scroll';
 import {
   ArrowLeft,
   Plus,
@@ -455,12 +456,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       category: (ev as any).category_name || 'Событие',
     }));
 
-  // Tab switching with haptic feedback
+  // Tab switching with instant momentum kill and haptic feedback
+  const lastNavTouchTimeRef = useRef<number>(0);
+
   const handleTabChange = (tab: WorkspaceTab) => {
     if (tab !== activeTab) {
-      telegram.hapticImpact('light');
+      resetScrollContainerInstant('app-scroll-container');
+      telegram.hapticSelection();
       setActiveTab(tab);
     }
+  };
+
+  const handleNavTouchStart = (_e: React.TouchEvent, tab: WorkspaceTab) => {
+    lastNavTouchTimeRef.current = Date.now();
+    handleTabChange(tab);
+  };
+
+  const handleNavClick = (tab: WorkspaceTab) => {
+    if (Date.now() - lastNavTouchTimeRef.current < 500) return;
+    handleTabChange(tab);
   };
 
   // Open single-screen broadcast builder
@@ -2491,7 +2505,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {/* 1. Обзор */}
               <button
                 type="button"
-                onClick={() => handleTabChange('overview')}
+                onTouchStart={(e) => handleNavTouchStart(e, 'overview')}
+                onClick={() => handleNavClick('overview')}
+                style={{ touchAction: 'manipulation', userSelect: 'none', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
                 className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
                   activeTab === 'overview' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
@@ -2503,7 +2519,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {/* 2. События */}
               <button
                 type="button"
-                onClick={() => handleTabChange('events')}
+                onTouchStart={(e) => handleNavTouchStart(e, 'events')}
+                onClick={() => handleNavClick('events')}
+                style={{ touchAction: 'manipulation', userSelect: 'none', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
                 className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
                   activeTab === 'events' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
@@ -2515,7 +2533,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {/* 3. Аудитория */}
               <button
                 type="button"
-                onClick={() => handleTabChange('audience')}
+                onTouchStart={(e) => handleNavTouchStart(e, 'audience')}
+                onClick={() => handleNavClick('audience')}
+                style={{ touchAction: 'manipulation', userSelect: 'none', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
                 className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
                   activeTab === 'audience' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}
@@ -2527,7 +2547,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               {/* 4. Рассылки */}
               <button
                 type="button"
-                onClick={() => handleTabChange('broadcasts')}
+                onTouchStart={(e) => handleNavTouchStart(e, 'broadcasts')}
+                onClick={() => handleNavClick('broadcasts')}
+                style={{ touchAction: 'manipulation', userSelect: 'none', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
                 className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] outline-none [-webkit-tap-highlight-color:transparent] ${
                   activeTab === 'broadcasts' ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
                 }`}

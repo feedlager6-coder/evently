@@ -96,3 +96,21 @@ def test_theatre_in_venue_with_exhibition_title():
         venue_name="Новосибирский академический театр оперы и балета (НОВАТ)"
     )
     assert res == "exhibitions"
+
+
+def test_potpourri_about_dagestan_resolved_to_concerts():
+    # Test "Попурри о Дагестане" with description containing "картины" and venue "ансамбль"
+    res = resolve_category(
+        raw_cat="",
+        title="«Попурри о Дагестане»",
+        description="В программе 7- «Пьесы - картины» М. Кажлаева, народные мелодии и хореографические номера",
+        venue_name="Государственный ансамбль песни и танца «Дагестан»"
+    )
+    assert res == "concerts"
+
+
+def test_musical_forms_resolved_to_concerts():
+    assert resolve_category(title="Соната № 14 для фортепиано", venue_name="Концертный зал") == "concerts"
+    assert resolve_category(title="Сюита в старинном стиле", venue_name="Дом музыки") == "concerts"
+    assert resolve_category(title="Торжественная увертюра", venue_name="Филармония") == "concerts"
+

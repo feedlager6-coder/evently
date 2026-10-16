@@ -38,8 +38,9 @@ import { CheckInScannerModal } from './components/CheckInScannerModal';
 import { CalendarModal } from './components/CalendarModal';
 import type { TabType } from './components/Navigation';
 import type { UserSubscriptionItem } from './types';
-import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, SlidersHorizontal, Bookmark, ChevronRight } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, RefreshCw, Search, MapPin, Plus, Calendar, X, Bookmark, ChevronRight } from 'lucide-react';
 import { SafeImage } from './components/SafeImage';
+import { resetScrollContainerInstant } from './utils/scroll';
 
 export const App: React.FC = () => {
   // Navigation & UI state
@@ -62,6 +63,11 @@ export const App: React.FC = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Kill residual scroll momentum when switching tabs in iOS WebKit
+  useEffect(() => {
+    resetScrollContainerInstant('app-scroll-container');
+  }, [currentTab]);
 
   // Discovery Feed state
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -910,6 +916,17 @@ export const App: React.FC = () => {
 
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
+  const isCustomDate = /^\d{4}-\d{2}-\d{2}$/.test(dateFilter);
+  const formatCustomDate = (dateStr: string) => {
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden flex flex-col bg-[#08080A] text-[#e5e1e4] relative">
       {/* Ambient Obsidian Glow Orbs matching Stitch */}
@@ -961,9 +978,45 @@ export const App: React.FC = () => {
                     Поиск событий, мест, организаторов...
                   </span>
                 </div>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#8e9192] group-hover:text-white transition-colors shrink-0">
-                  <SlidersHorizontal className="w-4 h-4" />
-                </div>
+                {isCustomDate ? (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      telegram.hapticSelection();
+                      setIsCalendarOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shrink-0 cursor-pointer hover:bg-emerald-500/30 transition-colors"
+                  >
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    <span>{formatCustomDate(dateFilter)}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        telegram.hapticSelection();
+                        setDateFilter('all');
+                      }}
+                      className="p-0.5 rounded-full hover:bg-emerald-500/40 text-emerald-300 hover:text-white transition-colors"
+                      aria-label="Сбросить фильтр по дате"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      telegram.hapticSelection();
+                      setIsCalendarOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#8e9192] hover:text-white text-xs font-medium shrink-0 transition-colors"
+                    aria-label="Выбрать дату"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Дата</span>
+                  </button>
+                )}
               </div>
             </div>
 
