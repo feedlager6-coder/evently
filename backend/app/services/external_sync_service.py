@@ -506,7 +506,7 @@ def resolve_category(
     secondary_text = f"{venue_low} {desc_sample[:300]}".strip()
     if secondary_text:
         # theatre: спектакл, спектал, театр, режиссер, актер, сцен
-        if has_word(r'(?<![а-яё])(?:спектакл|спектал|театр|режиссер|актер|сцен)', secondary_text) and not is_non_theatre_in_theatre_venue:
+        if has_word(r'(?<![а-яё])(?:спектакл|спектал|театр|режиссер|актер|сцен)', secondary_text) and not is_non_theatre_title:
             return "theatre"
         # education: библиотек, лекци, учащихся, школьник, мастер-класс, истори, литератур
         if has_word(r'(?<![а-яё])(?:библиотек|лекци|учащихся|школьник|мастер-класс|истори|литератур)', secondary_text):
