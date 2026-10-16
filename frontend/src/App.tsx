@@ -911,29 +911,35 @@ export const App: React.FC = () => {
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
-    <div className="min-h-screen bg-[#08080A] text-[#e5e1e4] content-safe-bottom selection:bg-[#10b981]/30 selection:text-[#4edea3] relative">
+    <div className="h-[100dvh] w-full max-w-[100vw] overflow-hidden flex flex-col bg-[#08080A] text-[#e5e1e4] relative">
       {/* Ambient Obsidian Glow Orbs matching Stitch */}
       <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[340px] h-[340px] bg-[#10b981]/6 rounded-full blur-[110px] pointer-events-none -z-10" />
       <div className="fixed top-[480px] right-0 w-[260px] h-[260px] bg-[#f59e0b]/5 rounded-full blur-[90px] pointer-events-none -z-10" />
 
-      {/* Top Header (only when not in Organizer Workspace) */}
-      {!isOrganizerWorkspaceOpen && (
-        <Header
-          currentCity={currentCity}
-          onOpenCityModal={() => setIsCityModalOpen(true)}
-          user={user}
-          isAdmin={isAdmin}
-          onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
-          onOpenNotifications={() => {
-            markNotificationsAsRead();
-            setIsNotificationCenterOpen(true);
-          }}
-          unreadCount={unreadNotificationsCount}
-        />
-      )}
+      {/* Dedicated Scroll Container */}
+      <div
+        id="app-scroll-container"
+        className="flex-1 w-full overflow-y-auto overflow-x-hidden content-safe-bottom"
+        style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorY: 'contain' }}
+      >
+        {/* Top Header (only when not in Organizer Workspace) */}
+        {!isOrganizerWorkspaceOpen && (
+          <Header
+            currentCity={currentCity}
+            onOpenCityModal={() => setIsCityModalOpen(true)}
+            user={user}
+            isAdmin={isAdmin}
+            onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+            onOpenNotifications={() => {
+              markNotificationsAsRead();
+              setIsNotificationCenterOpen(true);
+            }}
+            unreadCount={unreadNotificationsCount}
+          />
+        )}
 
-      {/* Main Content Area based on Tab */}
-      <main className="max-w-[480px] mx-auto">
+        {/* Main Content Area based on Tab */}
+        <main className="max-w-[480px] mx-auto">
         <div className={currentTab === 'feed' ? 'block' : 'hidden'}>
           <div className="space-y-3 pb-8">
             {/* Prominent Discovery Search Trigger */}
@@ -1375,6 +1381,7 @@ export const App: React.FC = () => {
           />
         )}
       </main>
+      </div>
 
       {/* City Selector Modal */}
       <CityModal

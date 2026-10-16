@@ -379,86 +379,150 @@ def clean_title(raw_title: Optional[str]) -> str:
 
 
 def resolve_category(
+    raw_cat: str = "",
     title: str = "",
+    description: str = "",
+    venue_name: str = "",
     raw_tags: Optional[List[str]] = None,
     raw_genres: Optional[List[str]] = None,
-    raw_categories: Optional[List[str]] = None
+    raw_categories: Optional[List[str]] = None,
 ) -> str:
     """
     Intelligently maps event to one of the 8 canonical Ivently categories:
     theatre, exhibitions, education, sports, concerts, parties, business, other.
-    Checks tags, genres, categories, and title keywords according to strict priority.
+    Uses regex with word boundaries for short roots and enforces strict hierarchy.
     """
-    tags_str = " ".join([str(t).lower() for t in (raw_tags or [])])
-    genres_str = " ".join([str(g).lower() for g in (raw_genres or [])])
-    cats_str = " ".join([str(c).lower() for c in (raw_categories or [])])
-    combined_text = f"{title.lower()} {tags_str} {genres_str} {cats_str}"
+    t_raw = (title or "").strip()
+    t_low = t_raw.lower()
 
-    # 1. Theatre / Plays / Opera / Ballet (Highest priority for cultural stages)
-    theatre_keywords = [
-        "спектакл", "театр", "драма", "комеди", "балет", "опера",
-        "мюзикл", "постановк", "сказка", "сказк", "трагеди", "пьеса", "инсценировк",
-        "актер", "кукол", "оперетт", "режиссер", "сцена", "антреприз",
-        "утренник", "бенефис", "театрализованн", "театральн", "драматическ"
-    ]
-    if any(k in combined_text for k in theatre_keywords):
+    extra_cats = []
+    if raw_cat:
+        extra_cats.append(raw_cat)
+    if raw_categories:
+        extra_cats.extend([str(c) for c in raw_categories if c])
+    if raw_tags:
+        extra_cats.extend([str(t) for t in raw_tags if t])
+    if raw_genres:
+        extra_cats.extend([str(g) for g in raw_genres if g])
+
+    cats_str = " ".join(extra_cats).lower()
+    venue_low = (venue_name or "").strip().lower()
+    desc_sample = (description or "")[:400].strip().lower()
+
+    primary_text = f"{t_low} {cats_str}".strip()
+
+    def has_word(pattern: str, text: str) -> bool:
+        return bool(re.search(pattern, text, re.IGNORECASE))
+
+    # Explicit exclusions from theatre if title is explicitly an exhibition, lecture, masterclass, excursion
+    is_non_theatre_title = bool(re.search(r'(?<![а-яё])(?:выставк|экспозиц|экскурси|маршрут|лекци|мастер-класс|семинар)', t_low))
+    has_performance_root = bool(re.search(r'(?<![а-яё])(?:спектакл|спектал|балет|опер[аые]|мюзикл|оперетт|пьес[аы]|моноспектакл|кукол|инсценировк|фатима)', t_low))
+
+    # 1. Спектакли и театр (theatre)
+    theatre_pattern = (
+        r'(?<![а-яё])(?:'
+        r'спектакл|спектал|театр|балет|опер[аые]|мюзикл|оперетт|'
+        r'пьес[аы]|постановк|драм[аы]|комеди[яи]|трагеди|моноспектакл|'
+        r'кукол|инсценировк|сказк[аи]|фатима|гастрол|антреприз'
+        r')'
+    )
+    if has_word(theatre_pattern, primary_text):
+        if not (is_non_theatre_title and not has_performance_root):
+            return "theatre"
+    if has_word(r'(?<![а-яё])театр', venue_low) and not is_non_theatre_title:
         return "theatre"
 
-    # 2. Exhibitions / Art / Museums / Galleries / Cinema
-    exhibition_keywords = [
-        "выставк", "экспозици", "музей", "вернисаж", "галере",
-        "живопис", "скульптур", "картин", "арт", "худож",
-        "показ", "кино", "фильм", "кинопоказ", "кинопросмотр", "фото", "иллюстративн", "ретроспектив"
-    ]
-    if any(k in combined_text for k in exhibition_keywords):
+    # 2. Выставки (exhibitions)
+    # (если в заголовке нет слов концерт, спектакль, спекталь, лекция, мастер-класс)
+    is_theatre_or_concert_or_edu_title = bool(re.search(r'(?<![а-яё])(?:концерт|симфони|оркестр|спектакл|спектал|лекци|мастер-класс)', t_low))
+    exhibitions_pattern = (
+        r'(?<![а-яё])(?:'
+        r'выставк|экспозиц|вернисаж|галере|живопис|фотовыставк|'
+        r'кинопоказ|кинолектори|фильм|мультипликац|музе[йяе]|экспонат'
+        r')'
+    )
+    if has_word(exhibitions_pattern, primary_text) and not is_theatre_or_concert_or_edu_title:
         return "exhibitions"
 
-    # 3. Lectures / Education / Masterclasses / Literature / Quizzes
-    education_keywords = [
-        "лекци", "мастер-класс", "мастер класс", "урок", "семинар",
-        "воркшоп", "творческая встреч", "творческой встреч", "творческий вечер", "обучени",
-        "просветительск", "читальн", "литератур", "книг", "книжн", "тренинг",
-        "викторин", "квиз", "чтени", "беседа", "эрудит", "познавательн", "час интерес",
-        "диспут", "библиотек", "краеведен", "интеллектуальн", "лаборатори", "встреч"
-    ]
-    if any(k in combined_text for k in education_keywords):
+    # 3. Образование (education)
+    education_pattern = (
+        r'(?<![а-яё])(?:'
+        r'лекци|мастер-класс|мастер класс|семинар|урок(?![а-яё])|воркшоп|'
+        r'тренинг|практикум|викторин|квиз|интеллектуальн|литературн|'
+        r'чтени[яй]|книжн|библиотек|творческая встреча|круглый стол|'
+        r'бесед[аы]|знакомство с|час истории|патриотическ|экологическ|'
+        r'краеведческ|язык как'
+        r')'
+    )
+    if has_word(education_pattern, primary_text):
         return "education"
 
-    # 4. Sports / Active tours / Outdoors / Excursions
-    sports_keywords = [
-        "экскурси", "прогулк", "тур", "поход", "квест", "спорт",
-        "забег", "матч", "турнир", "соревновани", "марафон", "фитнес",
-        "пешеходн", "маршрут", "путешестви"
-    ]
-    if any(k in combined_text for k in sports_keywords):
-        return "sports"
-
-    # 5. Concerts / Music / Philharmonic / Symphony / Songs
-    concert_keywords = [
-        "концерт", "симфоническ", "оркестр", "филармони", "музык",
-        "романтическ", "ансамбл", "рок", "джаз", "vocal", "вокал",
-        "хор", "песн", "песен", "инструментальн", "акустик",
-        "романс", "мелоди", "сольн", "гитар", "пианино", "фортепиано", "бард", "симфони"
-    ]
-    if any(k in combined_text for k in concert_keywords):
+    # 4. Концерты (concerts)
+    concerts_pattern = (
+        r'(?<![а-яё])(?:'
+        r'концерт|симфонич|оркестр|филармони|ансамбл|'
+        r'хор(?![а-яё])|хорового|вокальн|инструментальн|фортепиан|органн|'
+        r'джаз|романс|сольник|музыкальн|песн[ия]|мелоди'
+        r')'
+    )
+    if has_word(concerts_pattern, primary_text):
         return "concerts"
 
-    # 6. Parties / Festivals / Shows / Standup / Holidays
-    party_keywords = [
-        "вечеринк", "фестивал", "шоу", "дискотек", "клуб", "dance",
-        "танц", "карнавал", "party", "standup", "стендап",
-        "праздник", "гуляни", "развлекательн", "игры", "игров", "квест-игр", "фольклор", "забав"
-    ]
-    if any(k in combined_text for k in party_keywords):
+    # 5. Спорт и активный отдых (sports)
+    # ТОЛЬКО по целым словам/корням через regex (?<![а-яё]):
+    # ЗАПРЕЩЕНО использовать голый корень "тур" без границы слова,
+    # чтобы слова «культура» и «литература» НИКОГДА не попадали в sports!
+    sports_pattern = (
+        r'(?<![а-яё])(?:'
+        r'экскурси|пешеходн|маршрут|поход(?![а-яё])|квест(?![а-яё])|'
+        r'спорт|забег|матч(?![а-яё])|турнир|чемпионат|соревнован|'
+        r'спартакиад|фитнес|йог[аи]|зарядк|велопробег|туристическ|туризм'
+        r')'
+    )
+    if has_word(sports_pattern, primary_text):
+        return "sports"
+
+    # 6. Вечеринки и шоу (parties)
+    parties_pattern = (
+        r'(?<![а-яё])(?:'
+        r'вечеринк|стендап|standup|шоу(?![а-яё])|дискотек|фестивал|'
+        r'праздник|гуляни|конкурс|карнавал|бал(?![а-яё])|огонек|юбилейн'
+        r')'
+    )
+    if has_word(parties_pattern, primary_text):
         return "parties"
 
-    # 7. Business / Meetups / Conferences
-    business_keywords = [
-        "бизнес", "конференци", "форум", "питч", "стартап", "нетворкинг",
-        "круглый стол", "стратеги", "презентаци"
-    ]
-    if any(k in combined_text for k in business_keywords):
+    # 7. Бизнес (business)
+    business_pattern = (
+        r'(?<![а-яё])(?:'
+        r'бизнес|форум(?![а-яё])|конференци|стартап|предпринимател|'
+        r'нетворкинг|маркетинг|инвестиц'
+        r')'
+    )
+    if has_word(business_pattern, primary_text):
         return "business"
+
+    # 8. Вторичная проверка по venue_name + description (первые 300 символов)
+    secondary_text = f"{venue_low} {desc_sample[:300]}".strip()
+    if secondary_text:
+        # theatre: спектакл, спектал, театр, режиссер, актер, сцен
+        if has_word(r'(?<![а-яё])(?:спектакл|спектал|театр|режиссер|актер|сцен)', secondary_text) and not is_non_theatre_in_theatre_venue:
+            return "theatre"
+        # education: библиотек, лекци, учащихся, школьник, мастер-класс, истори, литератур
+        if has_word(r'(?<![а-яё])(?:библиотек|лекци|учащихся|школьник|мастер-класс|истори|литератур)', secondary_text):
+            return "education"
+        # exhibitions: выставк, экспонат, музе, художник, картин
+        if has_word(r'(?<![а-яё])(?:выставк|экспонат|музе|художник|картин)', secondary_text):
+            return "exhibitions"
+        # concerts: концерт, песн, музык, филармони, ансамбл
+        if has_word(r'(?<![а-яё])(?:концерт|песн|музык|филармони|ансамбл)', secondary_text):
+            return "concerts"
+        # sports: экскурси, маршрут, спорт, соревнован
+        if has_word(r'(?<![а-яё])(?:экскурси|маршрут|спорт|соревнован)', secondary_text):
+            return "sports"
+        # parties: праздник, фестивал, шоу
+        if has_word(r'(?<![а-яё])(?:праздник|фестивал|шоу(?![а-яё]))', secondary_text):
+            return "parties"
 
     return "other"
 
@@ -795,7 +859,10 @@ class ExternalSyncService:
                                 raw_genres = [g.get("name", "").lower() for g in item.get("genres", []) if isinstance(g, dict)]
                                 raw_cats = [c.get("name", "").lower() for c in item.get("categories", []) if isinstance(c, dict)]
                                 category_id = resolve_category(
+                                    raw_cat=" ".join(raw_cats),
                                     title=title,
+                                    description=detail_desc or item.get("description") or "",
+                                    venue_name=venue_name,
                                     raw_tags=raw_tags,
                                     raw_genres=raw_genres,
                                     raw_categories=raw_cats,
@@ -1016,12 +1083,6 @@ class ExternalSyncService:
                                     if len(description) > 3000:
                                         description = description[:2997] + "..."
 
-                                    # Categories
-                                    category_id = resolve_category(
-                                        title=title,
-                                        raw_categories=item.get("categories", [])
-                                    )
-
                                     # Place
                                     place = item.get("place") or {}
                                     venue_name = clean_html(place.get("title") or "Городская площадка")
@@ -1029,6 +1090,16 @@ class ExternalSyncService:
                                     coords = place.get("coords") or {}
                                     latitude = coords.get("lat")
                                     longitude = coords.get("lon")
+
+                                    # Categories
+                                    kudago_cats = item.get("categories", [])
+                                    category_id = resolve_category(
+                                        raw_cat=" ".join(kudago_cats),
+                                        title=title,
+                                        description=description,
+                                        venue_name=venue_name,
+                                        raw_categories=kudago_cats,
+                                    )
 
                                     # Cover
                                     images = item.get("images", [])

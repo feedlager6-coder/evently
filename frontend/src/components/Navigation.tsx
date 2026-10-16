@@ -29,7 +29,12 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const handleTabAction = (tab: TabType) => {
     if (tab === 'feed' && currentTab === 'feed') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const scrollEl = document.getElementById('app-scroll-container');
+      if (scrollEl) {
+        scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
     if (tab !== currentTab) {
