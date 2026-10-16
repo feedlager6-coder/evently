@@ -41,16 +41,16 @@ KUDAGO_CITY_MAP: Dict[str, str] = {
 # Format: (culture_ru_slug, region_title, target_city_id)
 CULTURE_REGIONS: List[tuple[str, str, str]] = [
     # Dagestan & North Caucasus
-    ("respublika-dagestan", "Махачкала (Дагестан)", "makhachkala"),
-    ("kaspiysk", "Каспийск", "kaspiysk"),
-    ("derbent", "Дербент", "derbent"),
-    ("khasavyurt", "Хасавюрт", "khasavyurt"),
-    ("izberbash", "Избербаш", "izberbash"),
+    ("makhachkala", "Махачкала (Дагестан)", "makhachkala"),
+    ("respublika-dagestan-kaspiysk", "Каспийск", "kaspiysk"),
+    ("respublika-dagestan-derbent", "Дербент", "derbent"),
+    ("respublika-dagestan-hasavyurt", "Хасавюрт", "khasavyurt"),
+    ("respublika-dagestan-izberbash", "Избербаш", "izberbash"),
     ("chechenskaya-respublika", "Грозный (Чечня)", "grozny"),
     ("respublika-severnaya-osetiya-alaniya", "Владикавказ (Северная Осетия)", "vladikavkaz"),
-    ("nalchik", "Нальчик", "nalchik"),
-    ("pyatigorsk", "Пятигорск", "pyatigorsk"),
-    ("stavropol", "Ставрополь", "stavropol"),
+    ("kabardino-balkarskaya-respublika", "Нальчик", "nalchik"),
+    ("stavropolskiy-kray-pyatigorsk", "Пятигорск", "pyatigorsk"),
+    ("stavropolskiy-kray-stavropol", "Ставрополь", "stavropol"),
 
     # Federal Centers & Major Metros
     ("moskva", "Москва", "moscow"),
@@ -59,7 +59,7 @@ CULTURE_REGIONS: List[tuple[str, str, str]] = [
 
     # South & Volga
     ("krasnodar", "Краснодар", "krasnodar"),
-    ("sochi", "Сочи", "sochi"),
+    ("krasnodarskiy-kray-sochi", "Сочи", "sochi"),
     ("rostov-na-donu", "Ростов-на-Дону", "rostov_on_don"),
     ("volgograd", "Волгоград", "volgograd"),
     ("saratov", "Саратов", "saratov"),
@@ -81,7 +81,7 @@ CULTURE_REGIONS: List[tuple[str, str, str]] = [
     # Far East & West
     ("khabarovsk", "Хабаровск", "khabarovsk"),
     ("vladivostok", "Владивосток", "vladivostok"),
-    ("kaliningrad", "Калининград", "kaliningrad"),
+    ("kaliningradskaya-oblast", "Калининград", "kaliningrad"),
     ("yaroslavl", "Ярославль", "yaroslavl"),
 ]
 
@@ -209,20 +209,32 @@ ADDRESS_CITY_FALLBACK: List[tuple[str, str]] = [
 
 # Region default city fallback if specific municipal locale is missing
 REGION_DEFAULT_CITY: Dict[str, str] = {
+    "makhachkala": "makhachkala",
+    "respublika-dagestan-mahachkala": "makhachkala",
     "respublika-dagestan": "makhachkala",
+    "respublika-dagestan-kaspiysk": "kaspiysk",
     "kaspiysk": "kaspiysk",
+    "respublika-dagestan-derbent": "derbent",
     "derbent": "derbent",
+    "respublika-dagestan-hasavyurt": "khasavyurt",
     "khasavyurt": "khasavyurt",
+    "respublika-dagestan-izberbash": "izberbash",
     "izberbash": "izberbash",
     "chechenskaya-respublika": "grozny",
     "respublika-severnaya-osetiya-alaniya": "vladikavkaz",
+    "kabardino-balkarskaya-respublika": "nalchik",
     "nalchik": "nalchik",
+    "stavropolskiy-kray-pyatigorsk": "pyatigorsk",
     "pyatigorsk": "pyatigorsk",
+    "stavropolskiy-kray-stavropol": "stavropol",
+    "stavropolskiy-kray": "stavropol",
     "stavropol": "stavropol",
     "moskva": "moscow",
     "sankt-peterburg": "spb",
     "kazan": "kazan",
     "krasnodar": "krasnodar",
+    "krasnodarskiy-kray-sochi": "sochi",
+    "krasnodarskiy-kray": "krasnodar",
     "sochi": "sochi",
     "rostov-na-donu": "rostov_on_don",
     "volgograd": "volgograd",
@@ -243,6 +255,7 @@ REGION_DEFAULT_CITY: Dict[str, str] = {
     "irkutsk": "irkutsk",
     "khabarovsk": "khabarovsk",
     "vladivostok": "vladivostok",
+    "kaliningradskaya-oblast": "kaliningrad",
     "kaliningrad": "kaliningrad",
     "yaroslavl": "yaroslavl",
 }
@@ -713,6 +726,14 @@ class ExternalSyncService:
 
                                 if not city_id:
                                     city_id = target_city_id or REGION_DEFAULT_CITY.get(region_slug)
+
+                                # Dedicated municipal/regional routes guarantee correct city assignment
+                                if target_city_id and (
+                                    not city_id
+                                    or city_id not in active_city_ids
+                                    or target_city_id in ("sochi", "pyatigorsk", "kaspiysk", "khasavyurt", "derbent", "izberbash", "nalchik", "kaliningrad", "stavropol")
+                                ):
+                                    city_id = target_city_id
 
                                 if not city_id or city_id not in active_city_ids:
                                     continue
