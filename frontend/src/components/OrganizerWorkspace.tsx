@@ -1906,7 +1906,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   <div className="flex items-center gap-1 text-[12px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                     <TrendingUp className="w-3.5 h-3.5" />
-                    {audienceData?.new_subscribers_30d ? `+${audienceData.new_subscribers_30d} за 30 дн.` : 'Живая база'}
+                    {audienceData?.new_subscribers_today ? `+${audienceData.new_subscribers_today} сегодня` : (audienceData?.new_subscribers_7d ? `+${audienceData.new_subscribers_7d} за 7 дн.` : (audienceData?.new_subscribers_30d ? `+${audienceData.new_subscribers_30d} за 30 дн.` : 'Живая база'))}
                   </div>
                 </div>
                 <div className="text-[12px] text-neutral-400 leading-relaxed border-t border-white/5 pt-3">
@@ -1924,11 +1924,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                     </div>
                     <p className="text-[11px] text-neutral-400">Интерактивный график роста подписчиков</p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-emerald-400">
-                      +{totalContactsCount > 0 ? (audienceData?.new_subscribers_30d ?? 0) : 0}
-                    </span>
-                    <span className="text-[10px] text-neutral-500 block">за 30 дней</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-emerald-400">
+                        +{audienceData?.new_subscribers_today ?? 0}
+                      </span>
+                      <span className="text-[10px] text-neutral-500 block">сегодня</span>
+                    </div>
+                    <div className="text-right border-l border-white/10 pl-2">
+                      <span className="text-xs font-bold text-emerald-400">
+                        +{audienceData?.new_subscribers_7d ?? 0}
+                      </span>
+                      <span className="text-[10px] text-neutral-500 block">за 7 дней</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1936,24 +1944,49 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <div className="w-full pt-1 relative">
                   <div className="h-28 w-full relative">
                     {totalContactsCount > 0 ? (() => {
-                      const new30 = audienceData?.new_subscribers_30d ?? 0;
-                      const new7 = audienceData?.new_subscribers_7d ?? 0;
-                      const v0 = Math.max(0, totalContactsCount - new30);
-                      const v1 = Math.max(0, Math.round(v0 + (totalContactsCount - new7 - v0) * 0.4));
-                      const v2 = Math.max(0, totalContactsCount - new7);
-                      const v3 = Math.max(0, Math.round(v2 + (totalContactsCount - v2) * 0.6));
-                      const v4 = totalContactsCount;
+                      const growth = audienceData?.daily_growth && audienceData.daily_growth.length > 0
+                        ? audienceData.daily_growth
+                        : null;
 
-                      const dataPoints = [v0, v1, v2, v3, v4];
-                      const minVal = Math.min(...dataPoints);
-                      const maxVal = Math.max(...dataPoints);
-                      const range = maxVal - minVal;
+                      let pts: { x: number; y: number; val: number; label: string; new_count: number }[] = [];
 
-                      const xs = [10, 85, 160, 240, 310];
-                      const pts = dataPoints.map((val, idx) => {
-                        const y = range === 0 ? 45 : 65 - ((val - minVal) / range) * 45;
-                        return { x: xs[idx], y, val };
-                      });
+                      if (growth) {
+                        const vals = growth.map(g => g.cumulative_count);
+                        const minVal = Math.min(...vals);
+                        const maxVal = Math.max(...vals);
+                        const range = maxVal - minVal;
+
+                        pts = growth.map((g, idx) => {
+                          const x = 10 + (idx / (growth.length - 1)) * 300;
+                          const y = range === 0 ? 45 : 65 - ((g.cumulative_count - minVal) / range) * 45;
+                          return {
+                            x,
+                            y,
+                            val: g.cumulative_count,
+                            label: g.label,
+                            new_count: g.new_count,
+                          };
+                        });
+                      } else {
+                        const new30 = audienceData?.new_subscribers_30d ?? 0;
+                        const new7 = audienceData?.new_subscribers_7d ?? 0;
+                        const v0 = Math.max(0, totalContactsCount - new30);
+                        const v1 = Math.max(0, Math.round(v0 + (totalContactsCount - new7 - v0) * 0.4));
+                        const v2 = Math.max(0, totalContactsCount - new7);
+                        const v3 = Math.max(0, Math.round(v2 + (totalContactsCount - v2) * 0.6));
+                        const v4 = totalContactsCount;
+
+                        const dataPoints = [v0, v1, v2, v3, v4];
+                        const minVal = Math.min(...dataPoints);
+                        const maxVal = Math.max(...dataPoints);
+                        const range = maxVal - minVal;
+
+                        const xs = [10, 85, 160, 240, 310];
+                        pts = dataPoints.map((val, idx) => {
+                          const y = range === 0 ? 45 : 65 - ((val - minVal) / range) * 45;
+                          return { x: xs[idx], y, val, label: '', new_count: 0 };
+                        });
+                      }
 
                       const linePath = `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
                       const areaPath = `M ${pts[0].x} 80 L ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + ` L ${pts[pts.length - 1].x} 80 Z`;
@@ -1984,10 +2017,35 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                             strokeLinejoin="round"
                           />
                           {/* Growth checkpoints */}
-                          {pts.slice(0, 4).map((p, i) => (
-                            <circle key={i} cx={p.x} cy={p.y} r="3" fill="#10b981" />
-                          ))}
-                          <circle cx={pts[4].x} cy={pts[4].y} r="4.5" fill="#34d399" stroke="#ffffff" strokeWidth="1.5" />
+                          {pts.map((p, i) => {
+                            const isLast = i === pts.length - 1;
+                            const isFirst = i === 0;
+                            const hasGrowth = p.new_count > 0;
+                            if (!isLast && !isFirst && !hasGrowth && i % 7 !== 0) return null;
+                            if (isLast) {
+                              return (
+                                <circle
+                                  key={i}
+                                  cx={p.x}
+                                  cy={p.y}
+                                  r="4.5"
+                                  fill="#34d399"
+                                  stroke="#ffffff"
+                                  strokeWidth="1.5"
+                                />
+                              );
+                            }
+                            return (
+                              <circle
+                                key={i}
+                                cx={p.x}
+                                cy={p.y}
+                                r={hasGrowth ? "3.5" : "2"}
+                                fill="#10b981"
+                                opacity={hasGrowth ? 1 : 0.4}
+                              />
+                            );
+                          })}
                         </svg>
                       );
                     })() : (
@@ -2005,10 +2063,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   </div>
                   {/* Axis day markers */}
                   <div className="flex justify-between text-[10px] text-neutral-500 pt-1.5 font-mono">
-                    <span>30 дн назад</span>
-                    <span>15 дн</span>
-                    <span>7 дн</span>
-                    <span className="text-emerald-400 font-semibold">Сегодня ({totalContactsCount})</span>
+                    <span>{audienceData?.daily_growth?.[0]?.label || "30 дн назад"}</span>
+                    <span>{audienceData?.daily_growth?.[14]?.label || "15 дн"}</span>
+                    <span>{audienceData?.daily_growth?.[22]?.label || "7 дн"}</span>
+                    <span className="text-emerald-400 font-semibold">Сегодня (+{audienceData?.new_subscribers_today ?? 0})</span>
                   </div>
                 </div>
               </section>

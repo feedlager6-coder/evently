@@ -15,7 +15,8 @@ from app.models.city import City
 from app.schemas.audience import (
     OrganizerAudienceResponse,
     OrganizationAudienceItem,
-    EventAudienceItem
+    EventAudienceItem,
+    DailyGrowthPoint,
 )
 
 logger = logging.getLogger("evently.audience")
@@ -197,26 +198,89 @@ async def get_organizer_audience(
     total_interest = sum(m["interest"] for m in event_metrics.values())
     total_attendees = sum(m["attendees"] for m in event_metrics.values())
 
-    # 6. Total unique engaged users (deduplicated across subscriptions, RSVPs, and interests)
-    user_id_queries = []
-    if owned_org_ids:
-        user_id_queries.append(
-            select(Subscription.user_id.label("uid")).where(Subscription.organization_id.in_(owned_org_ids))
-        )
-    if all_event_ids:
-        user_id_queries.append(
-            select(EventAttendee.user_id.label("uid")).where(EventAttendee.event_id.in_(all_event_ids))
-        )
-        user_id_queries.append(
-            select(EventInterest.user_id.label("uid")).where(EventInterest.event_id.in_(all_event_ids))
-        )
+    # 6. Total unique engaged users and honest daily growth calculation
+    user_first_seen: dict[int, datetime] = {}
 
-    if user_id_queries:
-        union_q = union(*user_id_queries).subquery()
-        engaged_count_q = select(func.count(union_q.c.uid))
-        total_unique_engaged = (await session.execute(engaged_count_q)).scalar() or 0
-    else:
-        total_unique_engaged = 0
+    if owned_org_ids:
+        sub_users_res = await session.execute(
+            select(Subscription.user_id, Subscription.created_at)
+            .where(Subscription.organization_id.in_(owned_org_ids))
+        )
+        for uid, cat in sub_users_res.all():
+            if cat and (uid not in user_first_seen or cat < user_first_seen[uid]):
+                user_first_seen[uid] = cat
+
+    if all_event_ids:
+        att_users_res = await session.execute(
+            select(EventAttendee.user_id, EventAttendee.created_at)
+            .where(EventAttendee.event_id.in_(all_event_ids))
+        )
+        for uid, cat in att_users_res.all():
+            if cat and (uid not in user_first_seen or cat < user_first_seen[uid]):
+                user_first_seen[uid] = cat
+
+        int_users_res = await session.execute(
+            select(EventInterest.user_id, EventInterest.created_at)
+            .where(EventInterest.event_id.in_(all_event_ids))
+        )
+        for uid, cat in int_users_res.all():
+            if cat and (uid not in user_first_seen or cat < user_first_seen[uid]):
+                user_first_seen[uid] = cat
+
+    total_unique_engaged = len(user_first_seen)
+
+    # 30-Day Growth Timeline (strictly in Europe/Moscow timezone)
+    try:
+        from zoneinfo import ZoneInfo
+        msk_tz = ZoneInfo("Europe/Moscow")
+    except Exception:
+        msk_tz = timezone(timedelta(hours=3))
+
+    now_msk = datetime.now(timezone.utc).astimezone(msk_tz)
+    today_date = now_msk.date()
+    start_date = today_date - timedelta(days=29)
+
+    user_join_dates = {}
+    for uid, dt in user_first_seen.items():
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        user_join_dates[uid] = dt.astimezone(msk_tz).date()
+
+    # Pre-window users count towards baseline
+    baseline_count = sum(1 for d in user_join_dates.values() if d < start_date)
+
+    month_names = {
+        1: "янв", 2: "фев", 3: "мар", 4: "апр", 5: "май", 6: "июн",
+        7: "июл", 8: "авг", 9: "сен", 10: "окт", 11: "ноя", 12: "дек"
+    }
+
+    daily_growth: List[DailyGrowthPoint] = []
+    running_cumulative = baseline_count
+    d7_date = today_date - timedelta(days=6)
+    new_subscribers_7d_count = 0
+    new_subscribers_30d_count = 0
+    new_subscribers_today = 0
+
+    for i in range(30):
+        current_day = start_date + timedelta(days=i)
+        day_new = sum(1 for d in user_join_dates.values() if d == current_day)
+        running_cumulative += day_new
+
+        date_str = current_day.strftime("%Y-%m-%d")
+        label_str = f"{current_day.day} {month_names.get(current_day.month, '')}"
+
+        daily_growth.append(DailyGrowthPoint(
+            date=date_str,
+            label=label_str,
+            new_count=day_new,
+            cumulative_count=running_cumulative
+        ))
+
+        new_subscribers_30d_count += day_new
+        if current_day >= d7_date:
+            new_subscribers_7d_count += day_new
+        if current_day == today_date:
+            new_subscribers_today = day_new
 
     # 7. Recent events list (up to 10 for audience feedback)
     recent_events_items: List[EventAudienceItem] = []
@@ -240,12 +304,14 @@ async def get_organizer_audience(
 
     return OrganizerAudienceResponse(
         total_subscribers=total_subs,
-        new_subscribers_7d=total_new_7d,
-        new_subscribers_30d=total_new_30d,
+        new_subscribers_today=new_subscribers_today,
+        new_subscribers_7d=new_subscribers_7d_count,
+        new_subscribers_30d=new_subscribers_30d_count,
         total_views=total_views,
         total_interest=total_interest,
         total_attendees=total_attendees,
         total_unique_engaged=total_unique_engaged,
+        daily_growth=daily_growth,
         organizations=org_items,
         recent_events=recent_events_items,
     )

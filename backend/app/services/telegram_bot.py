@@ -44,7 +44,7 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
     Standardizes image URLs for Telegram inline previews and photo messages.
     Prevents excessively tall vertical previews by enforcing controlled landscape aspect ratios (16:10)
     for Unsplash assets, and 1:1 square for popup thumbnails.
-    Enforces cache buster (?v=2) and links to _thumb.jpg for local uploads when is_thumbnail=True.
+    Enforces cache buster (?v=4). NEVER blindly appends _thumb.jpg without verifying file exists on disk.
     """
     resolved = resolve_absolute_image_url(url)
     if "images.unsplash.com" in resolved:
@@ -53,16 +53,26 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
             return f"{base}?w=400&h=400&auto=format&fit=crop&q=80"
         return f"{base}?w=800&h=500&auto=format&fit=crop&q=85"
 
-    if "/uploads/covers/" in resolved:
+    if "/uploads/" in resolved:
         base_clean = resolved.split("?")[0]
-        # Never append _thumb.jpg to external covers (ext_*) as they have no separate thumb file
-        if is_thumbnail and "/ext_" not in base_clean and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
-            base_clean = base_clean[:-4] + "_thumb.jpg"
-        return f"{base_clean}?v=2"
+        if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg") and "/ext_" not in base_clean:
+            # Check if _thumb.jpg actually exists on disk before using it
+            try:
+                from app.services.storage_service import storage_service
+                local_dir = storage_service.get_local_storage_dir()
+                idx = base_clean.find("/uploads/")
+                if idx != -1:
+                    rel_part = base_clean[idx + len("/uploads/"):]
+                    candidate_rel = rel_part[:-4] + "_thumb.jpg"
+                    if (local_dir / candidate_rel).is_file():
+                        base_clean = base_clean[:idx + len("/uploads/")] + candidate_rel
+            except Exception:
+                pass
+        return f"{base_clean}?v=4"
 
     if "files.catbox.moe" in resolved:
         base_clean = resolved.split("?")[0]
-        return f"{base_clean}?v=2"
+        return f"{base_clean}?v=4"
 
     return resolved
 
@@ -394,8 +404,8 @@ def build_event_inline_result(
         "description": description,
         "thumbnail_url": thumb_url,
         "thumb_url": thumb_url,
-        "thumbnail_width": 320,
-        "thumbnail_height": 320,
+        "thumbnail_width": 100,
+        "thumbnail_height": 100,
         "input_message_content": {
             "message_text": message_text,
             "parse_mode": "HTML",
@@ -493,7 +503,7 @@ async def handle_inline_query(
                     "results": [
                         build_event_inline_result(event_details, is_share=False)
                     ],
-                    "cache_time": 10,
+                    "cache_time": 1,
                     "is_personal": True
                 }
         except Exception as e:
@@ -593,6 +603,8 @@ async def handle_inline_query(
             "description": "Нажмите, чтобы открыть всю афишу Ivently в Mini App",
             "thumbnail_url": empty_thumb,
             "thumb_url": empty_thumb,
+            "thumbnail_width": 100,
+            "thumbnail_height": 100,
             "input_message_content": {
                 "message_text": (
                     f"🔍 <b>По запросу «{display_q}» событий не найдено.</b>\n\n"
@@ -606,7 +618,7 @@ async def handle_inline_query(
     return {
         "inline_query_id": query_id,
         "results": results,
-        "cache_time": 5,
+        "cache_time": 1,
         "is_personal": True
     }
 

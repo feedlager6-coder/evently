@@ -347,14 +347,23 @@ export interface EventAudienceItem {
   attendee_count: number;
 }
 
+export interface DailyGrowthPoint {
+  date: string;
+  label: string;
+  new_count: number;
+  cumulative_count: number;
+}
+
 export interface OrganizerAudienceResponse {
   total_subscribers: number;
+  new_subscribers_today?: number;
   new_subscribers_7d: number;
   new_subscribers_30d: number;
   total_views: number;
   total_interest: number;
   total_attendees: number;
   total_unique_engaged: number;
+  daily_growth?: DailyGrowthPoint[];
   organizations: OrganizationAudienceItem[];
   recent_events: EventAudienceItem[];
 }

@@ -36,15 +36,25 @@ class EventAudienceItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DailyGrowthPoint(BaseModel):
+    date: str
+    label: str
+    new_count: int = 0
+    cumulative_count: int = 0
+
+
 class OrganizerAudienceResponse(BaseModel):
     total_subscribers: int = 0
+    new_subscribers_today: int = 0
     new_subscribers_7d: int = 0
     new_subscribers_30d: int = 0
     total_views: int = 0
     total_interest: int = 0
     total_attendees: int = 0
     total_unique_engaged: int = 0
+    daily_growth: List[DailyGrowthPoint] = []
     organizations: List[OrganizationAudienceItem] = []
     recent_events: List[EventAudienceItem] = []
 
     model_config = ConfigDict(from_attributes=True)
+

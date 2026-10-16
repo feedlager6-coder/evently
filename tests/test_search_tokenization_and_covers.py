@@ -66,7 +66,7 @@ async def test_inline_result_fallback_covers(test_session):
 
 @pytest.mark.asyncio
 async def test_handle_inline_query_cache_time(test_session):
-    """Verifies that handle_inline_query returns cache_time: 5 and is_personal: True."""
+    """Verifies that handle_inline_query returns cache_time: 1 and is_personal: True."""
     res = await handle_inline_query(test_session, {"id": "test_q", "query": "чилл"})
-    assert res["cache_time"] == 5
+    assert res["cache_time"] == 1
     assert res["is_personal"] is True
