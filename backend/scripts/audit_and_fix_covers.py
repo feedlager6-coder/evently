@@ -19,7 +19,7 @@ import httpx
 sys.path.insert(0, "/app")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.database import async_session_factory
+from app.database import AsyncSessionLocal
 from app.models.event import Event, EventStatus
 from app.services.telegram_bot import handle_inline_query, optimize_preview_image_url
 from app.services.audience_service import get_organizer_audience
@@ -40,7 +40,7 @@ async def audit_and_fix_covers():
     missing_count = 0
     ok_count = 0
 
-    async with async_session_factory() as session:
+    async with AsyncSessionLocal() as session:
         events_res = await session.execute(
             select(Event.id, Event.title, Event.cover_image_url)
             .where(Event.status == EventStatus.PUBLISHED.value)
@@ -85,7 +85,7 @@ async def audit_and_fix_covers():
     print(f"Audit complete: {ok_count} OK, {converted_count} re-encoded, {missing_count} missing.\n")
 
     print("=== STEP 2: TESTING INLINE QUERY (query='') ===")
-    async with async_session_factory() as session:
+    async with AsyncSessionLocal() as session:
         inline_resp = await handle_inline_query(session, {"id": "test_empty_query", "query": ""})
         results = inline_resp.get("results", [])
         print(f"Inline query returned {len(results)} results (cache_time={inline_resp.get('cache_time')}, is_personal={inline_resp.get('is_personal')}):")
@@ -124,7 +124,7 @@ async def audit_and_fix_covers():
                 print(f"      dims: {w}x{h} | HTTP: {status_code} | Content-Type: {content_type} | PIL: {pil_format} {pil_size}")
 
     print("\n=== STEP 3: TESTING AUDIENCE METRICS FOR ORGANIZERS ===")
-    async with async_session_factory() as session:
+    async with AsyncSessionLocal() as session:
         orgs_res = await session.execute(select(Organization).limit(3))
         orgs = orgs_res.scalars().all()
         for org in orgs:
