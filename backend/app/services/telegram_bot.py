@@ -338,7 +338,7 @@ def build_event_inline_result(
     """
     raw_id = getattr(event, "id", "0")
     clean_id = str(raw_id).replace("event_", "").strip()
-    result_id = f"share_{clean_id}" if is_share else f"event_{clean_id}"
+    result_id = f"event_{clean_id}"
 
     if not deep_link:
         deep_link = settings.get_event_deep_link(clean_id)
@@ -355,33 +355,63 @@ def build_event_inline_result(
         ]
     }
 
-    caption = format_event_card_caption(event)
     raw_title = getattr(event, "title", "Мероприятие")
     title_str = str(raw_title).strip() if isinstance(raw_title, str) else "Мероприятие"
 
     venue_display = format_event_venue_str(event)
-    date_str = format_event_date_str(event)
-    price_line = format_event_price_line(event) or ""
-    desc_parts = [
-        str(p).strip()
-        for p in [venue_display, date_str, price_line]
-        if p and isinstance(p, str) and str(p).strip()
-    ]
-    description = " · ".join(desc_parts)
+
+    # Date formatting in city timezone
+    raw_start = getattr(event, "start_at", None)
+    dt: Optional[datetime] = None
+    if isinstance(raw_start, datetime):
+        dt = raw_start
+    elif isinstance(raw_start, str):
+        try:
+            dt = datetime.fromisoformat(raw_start.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    if dt:
+        try:
+            city_tz_str = None
+            if hasattr(event, "city") and event.city and getattr(event.city, "timezone", None):
+                city_tz_str = event.city.timezone
+            elif hasattr(event, "city_timezone") and event.city_timezone:
+                city_tz_str = event.city_timezone
+
+            from app.services.event_service import resolve_city_timezone
+            tz = resolve_city_timezone(city_tz_str or "Europe/Moscow")
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc).astimezone(tz)
+            else:
+                dt = dt.astimezone(tz)
+        except Exception:
+            pass
+
+    date_short = dt.strftime('%d.%m %H:%M') if dt else "Дата уточняется"
+    date_full = dt.strftime('%d.%m.%Y %H:%M') if dt else "Дата уточняется"
+    description = f"{date_short} • {venue_display}"
 
     raw_cover = getattr(event, "cover_image_url", None)
     has_cover = bool(raw_cover and isinstance(raw_cover, str) and raw_cover.strip())
 
-    photo_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
-    thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
+    absolute_cover_url = optimize_preview_image_url(raw_cover, is_thumbnail=False)
+    absolute_thumb_url = optimize_preview_image_url(raw_cover, is_thumbnail=True)
+
+    base_webapp = getattr(settings, "WEBAPP_URL", "https://iventlyapp.ru").rstrip('/')
+    if not absolute_thumb_url.startswith("http://") and not absolute_thumb_url.startswith("https://"):
+        absolute_thumb_url = f"{base_webapp}/{absolute_thumb_url.lstrip('/')}"
+    if not absolute_cover_url.startswith("http://") and not absolute_cover_url.startswith("https://"):
+        absolute_cover_url = f"{base_webapp}/{absolute_cover_url.lstrip('/')}"
 
     # For user-initiated sharing (savePreparedInlineMessage), send native photo card if valid cover exists
-    if is_share and has_cover and photo_url and (photo_url.startswith("https://") or photo_url.startswith("http://")):
+    if is_share and has_cover and absolute_cover_url and (absolute_cover_url.startswith("https://") or absolute_cover_url.startswith("http://")):
+        caption = format_event_card_caption(event)
         return {
             "type": "photo",
-            "id": result_id,
-            "photo_url": photo_url,
-            "thumbnail_url": thumb_url,
+            "id": f"share_{clean_id}",
+            "photo_url": absolute_cover_url,
+            "thumbnail_url": absolute_thumb_url,
             "title": f"🎟 {title_str}",
             "description": description,
             "caption": caption,
@@ -389,29 +419,30 @@ def build_event_inline_result(
             "reply_markup": reply_markup
         }
 
-    # For inline query search (@Ivently_bot <city>), always return InlineQueryResultArticle
-    # to guarantee consistent, uniform vertical list ("шторка") with thumbnail, title, venue, date, and price
-    # across all clients (never collapsing into bare photo tiles).
-    # Prepend invisible zero-width space link to photo_url so Telegram link preview renders large photo
-    invisible_lead = f'<a href="{html.escape(photo_url)}">&#8203;</a>' if photo_url else ""
-    message_text = f"{invisible_lead}{caption}"
+    clean_md_title = title_str.replace("*", "").replace("_", "")
+    venue_display = getattr(event, "venue_name", None) or "Городская афиша"
+    message_text = (
+        f"🎟 *{clean_md_title}*\n"
+        f"📅 {date_full}\n"
+        f"📍 {venue_display}\n\n"
+        f"👉 Подробнее в приложении: [https://iventlyapp.ru]({deep_link})"
+    )
 
     return {
         "type": "article",
         "id": result_id,
-        "title": f"🎟 {title_str}",
+        "title": title_str,
         "description": description,
-        "thumbnail_url": thumb_url,
+        "thumbnail_url": absolute_thumb_url,
         "thumbnail_width": 160,
         "thumbnail_height": 160,
         "input_message_content": {
             "message_text": message_text,
-            "parse_mode": "HTML",
+            "parse_mode": "Markdown",
             "link_preview_options": {
                 "is_disabled": False,
-                "url": photo_url,
-                "prefer_large_media": True,
-                "show_above_text": True
+                "url": absolute_cover_url,
+                "prefer_large_media": True
             }
         },
         "reply_markup": reply_markup
@@ -587,28 +618,38 @@ async def handle_inline_query(
 
     if events:
         for ev in events:
-            results.append(build_event_inline_result(ev, is_share=False))
+            res_item = build_event_inline_result(ev, is_share=False)
+            results.append(res_item)
+            logger.info(
+                f"[Inline Result] id={res_item.get('id')} | title='{res_item.get('title')}' | "
+                f"thumbnail_url='{res_item.get('thumbnail_url')}' | "
+                f"dims={res_item.get('thumbnail_width')}x{res_item.get('thumbnail_height')}"
+            )
+            print(
+                f"[Inline Result] id={res_item.get('id')} | title='{res_item.get('title')}' | "
+                f"thumb={res_item.get('thumbnail_url')}",
+                flush=True
+            )
 
     if not results:
         # Graceful empty-state
         city_display = target_city_name or (target_city_id or "выбранном городе").capitalize()
         empty_thumb = resolve_absolute_image_url(None)
-        display_q = html.escape(query_text or "поиск")
+        clean_q = query_text or "поиск"
         results.append({
             "type": "article",
             "id": "empty_state",
             "title": f"В {city_display} пока нет подходящих событий",
             "description": "Нажмите, чтобы открыть всю афишу Ivently в Mini App",
             "thumbnail_url": empty_thumb,
-            "thumb_url": empty_thumb,
-            "thumbnail_width": 100,
-            "thumbnail_height": 100,
+            "thumbnail_width": 160,
+            "thumbnail_height": 160,
             "input_message_content": {
                 "message_text": (
-                    f"🔍 <b>По запросу «{display_q}» событий не найдено.</b>\n\n"
+                    f"🔍 *По запросу «{clean_q}» событий не найдено.*\n\n"
                     f"Откройте Ivently Mini App, чтобы посмотреть события в других городах или категориях."
                 ),
-                "parse_mode": "HTML"
+                "parse_mode": "Markdown"
             },
             "reply_markup": build_catalog_inline_keyboard()
         })
@@ -782,4 +823,9 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 ]
             }
         }
+
+
+# Public alias per requirements
+process_inline_query = handle_inline_query
+
 

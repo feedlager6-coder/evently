@@ -76,51 +76,6 @@ export const App: React.FC = () => {
     isDetailsOpenRef.current = isDetailsOpen;
   }, [isDetailsOpen]);
 
-  // Horizontal Carousel ref & gesture lock to prevent iOS TMA pull-to-dismiss
-  const carouselTrackRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = carouselTrackRef.current;
-    if (!el) return;
-
-    let startX = 0;
-    let startY = 0;
-    let isHorizontalGesture: boolean | null = null;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      isHorizontalGesture = null;
-      try {
-        window.Telegram?.WebApp?.disableVerticalSwipes?.();
-      } catch {
-        // ignore
-      }
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      const dx = Math.abs(e.touches[0].clientX - startX);
-      const dy = Math.abs(e.touches[0].clientY - startY);
-
-      if (isHorizontalGesture === null && (dx > 4 || dy > 4)) {
-        isHorizontalGesture = dx >= dy;
-      }
-
-      if (isHorizontalGesture) {
-        e.stopPropagation();
-      }
-    };
-
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove', onTouchMove, { passive: false });
-
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-    };
-  }, [dateFilter]);
-
   const isDeepLinkActiveRef = useRef<boolean>(false);
   const [isRsvpLoading, setIsRsvpLoading] = useState(false);
   const [isInterestLoading, setIsInterestLoading] = useState(false);
@@ -1182,7 +1137,7 @@ export const App: React.FC = () => {
                       </div>
 
                       {/* Horizontal Swipeable Track with touch-action safety against TMA pull-down dismiss */}
-                      <div ref={carouselTrackRef} className="horizontal-carousel flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none snap-x">
+                      <div className="horizontal-carousel flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none snap-x">
                         {carouselEvents.map((weEvent) => {
                           const weDate = new Date(weEvent.start_at);
                           const weFormatted = weDate.toLocaleDateString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase();

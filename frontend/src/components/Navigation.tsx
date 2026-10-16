@@ -15,10 +15,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   onChangeTab,
   isAdmin,
 }) => {
-  const handleTabAction = (e: React.SyntheticEvent, tab: TabType) => {
-    e.stopPropagation();
+  const handleTabAction = (tab: TabType) => {
     if (tab === 'feed' && currentTab === 'feed') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
     if (tab !== currentTab) {
       telegram.hapticSelection();
@@ -38,12 +38,14 @@ export const Navigation: React.FC<NavigationProps> = ({
     touchAction: 'manipulation',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
+    cursor: 'pointer',
   };
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe pointer-events-none">
       <div className="max-w-[480px] mx-auto px-4 pb-3 pt-1 flex justify-center">
         <div
+          style={{ touchAction: 'manipulation' }}
           className={`pointer-events-auto relative flex items-center p-1.5 h-16 w-full ${
             isAdmin ? 'max-w-[380px]' : 'max-w-[280px]'
           } rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.15),0_12px_36px_rgba(0,0,0,0.75)]`}
@@ -62,9 +64,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Feed Tab */}
           <button
             style={buttonStyle}
-            onPointerDown={(e) => handleTabAction(e, 'feed')}
-            onClick={(e) => handleTabAction(e, 'feed')}
-            className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
+            onClick={() => handleTabAction('feed')}
+            className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
               isFeedActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
             aria-label="Афиша"
@@ -77,9 +78,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* My Events Tab (Personal Hub) */}
           <button
             style={buttonStyle}
-            onPointerDown={(e) => handleTabAction(e, 'my_events')}
-            onClick={(e) => handleTabAction(e, 'my_events')}
-            className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
+            onClick={() => handleTabAction('my_events')}
+            className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
               isMyEventsActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
             aria-label="Мои события"
@@ -93,9 +93,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {isAdmin && (
             <button
               style={buttonStyle}
-              onPointerDown={(e) => handleTabAction(e, 'admin')}
-              onClick={(e) => handleTabAction(e, 'admin')}
-              className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] ${
+              onClick={() => handleTabAction('admin')}
+              className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
                 isAdminActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
               }`}
               aria-label="Модерация"

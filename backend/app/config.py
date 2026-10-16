@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     AUTH_DATE_MAX_AGE_SECONDS: int = 86400
     PUBLIC_HOST: Optional[str] = None
     APP_PUBLIC_HOST: Optional[str] = None
+    WEBAPP_URL: str = "https://iventlyapp.ru"
     CORS_ORIGINS: str = "*"
 
     # Broadcast Engine

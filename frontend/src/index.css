@@ -44,15 +44,8 @@
   }
 
   html {
-    scrollbar-gutter: stable;
-    overscroll-behavior-y: contain;
     background-color: #0e0e10;
-  }
-
-  @supports not (scrollbar-gutter: stable) {
-    html {
-      overflow-y: scroll;
-    }
+    -webkit-overflow-scrolling: touch;
   }
 
   body {
@@ -61,8 +54,7 @@
     color: var(--text-primary);
     min-height: 100vh;
     min-height: 100dvh;
-    overflow-x: hidden;
-    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
