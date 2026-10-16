@@ -5,6 +5,10 @@
 }
 
 iventlyapp.ru {
+    log {
+        output stdout
+        format console
+    }
     encode gzip zstd
 
     # Serve uploads directly via high-performance file_server with cross-origin headers
