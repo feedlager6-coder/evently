@@ -55,6 +55,7 @@
     min-height: 100vh;
     min-height: 100dvh;
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
   }
 }
 

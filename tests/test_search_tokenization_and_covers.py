@@ -70,3 +70,26 @@ async def test_handle_inline_query_cache_time(test_session):
     res = await handle_inline_query(test_session, {"id": "test_q", "query": "чилл"})
     assert res["cache_time"] == 1
     assert res["is_personal"] is True
+
+
+@pytest.mark.asyncio
+async def test_inline_result_wsrv_and_html(test_session):
+    """Verifies that locally hosted covers are proxied via wsrv.nl and messages use HTML parse_mode."""
+    class MockUploadedEvent:
+        id = "mock_uploaded_123"
+        title = "Mock Festival"
+        cover_image_url = "/uploads/covers/mock_test.jpg"
+        venue_name = "Mock Stadium"
+        city_name = "Москва"
+        start_at = datetime.now(timezone.utc) + timedelta(days=1)
+        price_amount = 1000.0
+        is_free = False
+
+    inline_res = build_event_inline_result(MockUploadedEvent())
+    assert inline_res["type"] == "article"
+    assert inline_res["title"].startswith("🎟 ")
+    assert "wsrv.nl/?url=" in inline_res["thumbnail_url"]
+    assert "w=160&h=160" in inline_res["thumbnail_url"]
+    assert inline_res["input_message_content"]["parse_mode"] == "HTML"
+    assert "<a href=" in inline_res["input_message_content"]["message_text"]
+    assert inline_res["input_message_content"]["link_preview_options"]["show_above_text"] is True

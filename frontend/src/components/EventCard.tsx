@@ -84,7 +84,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).src = '/covers/default_event.jpg';
               }}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-[#08080a]/60 to-black/25 pointer-events-none" />
           </div>
@@ -181,7 +181,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = '/covers/default_event.jpg';
             }}
-            className="w-full h-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
+            className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#141416] via-transparent to-black/35 pointer-events-none" />
         </div>

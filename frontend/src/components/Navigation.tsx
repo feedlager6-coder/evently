@@ -15,6 +15,18 @@ export const Navigation: React.FC<NavigationProps> = ({
   onChangeTab,
   isAdmin,
 }) => {
+  const lastTouchTimeRef = React.useRef<number>(0);
+
+  const handleTouchStart = (_e: React.TouchEvent, tab: TabType) => {
+    lastTouchTimeRef.current = Date.now();
+    handleTabAction(tab);
+  };
+
+  const handleClick = (tab: TabType) => {
+    if (Date.now() - lastTouchTimeRef.current < 500) return;
+    handleTabAction(tab);
+  };
+
   const handleTabAction = (tab: TabType) => {
     if (tab === 'feed' && currentTab === 'feed') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -64,7 +76,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* Feed Tab */}
           <button
             style={buttonStyle}
-            onClick={() => handleTabAction('feed')}
+            onTouchStart={(e) => handleTouchStart(e, 'feed')}
+            onClick={() => handleClick('feed')}
             className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
               isFeedActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
@@ -78,7 +91,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {/* My Events Tab (Personal Hub) */}
           <button
             style={buttonStyle}
-            onClick={() => handleTabAction('my_events')}
+            onTouchStart={(e) => handleTouchStart(e, 'my_events')}
+            onClick={() => handleClick('my_events')}
             className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
               isMyEventsActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
             }`}
@@ -93,7 +107,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           {isAdmin && (
             <button
               style={buttonStyle}
-              onClick={() => handleTabAction('admin')}
+              onTouchStart={(e) => handleTouchStart(e, 'admin')}
+              onClick={() => handleClick('admin')}
               className={`relative z-10 flex-1 h-full rounded-full flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 active:scale-95 min-h-[44px] cursor-pointer ${
                 isAdminActive ? 'text-white font-semibold' : 'text-[#8e9192] hover:text-[#c4c7c8]'
               }`}

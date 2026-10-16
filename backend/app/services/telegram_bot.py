@@ -1,5 +1,6 @@
 import html
 import logging
+import urllib.parse
 import httpx
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
@@ -42,9 +43,9 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
 def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -> str:
     """
     Standardizes image URLs for Telegram inline previews and photo messages.
-    Prevents excessively tall vertical previews by enforcing controlled landscape aspect ratios (16:10)
-    for Unsplash assets, and 1:1 square for popup thumbnails.
-    Enforces cache buster (?v=6). NEVER blindly appends _thumb.jpg without verifying file exists on disk.
+    Forms full direct URL on https://iventlyapp.ru/...
+    If hosted on iventlyapp.ru, proxies via global Cloudflare CDN-resizer wsrv.nl
+    to guarantee high-speed, unblocked delivery for Telegram's media crawlers.
     """
     resolved = resolve_absolute_image_url(url)
     if "images.unsplash.com" in resolved:
@@ -53,8 +54,8 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
             return f"{base}?w=400&h=400&auto=format&fit=crop&q=80"
         return f"{base}?w=800&h=500&auto=format&fit=crop&q=85"
 
-    if "/uploads/" in resolved:
-        base_clean = resolved.split("?")[0]
+    base_clean = resolved.split("?")[0]
+    if "/uploads/" in base_clean:
         if is_thumbnail and base_clean.endswith(".jpg") and not base_clean.endswith("_thumb.jpg"):
             # Check if _thumb.jpg actually exists on disk before using it
             try:
@@ -68,13 +69,14 @@ def optimize_preview_image_url(url: Optional[str], is_thumbnail: bool = False) -
                         base_clean = base_clean[:idx + len("/uploads/")] + candidate_rel
             except Exception:
                 pass
-        return f"{base_clean}?v=6"
 
-    if "files.catbox.moe" in resolved:
-        base_clean = resolved.split("?")[0]
-        return f"{base_clean}?v=6"
+    if "iventlyapp.ru" in base_clean:
+        encoded_url = urllib.parse.quote(base_clean, safe='')
+        if is_thumbnail:
+            return f"https://wsrv.nl/?url={encoded_url}&w=160&h=160&fit=cover&output=jpg&q=80"
+        return f"https://wsrv.nl/?url={encoded_url}&w=800&h=500&fit=cover&output=jpg&q=82"
 
-    return resolved
+    return base_clean
 
 
 def format_event_price_line(event: Any) -> Optional[str]:
@@ -419,30 +421,23 @@ def build_event_inline_result(
             "reply_markup": reply_markup
         }
 
-    clean_md_title = title_str.replace("*", "").replace("_", "")
-    venue_display = getattr(event, "venue_name", None) or "Городская афиша"
-    message_text = (
-        f"🎟 *{clean_md_title}*\n"
-        f"📅 {date_full}\n"
-        f"📍 {venue_display}\n\n"
-        f"👉 Подробнее в приложении: [https://iventlyapp.ru]({deep_link})"
-    )
-
+    caption = format_event_card_caption(event)
     return {
         "type": "article",
         "id": result_id,
-        "title": title_str,
+        "title": f"🎟 {title_str}",
         "description": description,
         "thumbnail_url": absolute_thumb_url,
         "thumbnail_width": 160,
         "thumbnail_height": 160,
         "input_message_content": {
-            "message_text": message_text,
-            "parse_mode": "Markdown",
+            "message_text": f'<a href="{absolute_cover_url}">&#8203;</a>{caption}',
+            "parse_mode": "HTML",
             "link_preview_options": {
                 "is_disabled": False,
                 "url": absolute_cover_url,
-                "prefer_large_media": True
+                "prefer_large_media": True,
+                "show_above_text": True
             }
         },
         "reply_markup": reply_markup

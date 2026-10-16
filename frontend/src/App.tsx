@@ -911,7 +911,7 @@ export const App: React.FC = () => {
   const currentCity = cities.find((c) => c.id === selectedCityId) || DEFAULT_CITIES.find(c => c.id === selectedCityId) || DEFAULT_CITIES[0];
 
   return (
-    <div className="min-h-screen bg-[#08080A] text-[#e5e1e4] content-safe-bottom selection:bg-[#10b981]/30 selection:text-[#4edea3] relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#08080A] text-[#e5e1e4] content-safe-bottom selection:bg-[#10b981]/30 selection:text-[#4edea3] relative">
       {/* Ambient Obsidian Glow Orbs matching Stitch */}
       <div className="fixed top-20 left-1/2 -translate-x-1/2 w-[340px] h-[340px] bg-[#10b981]/6 rounded-full blur-[110px] pointer-events-none -z-10" />
       <div className="fixed top-[480px] right-0 w-[260px] h-[260px] bg-[#f59e0b]/5 rounded-full blur-[90px] pointer-events-none -z-10" />
