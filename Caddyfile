@@ -7,12 +7,14 @@
 iventlyapp.ru {
     encode gzip zstd
 
-    # Proxy uploads directly to FastAPI app
+    # Proxy uploads directly to FastAPI app with cross-origin headers for Telegram crawler
     handle /uploads/* {
         reverse_proxy app:8000 {
             header_up X-Forwarded-Proto https
         }
-        header Cache-Control "public, max-age=2592000, immutable"
+        header Access-Control-Allow-Origin "*"
+        header Cross-Origin-Resource-Policy "cross-origin"
+        header Cache-Control "public, max-age=86400"
     }
 
     # Long-term immutable caching for hashed Vite frontend bundles

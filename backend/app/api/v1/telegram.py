@@ -47,7 +47,7 @@ async def dispatch_telegram_update(
                 if resp.status_code != 200 or not resp.json().get("ok"):
                     logger.warning(f"Telegram answerInlineQuery response error (status={resp.status_code}): {resp.text}")
                 else:
-                    logger.info(f"Telegram answerInlineQuery successfully sent for {answer_payload.get('inline_query_id')}")
+                    logger.info(f"Telegram answerInlineQuery successfully sent for {answer_payload.get('inline_query_id')} (status={resp.status_code}, response={resp.text})")
 
             return {
                 "method": "answerInlineQuery",

@@ -109,6 +109,20 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
   useEffect(() => {
     if (isOpen && orgIdOrSlug) {
+      if (initialData) {
+        setOrg({
+          id: orgIdOrSlug,
+          name: initialData.name || '',
+          slug: orgIdOrSlug,
+          category: initialData.category || 'Организатор',
+          avatar_url: initialData.avatar_url || initialData.logo_url || null,
+          is_verified: Boolean(initialData.is_verified),
+          status: 'active',
+          follower_count: 0,
+          created_at: new Date().toISOString(),
+          is_following: false,
+        } as unknown as OrganizationResponse);
+      }
       loadData();
       setActiveTab('afisha');
     } else {
@@ -116,25 +130,9 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
       setEvents([]);
       setError(null);
     }
-  }, [isOpen, orgIdOrSlug, loadData]);
+  }, [isOpen, orgIdOrSlug, loadData, initialData]);
 
   if (!isOpen) return null;
-
-  const displayOrg: OrganizationResponse | null = org || (initialData ? {
-    id: orgIdOrSlug || '',
-    name: initialData.name || '',
-    slug: orgIdOrSlug || '',
-    avatar_url: initialData.avatar_url || initialData.logo_url || null,
-    logo_url: initialData.logo_url || initialData.avatar_url || null,
-    is_verified: Boolean(initialData.is_verified),
-    category: initialData.category || null,
-    city_name: null,
-    followers_count: 0,
-    is_subscribed: false,
-    is_owner: false,
-    rating: 5.0,
-    created_at: new Date().toISOString(),
-  } as unknown as OrganizationResponse : null);
 
   const handleToggleSubscribe = async () => {
     if (!org || isSubscribing || org.is_owner) return;
@@ -419,7 +417,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#08080A] overflow-y-auto overflow-x-hidden flex flex-col no-scrollbar">
+    <div className="fixed inset-0 z-[150] bg-[#08080A] overflow-y-auto overflow-x-hidden flex flex-col no-scrollbar">
       {/* Ambient Top Emerald Radial Glow Spot */}
       <div className="absolute top-0 inset-x-0 h-96 radial-emerald-glow pointer-events-none -z-10" />
 
@@ -460,13 +458,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
           </button>
         </header>
 
-        {/* Loading State: only show full-screen spinner if we have no displayOrg */}
-        {isLoading && !displayOrg ? (
+        {/* Loading State */}
+        {isLoading && !org ? (
           <div className="flex-1 py-32 flex flex-col items-center justify-center space-y-3 text-neutral-400">
             <Loader2 className="w-8 h-8 animate-spin text-[#4edea3]" />
             <span className="text-xs font-medium">Загрузка профиля организации...</span>
           </div>
-        ) : error && !displayOrg ? (
+        ) : error && !org ? (
           <div className="p-6 m-4 text-center rounded-2xl bg-red-500/10 border border-red-500/20 text-red-300 space-y-3">
             <AlertCircle className="w-7 h-7 mx-auto text-red-400" />
             <div className="text-sm font-bold">{error}</div>
@@ -478,10 +476,8 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               Повторить попытку
             </button>
           </div>
-        ) : displayOrg ? (() => {
-          const org = displayOrg;
-          return (
-            <div className="flex-1 flex flex-col space-y-5 pt-3">
+        ) : org ? (
+          <div className="flex-1 flex flex-col space-y-5 pt-3">
             {/* Owner Management Banner (if user is creator of this org) */}
             {org?.is_owner && (
               <div className="mx-4 p-3 rounded-2xl bg-[#1c1b1e] border border-white/10 flex items-center justify-between shadow-lg">
@@ -526,11 +522,11 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {/* Specular Avatar Ring with Verified Badge */}
               <div className="relative mt-1">
                 <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-b from-white/25 via-white/10 to-transparent shadow-[0_0_28px_rgba(16,185,129,0.25)] flex items-center justify-center">
-                  <div className="w-full h-full rounded-full overflow-hidden bg-[#18181b] border border-white/10">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-[#18181b] border border-white/10 flex items-center justify-center">
                     <SafeAvatar
-                      src={org?.avatar_url || (org as any)?.logo_url || initialData?.avatar_url || initialData?.logo_url}
-                      name={org?.name || initialData?.name || ''}
-                      alt={org?.name || initialData?.name || ''}
+                      src={org.avatar_url || (org as any).logo_url}
+                      name={org.name}
+                      alt={org.name}
                       type="org"
                       sizeClassName="w-full h-full"
                       className="w-full h-full object-cover rounded-full"
@@ -538,7 +534,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
                   </div>
                 </div>
                 {/* Verified Shield Badge on bottom-right of avatar */}
-                {Boolean(org?.is_verified ?? initialData?.is_verified) && (
+                {Boolean(org.is_verified) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -555,7 +551,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
               {/* Organization Title */}
               <h1 className="text-2xl font-extrabold text-white tracking-tight mt-3">
-                {org?.name || initialData?.name || ''}
+                {org.name}
               </h1>
 
               {/* Verified Organizer Status Badge with Pulsing Dot */}
@@ -577,13 +573,13 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {/* Category Pill with Sound Wave Icon */}
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1a1a1f] border border-white/5 text-xs text-neutral-300 mt-2.5">
                 <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
-                <span>{org?.category || initialData?.category || 'Организатор'}</span>
+                <span>{org.category || 'Организатор'}</span>
               </div>
 
               {/* City Pill */}
               <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/5 text-[11px] text-neutral-400 mt-1.5">
                 <MapPin className="w-3 h-3 text-[#4edea3]" />
-                <span>{org?.city_name || 'Локация не указана'}</span>
+                <span>{org.city_name || 'Локация не указана'}</span>
               </div>
 
               {/* 3. Action Buttons Row: [Подписаться], [Написать], [Редактировать] */}
@@ -934,8 +930,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               </section>
             )}
             </div>
-          );
-        })() : null}
+        ) : null}
       </div>
     </div>
   );

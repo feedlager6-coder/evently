@@ -1,7 +1,6 @@
 import React from 'react';
 import type { EventSummary } from '../types';
 import { Calendar, MapPin, Users, Bookmark } from 'lucide-react';
-import { SafeImage } from './SafeImage';
 import { haptics } from '../utils/haptics';
 
 interface EventCardProps {
@@ -10,6 +9,17 @@ interface EventCardProps {
   isHero?: boolean;
   onToggleInterest?: (event: EventSummary) => void;
 }
+
+const resolveCoverUrl = (url?: string | null): string => {
+  if (!url || !url.trim() || url.includes('photo-1520523839898-50712140e698')) {
+    return '/covers/default_event.jpg';
+  }
+  const clean = url.trim();
+  if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
+    return clean;
+  }
+  return `/${clean}`;
+};
 
 export const EventCard: React.FC<EventCardProps> = ({
   event,
@@ -54,6 +64,8 @@ export const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
+  const coverUrl = resolveCoverUrl(event.cover_image_url);
+
   // Hero Card Presentation (First item in feed matching Stitch)
   if (isHero) {
     return (
@@ -63,11 +75,14 @@ export const EventCard: React.FC<EventCardProps> = ({
       >
         <div className="relative h-[360px] w-full flex flex-col justify-between p-4">
           {/* Background image & gradient ramp */}
-          <div className="absolute inset-0 z-0">
-            <SafeImage
-              src={event.cover_image_url}
+          <div className="absolute inset-0 z-0 bg-[#1c1b1e]">
+            <img
+              src={coverUrl}
               alt={event.title}
               loading="eager"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/covers/default_event.jpg';
+              }}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-[#08080a]/60 to-black/25 pointer-events-none" />
@@ -151,11 +166,14 @@ export const EventCard: React.FC<EventCardProps> = ({
     >
       {/* Cover Image Container */}
       <div className="relative h-[190px] w-full overflow-hidden bg-[#121215] p-3 flex flex-col justify-between">
-        <div className="absolute inset-0 z-0">
-          <SafeImage
-            src={event.cover_image_url}
+        <div className="absolute inset-0 z-0 bg-[#121215]">
+          <img
+            src={coverUrl}
             alt={event.title}
             loading="eager"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/covers/default_event.jpg';
+            }}
             className="w-full h-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#141416] via-transparent to-black/35 pointer-events-none" />

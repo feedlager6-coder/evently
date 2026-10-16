@@ -22,7 +22,6 @@ import {
   ExternalLink,
   AlertCircle
 } from 'lucide-react';
-import { SafeImage } from './SafeImage';
 import { SafeAvatar } from './SafeAvatar';
 import { TelegramIcon } from './TelegramIcon';
 
@@ -292,9 +291,13 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         {/* Hero Stage (320px rounded-3xl with scrim & top badges) */}
         <div className="relative w-full rounded-3xl overflow-hidden bg-[#201f22] shadow-xl">
           <div className="w-full h-80 relative">
-            <SafeImage
-              src={event.cover_image_url}
+            <img
+              src={event.cover_image_url && !event.cover_image_url.includes('photo-1520523839898-50712140e698') ? event.cover_image_url : '/covers/default_event.jpg'}
               alt={event.title}
+              loading="eager"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/covers/default_event.jpg';
+              }}
               className="w-full h-full object-cover"
             />
             {/* Gradient Scrim for Readability */}

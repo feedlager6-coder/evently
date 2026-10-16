@@ -34,15 +34,11 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   type = 'org',
 }) => {
   const resolvedSrc = resolveAvatarUrl(src);
-  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [hasError, setHasError] = useState(false);
 
-  // Reset state if resolvedSrc changes
+  // Reset error state if resolvedSrc changes
   useEffect(() => {
-    if (resolvedSrc) {
-      setImageState('loading');
-    } else {
-      setImageState('error');
-    }
+    setHasError(false);
   }, [resolvedSrc]);
 
   const cleanName = name.trim();
@@ -53,7 +49,7 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
   const hasExplicitSize = /\b(w-\d+|h-\d+|size-\d+|w-\[|h-\[)/.test(className);
   const effectiveSize = sizeClassName === 'w-full h-full' && hasExplicitSize ? '' : sizeClassName;
 
-  const renderFallback = () => {
+  if (!resolvedSrc || hasError) {
     return (
       <div
         className={`relative overflow-hidden shrink-0 flex items-center justify-center text-white font-bold select-none bg-gradient-to-tr bg-[#2a2a2c] ${effectiveSize} ${className}`}
@@ -67,35 +63,18 @@ export const SafeAvatar: React.FC<SafeAvatarProps> = ({
         )}
       </div>
     );
-  };
-
-  if (!resolvedSrc || imageState === 'error') {
-    return renderFallback();
   }
 
   return (
-    <div className={`relative overflow-hidden shrink-0 ${effectiveSize} ${className}`}>
-      {/* Loading Skeleton / Gradient */}
-      {imageState === 'loading' && (
-        <div className="absolute inset-0 bg-[#201f22] animate-pulse flex items-center justify-center">
-          <span className="text-gray-600 text-xs font-bold">{initials}</span>
-        </div>
-      )}
-
-      <img
-        src={resolvedSrc}
-        alt={alt || name}
-        loading="eager"
-        referrerPolicy="no-referrer"
-        onLoad={() => setImageState('loaded')}
-        onError={() => {
-          console.warn('[Ivently Media] Avatar image failed to load, switching to graceful fallback:', src);
-          setImageState('error');
-        }}
-        className={`w-full h-full max-w-full max-h-full object-cover block transition-opacity duration-200 ${
-          imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
-    </div>
+    <img
+      src={resolvedSrc}
+      alt={alt || name}
+      loading="eager"
+      onError={() => {
+        console.warn('[Ivently Media] Avatar image failed to load, switching to graceful fallback:', resolvedSrc);
+        setHasError(true);
+      }}
+      className={`shrink-0 object-cover block ${effectiveSize} ${className}`}
+    />
   );
 };
