@@ -32,6 +32,8 @@ def resolve_absolute_image_url(url: Optional[str]) -> str:
     if "railway.app" in base_host:
         base_host = "https://iventlyapp.ru"
     base_host = base_host.rstrip('/')
+    if not base_host.startswith("http://") and not base_host.startswith("https://"):
+        base_host = f"https://{base_host}"
     if clean.startswith("/"):
         return f"{base_host}{clean}"
     return f"{base_host}/{clean}"
