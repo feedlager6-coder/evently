@@ -229,8 +229,8 @@ async def list_published_events(
     )
 
     now_utc = datetime.now(timezone.utc)
-    # If only_upcoming is requested (e.g. for Telegram inline query), strictly require future events
-    cutoff_utc = now_utc if only_upcoming else (now_utc - timedelta(hours=6))
+    # Events linger for at most 1 hour after start_at (instead of 6 hours)
+    cutoff_utc = now_utc if only_upcoming else (now_utc - timedelta(hours=1))
 
     if city_id:
         query = query.where(Event.city_id == city_id)

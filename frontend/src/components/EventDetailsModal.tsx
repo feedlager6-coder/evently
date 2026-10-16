@@ -126,7 +126,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   if (!isRendered || !event) return null;
 
   const eventDate = new Date(event.start_at);
-  const isPast = eventDate.getTime() < Date.now();
+  const isStarted = event.start_at ? new Date(event.start_at).getTime() <= Date.now() : false;
+  const isPast = isStarted;
   const isToday = eventDate.toDateString() === new Date().toDateString();
 
   const formattedDayOfWeek = eventDate.toLocaleDateString('ru-RU', {
@@ -348,10 +349,16 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
             {/* Bottom Hero Scrim Information */}
             <div className="absolute bottom-4 inset-x-4 flex items-end justify-between">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="px-3 py-1 self-start rounded-full bg-[#2a2a2c]/85 backdrop-blur-md text-[#4edea3] font-semibold text-xs">
                   {event.category_name}
                 </span>
+                {isStarted && (
+                  <span className="px-2.5 py-1 rounded-full bg-rose-500/25 backdrop-blur-md text-rose-300 font-bold text-xs border border-rose-500/40 shadow-sm flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
+                    🔴 Уже идёт
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#00a572] text-[#00311f] font-bold text-sm shadow-lg">
                 <Ticket className="w-4 h-4" />

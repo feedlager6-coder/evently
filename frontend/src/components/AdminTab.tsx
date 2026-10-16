@@ -60,12 +60,12 @@ export const AdminTab: React.FC<AdminTabProps> = ({
       const res = await api.adminSyncExternalEvents();
       telegram.hapticSuccess();
       await telegram.showAlert(
-        `Синхронизация завершена!\nСоздано новых событий: ${res.created}\nОбновлено существующих: ${res.updated}\nОшибок: ${res.errors.length}`
+        res.message || 'Фоновая синхронизация 34 городов запущена. Новые события появятся в течение 2–3 минут.'
       );
       onRefresh();
     } catch (err: any) {
       telegram.hapticNotification('error');
-      setError(err.message || 'Ошибка синхронизации внешних событий');
+      setError(err.message || 'Ошибка запуска синхронизации');
     } finally {
       setIsSyncingExternal(false);
     }

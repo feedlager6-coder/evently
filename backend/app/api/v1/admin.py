@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
@@ -216,6 +218,30 @@ async def admin_get_reminder_diagnostics(
     return get_reminder_diagnostics()
 
 
+_IS_SYNC_RUNNING = False
+_SYNC_LOGGER = logging.getLogger(__name__)
+
+
+async def _run_external_sync_background(admin_user_id: int, city_slugs: Optional[List[str]], max_per_city: int):
+    global _IS_SYNC_RUNNING
+    from app.database import AsyncSessionLocal
+    from app.services.external_sync_service import ExternalSyncService
+    _SYNC_LOGGER.info(f"Background external sync started by admin {admin_user_id}")
+    try:
+        async with AsyncSessionLocal() as bg_session:
+            result = await ExternalSyncService.sync_external_events(
+                session=bg_session,
+                admin_user_id=admin_user_id,
+                city_slugs=city_slugs,
+                max_events_per_city=max_per_city,
+            )
+            _SYNC_LOGGER.info(f"Background external sync completed: {result}")
+    except Exception as e:
+        _SYNC_LOGGER.exception(f"Background external sync failed: {e}")
+    finally:
+        _IS_SYNC_RUNNING = False
+
+
 @router.post("/events/sync-external")
 async def admin_sync_external_events(
     city_slugs: Optional[List[str]] = Query(None, description="Optional city slugs like msk, spb, kzn, sochi"),
@@ -226,14 +252,27 @@ async def admin_sync_external_events(
     """
     Triggers automated synchronization of upcoming events from external partner APIs (KudaGo, Timepad).
     Restricted to platform administrators.
+    Runs asynchronously in background to avoid HTTP client timeouts.
     """
-    from app.services.external_sync_service import ExternalSyncService
-    return await ExternalSyncService.sync_external_events(
-        session=session,
-        admin_user_id=admin.id,
-        city_slugs=city_slugs,
-        max_events_per_city=max_per_city,
+    global _IS_SYNC_RUNNING
+    if _IS_SYNC_RUNNING:
+        return {
+            "status": "already_running",
+            "message": "Синхронизация уже выполняется в фоне. Новые события появятся в течение 2–3 минут."
+        }
+
+    _IS_SYNC_RUNNING = True
+    asyncio.create_task(
+        _run_external_sync_background(
+            admin_user_id=admin.id,
+            city_slugs=city_slugs,
+            max_per_city=max_per_city,
+        )
     )
+    return {
+        "status": "ok",
+        "message": "Фоновая синхронизация 34 городов запущена. Новые события появятся в течение 2–3 минут"
+    }
 
 
 
