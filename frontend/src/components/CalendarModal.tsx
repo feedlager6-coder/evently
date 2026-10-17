@@ -77,9 +77,9 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-[#141416] border border-white/10 p-5 shadow-2xl flex flex-col gap-4 text-white animate-in slide-in-from-bottom duration-250"
+        className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-[#141416] border border-white/10 p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl flex flex-col gap-4 text-white animate-in slide-in-from-bottom duration-250"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Title and Close */}

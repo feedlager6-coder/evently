@@ -95,12 +95,6 @@ export const EventCard: React.FC<EventCardProps> = ({
               <span className="px-3 py-1.5 rounded-full bg-[#0e0e10]/80 backdrop-blur-md text-white font-medium text-xs border border-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
                 {event.category_name || 'Событие'}
               </span>
-              {isStarted && !isCancelled && (
-                <span className="px-2.5 py-1 rounded-full bg-rose-500/25 backdrop-blur-md text-rose-300 font-bold text-[10px] border border-rose-500/40 shadow-sm flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
-                  🔴 Уже идёт
-                </span>
-              )}
               {event.organization_is_verified && (
                 <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md text-emerald-400 font-bold text-[10px] border border-emerald-500/30 shadow-sm flex items-center gap-0.5">
                   ✓ Проверено
@@ -122,9 +116,16 @@ export const EventCard: React.FC<EventCardProps> = ({
 
           {/* Bottom Content Area */}
           <div className="relative z-10 flex flex-col gap-2 pt-4">
-            <div className="flex items-center gap-2 text-[#ffb95f] font-semibold text-xs">
-              <Calendar className="w-3.5 h-3.5 shrink-0" />
-              <span>{formattedDate}</span>
+            <div className="flex items-center gap-2 text-[#ffb95f] font-semibold text-xs flex-wrap">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span>{formattedDate}</span>
+              </div>
+              {isStarted && !isCancelled && (
+                <span className="px-2 py-0.5 rounded-md bg-rose-500/25 backdrop-blur-md text-rose-200 font-semibold text-[10px] border border-rose-500/35 whitespace-nowrap">
+                  Уже идёт
+                </span>
+              )}
             </div>
 
             <h2 className="font-extrabold text-xl text-white tracking-tight leading-snug line-clamp-2">
@@ -194,12 +195,6 @@ export const EventCard: React.FC<EventCardProps> = ({
                 {event.category_name}
               </span>
             )}
-            {isStarted && !isCancelled && (
-              <span className="px-2.5 py-1 rounded-full bg-rose-500/25 backdrop-blur-md text-rose-300 font-bold text-[10px] border border-rose-500/40 shadow-sm flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
-                🔴 Уже идёт
-              </span>
-            )}
             {isFree && (
               <span className="px-2.5 py-1 rounded-full bg-[#10b981]/25 backdrop-blur-md text-[#4edea3] font-semibold text-[10px] border border-[#10b981]/40 shadow-[0_2px_8px_rgba(16,185,129,0.2)]">
                 Бесплатно
@@ -226,10 +221,15 @@ export const EventCard: React.FC<EventCardProps> = ({
         </div>
 
         {/* Bottom tags on cover */}
-        <div className="relative z-10 flex items-center gap-1.5">
+        <div className="relative z-10 flex items-center gap-1.5 flex-wrap">
           <span className="px-2.5 py-1 rounded-full bg-[#08080a]/85 backdrop-blur-md text-white font-bold text-[11px] border border-white/10 shadow-sm">
             {formattedDate}
           </span>
+          {isStarted && !isCancelled && (
+            <span className="px-2 py-0.5 rounded-md bg-rose-500/25 backdrop-blur-md text-rose-200 font-semibold text-[10px] border border-rose-500/35 whitespace-nowrap">
+              Уже идёт
+            </span>
+          )}
         </div>
       </div>
 

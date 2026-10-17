@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   OrganizationSummary,
   EventSummary,
@@ -976,7 +977,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
               </button>
             </header>
 
-            <main className="flex-1 px-4 py-4 space-y-4 overflow-y-auto">
+            <main className="flex-1 px-4 py-4 space-y-4 pb-36">
               {/* Organization Profile Glass Card (Stitch style) */}
               <div className="p-4 rounded-2xl bg-[#141417] border border-white/8 relative overflow-hidden shadow-xl">
                 <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
@@ -1536,7 +1537,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </div>
 
             {/* Event List Content */}
-            <main className="flex-1 px-4 py-4 space-y-4 overflow-y-auto pb-36">
+            <main className="flex-1 px-4 py-4 space-y-4 pb-36">
               {/* Published Active Events */}
               {(eventFilter === 'all' || eventFilter === 'published') && (
                 <div className="space-y-3">
@@ -1907,7 +1908,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 px-4 py-4 space-y-5 overflow-y-auto pb-36">
+            <main className="flex-1 px-4 py-4 space-y-5 pb-36">
               {/* Summary KPI Card */}
               <section className="p-4 rounded-2xl glass-surface specular-border relative overflow-hidden">
                 <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -2284,7 +2285,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 px-4 py-4 space-y-5 overflow-y-auto pb-36">
+            <main className="flex-1 px-4 py-4 space-y-5 pb-36">
               {/* Anti-Fatigue Status Banner */}
               <section className="p-4 rounded-2xl glass-surface specular-border relative overflow-hidden">
                 <div className="flex items-start gap-3">
@@ -2486,9 +2487,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         )}
 
         {/* =========================================================================
-            UNIFIED FLOATING OPTICAL GLASS DOCK
+            UNIFIED FLOATING OPTICAL GLASS DOCK (PORTALED TO DOCUMENT.BODY)
         ========================================================================= */}
-        {!isBroadcastModalOpen && (
+        {!isBroadcastModalOpen && typeof document !== 'undefined' && createPortal(
           <nav className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[360px] z-50 pointer-events-none">
             <div className="pointer-events-auto relative flex items-center p-1.5 h-16 w-full rounded-full bg-[#0e0e10]/90 backdrop-blur-2xl border border-white/12 shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.15),0_12px_36px_rgba(0,0,0,0.75)] select-none">
               {/* 60 FPS Hardware-Accelerated Sliding Optical Lens Indicator */}
@@ -2558,7 +2559,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                 <span className="text-[11px] font-bold tracking-[0.04em] leading-none">Рассылки</span>
               </button>
             </div>
-          </nav>
+          </nav>,
+          document.body
         )}
 
       </div>

@@ -1738,7 +1738,7 @@ export const App: React.FC = () => {
       />
 
       {/* Bottom Navigation — only render when no full-screen sheet or workspace is active */}
-      {!isCreateEventModalOpen && !isCreateOrgModalOpen && !isDetailsOpen && !isTicketModalOpen && !isOrganizerWorkspaceOpen && (
+      {!isCreateEventModalOpen && !isCreateOrgModalOpen && !isDetailsOpen && !isTicketModalOpen && !isOrganizerWorkspaceOpen && !isCalendarOpen && (
         <Navigation
           currentTab={currentTab}
           onChangeTab={(tab) => setCurrentTab(tab)}

@@ -128,6 +128,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const eventDate = new Date(event.start_at);
   const isStarted = event.start_at ? new Date(event.start_at).getTime() <= Date.now() : false;
   const isPast = isStarted;
+  const isCancelled = event.status === 'cancelled';
   const isToday = eventDate.toDateString() === new Date().toDateString();
 
   const formattedDayOfWeek = eventDate.toLocaleDateString('ru-RU', {
@@ -349,17 +350,9 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
             {/* Bottom Hero Scrim Information */}
             <div className="absolute bottom-4 inset-x-4 flex items-end justify-between">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="px-3 py-1 self-start rounded-full bg-[#2a2a2c]/85 backdrop-blur-md text-[#4edea3] font-semibold text-xs">
-                  {event.category_name}
-                </span>
-                {isStarted && (
-                  <span className="px-2.5 py-1 rounded-full bg-rose-500/25 backdrop-blur-md text-rose-300 font-bold text-xs border border-rose-500/40 shadow-sm flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse"></span>
-                    🔴 Уже идёт
-                  </span>
-                )}
-              </div>
+              <span className="px-3 py-1 self-start rounded-full bg-[#2a2a2c]/85 backdrop-blur-md text-[#4edea3] font-semibold text-xs">
+                {event.category_name}
+              </span>
               <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#00a572] text-[#00311f] font-bold text-sm shadow-lg">
                 <Ticket className="w-4 h-4" />
                 <span>{priceText}</span>
@@ -384,9 +377,16 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 <span className="text-white font-semibold text-sm truncate capitalize">
                   {formattedDayOfWeek}, {formattedDayAndMonth}
                 </span>
-                <span className="text-[#c4c7c8] text-xs">
-                  {formattedTime} • Местное время
-                </span>
+                <div className="flex items-center flex-wrap gap-1 mt-0.5">
+                  <span className="text-[#c4c7c8] text-xs">
+                    {formattedTime} • Местное время
+                  </span>
+                  {isStarted && !isCancelled && (
+                    <span className="ml-2 px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-semibold text-[11px] border border-rose-500/30 whitespace-nowrap">
+                      Уже идёт
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
