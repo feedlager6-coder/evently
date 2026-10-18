@@ -39,6 +39,7 @@ import {
   Store,
   ChevronRight,
   DownloadCloud,
+  Clock,
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { CheckInScannerModal } from './CheckInScannerModal';
@@ -717,30 +718,36 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                   return (
                     <div key={ev.id} className="p-3.5 rounded-2xl bg-[#141417] border border-white/8 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                          isPast ? 'bg-white/5 text-neutral-400 border border-white/10' :
-                          ev.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
-                          ev.status === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'bg-rose-500/15 text-rose-400'
-                        }`}>
-                          {isPast ? (
-                            <>
-                              <Check className="w-3 h-3 text-neutral-400" />
-                              Завершено
-                            </>
-                          ) : ev.status === 'published' ? (
-                            'В афише'
-                          ) : ev.status === 'pending' ? (
-                            'На модерации'
-                          ) : (
-                            'Отклонено'
-                          )}
-                        </span>
+                        {isPast ? (
+                          <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-zinc-300" />
+                            Завершено
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                            ev.status === 'published' ? 'bg-emerald-500/15 text-emerald-400' :
+                            ev.status === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          }`}>
+                            {ev.status === 'published' ? (
+                              'В афише'
+                            ) : ev.status === 'pending' ? (
+                              'На модерации'
+                            ) : (
+                              '❌ Отклонено'
+                            )}
+                          </span>
+                        )}
                         <span className="text-[11px] text-neutral-400">
                           {ev.start_at ? new Date(ev.start_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '—'}
                         </span>
                       </div>
                       <h4 className="text-sm font-bold text-white truncate">{ev.title}</h4>
                       <p className="text-xs text-neutral-400 truncate">{ev.venue_name}</p>
+                      {ev.status === 'rejected' && (
+                        <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs">
+                          <span className="font-semibold text-rose-300">Причина отклонения:</span> {ev.rejection_reason || 'Не указана модератором'}
+                        </div>
+                      )}
                       <div className="flex gap-2 pt-1 border-t border-white/5 text-xs">
                         {(ev.status === 'published' || isPast) && (
                           <button
@@ -1689,8 +1696,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-neutral-400 border border-white/10">
-                              <Check className="w-3 h-3 text-neutral-400" /> Завершено
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md">
+                              <Clock className="w-3 h-3 text-zinc-300" /> Завершено
                             </span>
                             <span className="text-[11px] text-neutral-400">{finEvent.dateText}</span>
                           </div>

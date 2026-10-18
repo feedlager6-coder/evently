@@ -1,20 +1,23 @@
+import logging
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+
+logger = logging.getLogger(__name__)
 
 from app.models.event import Event, EventStatus
 from app.models.city import City
 from app.models.category import Category
 from app.models.attendee import EventAttendee
 from app.models.organization import Organization
-from app.schemas.event import EventSummary, EventResponse
+from app.schemas.event import EventSummary, EventResponse, OrganizerEventSummary
 from app.services.event_service import EventNotFoundError, EventValidationError
 
 
 async def get_admin_events(
     session: AsyncSession,
     status_filter: Optional[str] = "pending"
-) -> List[EventSummary]:
+) -> List[OrganizerEventSummary]:
     """
     Lists events for administrative review.
     """
@@ -50,7 +53,7 @@ async def get_admin_events(
     summaries = []
     for event, cat_name, c_name, att_count, org_name, org_category, org_avatar in rows:
         summaries.append(
-            EventSummary(
+            OrganizerEventSummary(
                 id=event.id,
                 title=event.title,
                 cover_image_url=event.cover_image_url,
@@ -74,7 +77,8 @@ async def get_admin_events(
                 organization_avatar_url=org_avatar,
                 allow_event_contact=bool(getattr(event, "allow_event_contact", False)),
                 source_type=getattr(event, "source_type", "user") or "user",
-                source_name=getattr(event, "source_name", None)
+                source_name=getattr(event, "source_name", None),
+                rejection_reason=event.rejection_reason
             )
         )
     return summaries
@@ -112,6 +116,13 @@ async def reject_event(session: AsyncSession, event_id: str, reason: Optional[st
     event.rejection_reason = reason
     await session.commit()
     await session.refresh(event)
+
+    try:
+        from app.services.notification_service import notify_event_rejected
+        await notify_event_rejected(event, reason, session)
+    except Exception as e:
+        logger.warning(f"Failed to dispatch rejection notification for event {event_id}: {e}")
+
     return event
 
 

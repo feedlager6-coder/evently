@@ -8,7 +8,7 @@ from sqlalchemy import select, and_, or_
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.event import EventSummary, EventResponse
+from app.schemas.event import EventSummary, EventResponse, OrganizerEventSummary
 from app.schemas.moderation import RejectRequest
 from app.schemas.entitlement import OrganizerEntitlementsResponse, SetPlanRequest
 from app.api.deps import require_admin
@@ -25,7 +25,7 @@ from app.services import notification_service
 router = APIRouter(prefix="/admin", tags=["Admin Moderation"])
 
 
-@router.get("/events", response_model=List[EventSummary])
+@router.get("/events", response_model=List[OrganizerEventSummary])
 async def list_moderation_queue(
     status: Optional[str] = Query(None, pattern="^(pending|published|rejected|cancelled|all)$"),
     status_filter: Optional[str] = Query(None, pattern="^(pending|published|rejected|cancelled|all)$"),
@@ -218,12 +218,10 @@ async def admin_get_reminder_diagnostics(
     return get_reminder_diagnostics()
 
 
-_IS_SYNC_RUNNING = False
 _SYNC_LOGGER = logging.getLogger(__name__)
 
 
 async def _run_external_sync_background(admin_user_id: int, city_slugs: Optional[List[str]], max_per_city: int):
-    global _IS_SYNC_RUNNING
     from app.database import AsyncSessionLocal
     from app.services.external_sync_service import ExternalSyncService
     _SYNC_LOGGER.info(f"Background external sync started by admin {admin_user_id}")
@@ -238,8 +236,18 @@ async def _run_external_sync_background(admin_user_id: int, city_slugs: Optional
             _SYNC_LOGGER.info(f"Background external sync completed: {result}")
     except Exception as e:
         _SYNC_LOGGER.exception(f"Background external sync failed: {e}")
-    finally:
-        _IS_SYNC_RUNNING = False
+
+
+@router.get("/events/sync-status")
+async def admin_get_sync_status(
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Returns live in-memory progress and metrics of external event synchronization.
+    """
+    from app.services.external_sync_service import ExternalSyncService
+    return await ExternalSyncService.get_sync_status(session)
 
 
 @router.post("/events/sync-external")
@@ -250,18 +258,17 @@ async def admin_sync_external_events(
     session: AsyncSession = Depends(get_db)
 ):
     """
-    Triggers automated synchronization of upcoming events from external partner APIs (KudaGo, Timepad).
+    Triggers automated synchronization of upcoming events from external partner APIs (KudaGo, Culture.RU).
     Restricted to platform administrators.
     Runs asynchronously in background to avoid HTTP client timeouts.
     """
-    global _IS_SYNC_RUNNING
-    if _IS_SYNC_RUNNING:
+    from app.services.external_sync_service import ExternalSyncService
+    if ExternalSyncService.SYNC_STATE.get("is_running", False):
         return {
             "status": "already_running",
             "message": "Синхронизация уже выполняется в фоне. Новые события появятся в течение 2–3 минут."
         }
 
-    _IS_SYNC_RUNNING = True
     asyncio.create_task(
         _run_external_sync_background(
             admin_user_id=admin.id,

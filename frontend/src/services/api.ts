@@ -35,6 +35,7 @@ import type {
   PaymentOrder,
   CreatePaymentOrderRequest,
   UserHubData,
+  SyncStatusResponse,
 } from '../types';
 import { telegram } from './telegram';
 
@@ -656,6 +657,17 @@ export const api = {
       if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
       const err = await res.json().catch(() => ({}));
       throw new Error(extractErrorMessage(err, 'Ошибка синхронизации внешних событий'));
+    }
+    return res.json();
+  },
+
+  async adminGetSyncStatus(): Promise<SyncStatusResponse> {
+    const res = await fetchWithTimeout(`${API_BASE}/admin/events/sync-status`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 403) throw new Error('Доступ запрещен: требуются права администратора');
+      throw new Error('Failed to fetch sync status');
     }
     return res.json();
   },

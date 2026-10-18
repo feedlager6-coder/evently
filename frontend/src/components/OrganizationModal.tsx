@@ -21,7 +21,8 @@ import {
   ArrowRight,
   ChevronRight,
   Edit3,
-  Plus
+  Plus,
+  Clock
 } from 'lucide-react';
 import { SafeAvatar } from './SafeAvatar';
 import { SafeImage } from './SafeImage';
@@ -309,7 +310,8 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
               {formattedDate}
             </span>
             {isPast && (
-              <span className="px-2 py-0.5 rounded-full bg-neutral-800/90 text-neutral-400 font-bold text-[10px] border border-white/10">
+              <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                <Clock className="w-3 h-3 text-zinc-300" />
                 Завершено
               </span>
             )}

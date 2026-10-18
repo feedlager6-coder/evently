@@ -13,7 +13,7 @@ except ImportError:
     Image = None
     ImageOps = None
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.config import settings
 from app.models.event import Event, EventStatus
@@ -25,6 +25,19 @@ from app.models.interest import EventInterest
 from app.services.storage_service import storage_service
 
 logger = logging.getLogger("evently.external_sync")
+
+# Global in-memory sync state for admin live tracking
+SYNC_STATE: Dict[str, Any] = {
+    "is_running": False,
+    "current_city": None,
+    "processed_cities": 0,
+    "total_cities": 0,
+    "last_started_at": None,
+    "last_finished_at": None,
+    "last_created": 0,
+    "last_updated": 0,
+    "total_external_in_db": 0,
+}
 
 # City mapping from KudaGo location slugs to Ivently city IDs
 KUDAGO_CITY_MAP: Dict[str, str] = {
@@ -731,6 +744,9 @@ class ExternalSyncService:
                     if not region_matches:
                         continue
 
+                SYNC_STATE["current_city"] = region_title
+                SYNC_STATE["processed_cities"] += 1
+
                 url = f"https://www.culture.ru/afisha/{region_slug}"
                 try:
                     resp = await client.get(url)
@@ -1198,6 +1214,20 @@ class ExternalSyncService:
         }
 
     @classmethod
+    async def get_sync_status(cls, session: AsyncSession) -> Dict[str, Any]:
+        """
+        Returns live in-memory progress of external sync along with cached or live external events count in DB.
+        """
+        if cls.SYNC_STATE.get("total_external_in_db", 0) == 0 and not cls.SYNC_STATE["is_running"]:
+            try:
+                count_stmt = select(func.count(Event.id)).where(Event.source_type == "external")
+                count_res = await session.execute(count_stmt)
+                cls.SYNC_STATE["total_external_in_db"] = count_res.scalar() or 0
+            except Exception as e:
+                logger.warning(f"Failed to query external events count: {e}")
+        return dict(cls.SYNC_STATE)
+
+    @classmethod
     async def sync_external_events(
         cls,
         session: AsyncSession,
@@ -1216,52 +1246,83 @@ class ExternalSyncService:
         curator_user_id = await cls.get_curator_user_id(session, admin_user_id=admin_user_id)
         target_slugs = [s.lower().strip() for s in city_slugs] if city_slugs else None
 
-        # 1. Primary Live Network Source: Portal «Культура.РФ»
-        culture_res = await cls.sync_culture_ru_events(
-            session=session,
-            curator_user_id=curator_user_id,
-            target_slugs=target_slugs,
-            max_events_per_region=max_events_per_city,
-        )
+        total_regions = len(CULTURE_REGIONS)
+        if target_slugs:
+            total_regions = len([
+                r for r in CULTURE_REGIONS
+                if r[0] in target_slugs
+                or (r[2] and r[2] in target_slugs)
+                or (REGION_DEFAULT_CITY.get(r[0]) and REGION_DEFAULT_CITY.get(r[0]) in target_slugs)
+            ])
 
-        # 2. Secondary Network Source: KudaGo API
-        kudago_res = await cls.sync_kudago_events(
-            session=session,
-            curator_user_id=curator_user_id,
-            target_slugs=target_slugs,
-            max_events_per_city=max_events_per_city,
-        )
+        cls.SYNC_STATE["is_running"] = True
+        cls.SYNC_STATE["current_city"] = "Подготовка..."
+        cls.SYNC_STATE["processed_cities"] = 0
+        cls.SYNC_STATE["total_cities"] = max(1, total_regions)
+        cls.SYNC_STATE["last_started_at"] = now.isoformat()
+        cls.SYNC_STATE["last_created"] = 0
+        cls.SYNC_STATE["last_updated"] = 0
 
-        total_synced = culture_res["total_synced"] + kudago_res["total_synced"]
-        total_created = culture_res["created"] + kudago_res["created"]
-        total_updated = culture_res["updated"] + kudago_res["updated"]
-        combined_errors = culture_res["errors"] + kudago_res["errors"]
-
-        # 3. Auto-clean expired external events older than 3 days
-        cleaned_count = 0
         try:
-            cleaned_count = await cls.cleanup_expired_external_events(session=session, retention_days=3)
-        except Exception as e:
-            logger.warning("Auto-cleanup of expired external events failed: %s", e)
+            # 1. Primary Live Network Source: Portal «Культура.РФ»
+            culture_res = await cls.sync_culture_ru_events(
+                session=session,
+                curator_user_id=curator_user_id,
+                target_slugs=target_slugs,
+                max_events_per_region=max_events_per_city,
+            )
 
-        logger.info(
-            "External sync completed: %d total synced (%d created, %d updated), %d cleaned, %d errors",
-            total_synced, total_created, total_updated, cleaned_count, len(combined_errors)
-        )
+            # 2. Secondary Network Source: KudaGo API
+            kudago_res = await cls.sync_kudago_events(
+                session=session,
+                curator_user_id=curator_user_id,
+                target_slugs=target_slugs,
+                max_events_per_city=max_events_per_city,
+            )
 
-        return {
-            "status": "success",
-            "total_synced": total_synced,
-            "created": total_created,
-            "updated": total_updated,
-            "cleaned": cleaned_count,
-            "errors": combined_errors,
-            "sources": {
-                "culture_ru": culture_res,
-                "kudago": kudago_res,
-            },
-            "synced_at": now.isoformat(),
-        }
+            total_synced = culture_res["total_synced"] + kudago_res["total_synced"]
+            total_created = culture_res["created"] + kudago_res["created"]
+            total_updated = culture_res["updated"] + kudago_res["updated"]
+            combined_errors = culture_res["errors"] + kudago_res["errors"]
+
+            cls.SYNC_STATE["last_created"] = total_created
+            cls.SYNC_STATE["last_updated"] = total_updated
+
+            # 3. Auto-clean expired external events older than 3 days
+            cleaned_count = 0
+            try:
+                cleaned_count = await cls.cleanup_expired_external_events(session=session, retention_days=3)
+            except Exception as e:
+                logger.warning("Auto-cleanup of expired external events failed: %s", e)
+
+            logger.info(
+                "External sync completed: %d total synced (%d created, %d updated), %d cleaned, %d errors",
+                total_synced, total_created, total_updated, cleaned_count, len(combined_errors)
+            )
+
+            return {
+                "status": "success",
+                "total_synced": total_synced,
+                "created": total_created,
+                "updated": total_updated,
+                "cleaned": cleaned_count,
+                "errors": combined_errors,
+                "sources": {
+                    "culture_ru": culture_res,
+                    "kudago": kudago_res,
+                },
+                "synced_at": now.isoformat(),
+            }
+        finally:
+            cls.SYNC_STATE["is_running"] = False
+            cls.SYNC_STATE["current_city"] = None
+            cls.SYNC_STATE["last_finished_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                count_stmt = select(func.count(Event.id)).where(Event.source_type == "external")
+                count_res = await session.execute(count_stmt)
+                cls.SYNC_STATE["total_external_in_db"] = count_res.scalar() or 0
+            except Exception as e:
+                logger.warning(f"Failed to refresh total_external_in_db: {e}")
 
     @classmethod
     async def cleanup_expired_external_events(

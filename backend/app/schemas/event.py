@@ -96,6 +96,12 @@ class EventSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OrganizerEventSummary(EventSummary):
+    rejection_reason: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class EventResponse(EventSummary):
     description: str
     address: str

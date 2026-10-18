@@ -16,10 +16,10 @@ import {
   MapPin,
   Users,
   CheckCircle2,
-  Check,
   ShieldCheck,
   ShoppingBag,
-  Bell
+  Bell,
+  Clock
 } from 'lucide-react';
 
 /* Contract compliance metadata:
@@ -83,11 +83,29 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
     setActiveFilter(initialFilter);
   }, [initialFilter]);
 
-  const now = new Date();
-  const activeAttending = attendingEvents.filter((e) => new Date(e.start_at).getTime() + 6 * 3600 * 1000 >= now.getTime());
-  const activeInterested = interestedEvents.filter((e) => new Date(e.start_at).getTime() + 6 * 3600 * 1000 >= now.getTime());
+  const isEventPast = (ev: { start_at?: string; end_at?: string }) => {
+    if (!ev.start_at) return false;
+    const startTime = new Date(ev.start_at).getTime();
+    const endTime = ev.end_at ? new Date(ev.end_at).getTime() : startTime + 6 * 3600 * 1000;
+    return Date.now() > endTime;
+  };
 
-  const totalTickets = activeAttending.length;
+  // Sort upcoming first, finished events at the bottom
+  const sortedAttending = [...attendingEvents].sort((a, b) => {
+    const aPast = isEventPast(a);
+    const bPast = isEventPast(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+  });
+
+  const sortedInterested = [...interestedEvents].sort((a, b) => {
+    const aPast = isEventPast(a);
+    const bPast = isEventPast(b);
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+  });
+
+  const totalTickets = attendingEvents.length;
   const isAnyOrgPro = organizations.some((o: any) => o.plan === 'pro');
   const isOrganizer = organizations.length > 0;
   const hasCreatedEvents = myCreatedEvents.length > 0 || isOrganizer;
@@ -249,7 +267,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   : 'bg-[#2a2a2c] text-[#c4c7c8]'
               }`}
             >
-              {activeAttending.length}
+              {attendingEvents.length}
             </span>
           </button>
 
@@ -269,7 +287,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   : 'bg-[#2a2a2c] text-[#c4c7c8]'
               }`}
             >
-              {activeInterested.length}
+              {interestedEvents.length}
             </span>
           </button>
 
@@ -302,7 +320,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <section className="flex flex-col gap-3">
           {isLoadingAttending ? (
             <div className="py-14 text-center text-xs text-[#c4c7c8]">Загрузка ваших билетов...</div>
-          ) : activeAttending.length === 0 ? (
+          ) : sortedAttending.length === 0 ? (
             <div className="py-12 px-4 text-center rounded-[24px] bg-[#201f22] border border-white/5 space-y-3 shadow-lg">
               <div className="w-12 h-12 rounded-full bg-[#10b981]/15 text-[#4edea3] flex items-center justify-center mx-auto border border-[#10b981]/30">
                 <Ticket className="w-6 h-6" />
@@ -322,7 +340,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               </button>
             </div>
           ) : (
-            activeAttending.map((event) => {
+            sortedAttending.map((event) => {
+              const isPast = isEventPast(event);
               const eventDate = new Date(event.start_at);
               const formattedDate = eventDate.toLocaleDateString('ru-RU', {
                 day: 'numeric',
@@ -335,7 +354,9 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 <article
                   key={event.id}
                   onClick={() => onEventClick(event)}
-                  className="relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
+                  className={`relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer ${
+                    isPast ? 'opacity-90' : ''
+                  }`}
                 >
                   {/* Hero Image */}
                   <div className="relative h-44 w-full overflow-hidden">
@@ -343,15 +364,21 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                       src={event.cover_image_url}
                       alt={event.title}
                       loading="eager"
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${isPast ? 'grayscale-[20%]' : ''}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#201f22] via-[#201f22]/40 to-transparent" />
 
                     {/* Top Overlays */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
                       <span className="px-3 py-1 rounded-full bg-[#0e0e10]/80 backdrop-blur-xl text-white font-bold text-[11px] shadow-sm border border-white/10">
                         {formattedDate}
                       </span>
+                      {isPast && (
+                        <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-300" />
+                          Завершено
+                        </span>
+                      )}
                     </div>
 
                     {/* Companions Badge on Image */}
@@ -386,9 +413,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                           <QrCode className="w-5 h-5" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-white">Электронный билет</span>
+                          <span className="text-xs font-semibold text-white">
+                            {isPast ? 'Архивный билет' : 'Электронный билет'}
+                          </span>
                           <span className="text-[10px] text-[#c4c7c8]">
-                            {event.is_free ? 'Вход по регистрации' : 'Входной билет • Оплачено'}
+                            {isPast ? 'Мероприятие прошло' : event.is_free ? 'Вход по регистрации' : 'Входной билет • Оплачено'}
                           </span>
                         </div>
                       </div>
@@ -422,7 +451,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
         <section className="flex flex-col gap-2.5">
           {isLoadingInterested ? (
             <div className="py-14 text-center text-xs text-[#c4c7c8]">Загрузка списка желаемого...</div>
-          ) : activeInterested.length === 0 ? (
+          ) : sortedInterested.length === 0 ? (
             <div className="py-12 px-4 text-center rounded-[24px] bg-[#201f22] border border-white/5 space-y-3 shadow-lg">
               <div className="w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center mx-auto border border-white/15">
                 <Heart className="w-6 h-6" />
@@ -442,7 +471,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
               </button>
             </div>
           ) : (
-            activeInterested.map((event) => {
+            sortedInterested.map((event) => {
+              const isPast = isEventPast(event);
               const eventDate = new Date(event.start_at);
               const formattedDate = eventDate.toLocaleDateString('ru-RU', {
                 day: 'numeric',
@@ -458,20 +488,30 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 <article
                   key={event.id}
                   onClick={() => onEventClick(event)}
-                  className="p-3 rounded-2xl bg-[#201f22] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
+                  className={`p-3 rounded-2xl bg-[#201f22] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer ${
+                    isPast ? 'opacity-85' : ''
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-white/5 bg-[#121215]">
                       <SafeImage
                         src={event.cover_image_url}
                         alt={event.title}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${isPast ? 'grayscale-[20%]' : ''}`}
                       />
                     </div>
                     <div className="flex flex-col min-w-0 space-y-0.5">
-                      <span className="text-[11px] font-bold text-[#4edea3] uppercase tracking-wide">
-                        {formattedDate}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-bold text-[#4edea3] uppercase tracking-wide">
+                          {formattedDate}
+                        </span>
+                        {isPast && (
+                          <span className="px-2 py-0.5 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[10px] border border-white/30 shadow-md inline-flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 text-zinc-300" />
+                            Завершено
+                          </span>
+                        )}
+                      </div>
                       <span className="text-sm font-semibold text-white truncate">
                         {event.title}
                       </span>
@@ -534,11 +574,11 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 minute: '2-digit',
               }).toUpperCase();
 
-              const isPast = event.start_at ? new Date(event.start_at).getTime() < Date.now() : false;
+              const isPast = isEventPast(event);
 
               const statusBadge = isPast ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/5 text-neutral-400 border border-white/10">
-                  <Check className="w-3 h-3 text-neutral-400" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md">
+                  <Clock className="w-3 h-3 text-zinc-300" />
                   Завершено
                 </span>
               ) : event.status === 'published' ? (
@@ -552,8 +592,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   На модерации
                 </span>
               ) : event.status === 'rejected' ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">
-                  Отклонено
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  ❌ Отклонено
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-neutral-300 border border-white/10">
@@ -594,6 +634,12 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {event.status === 'rejected' && (
+                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs">
+                        <span className="font-semibold text-rose-300">Причина отклонения:</span> {event.rejection_reason || 'Не указана модератором'}
+                      </div>
+                    )}
 
                     <div className="p-3 rounded-2xl bg-[#1c1b1e] flex items-center justify-between border border-white/5">
                       <div className="flex items-center gap-3">

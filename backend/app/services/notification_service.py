@@ -708,3 +708,81 @@ async def notify_event_reminder(
         async with httpx.AsyncClient(timeout=10.0) as client:
             return await _send(client)
 
+
+async def notify_event_rejected(
+    event: Event,
+    reason: Optional[str],
+    session: AsyncSession,
+    http_client: Optional[httpx.AsyncClient] = None
+) -> bool:
+    """
+    Sends a direct Telegram notification to the author of an event when it is rejected by moderation.
+    """
+    author_user_id = event.organizer_user_id
+    if not author_user_id and event.organization_id:
+        org_res = await session.execute(select(Organization).where(Organization.id == event.organization_id))
+        org = org_res.scalar_one_or_none()
+        if org:
+            author_user_id = org.owner_user_id
+
+    if not author_user_id:
+        return False
+
+    user_res = await session.execute(select(User).where(User.id == author_user_id))
+    author_user = user_res.scalar_one_or_none()
+    if not author_user or not author_user.telegram_id:
+        return False
+
+    safe_title = html.escape(event.title)
+    safe_reason = html.escape(reason.strip()) if reason and reason.strip() else "Не указана модератором"
+
+    message_text = (
+        f"❌ Ваше мероприятие «<b>{safe_title}</b>» отклонено модератором.\n\n"
+        f"💬 <b>Причина:</b> {safe_reason}\n\n"
+        "Вы можете отредактировать мероприятие в разделе «Мои события» и отправить его на повторную модерацию."
+    )
+
+    bot_username = settings.TELEGRAM_BOT_USERNAME or "Ivently_bot"
+    button_url = f"https://t.me/{bot_username}/app?startapp=organizer"
+    btn: Dict[str, Any] = {"text": "✏️ Отредактировать событие", "style": "primary"}
+    if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
+        btn["web_app"] = {"url": f"{settings.effective_public_host}/?startapp=organizer"}
+    else:
+        btn["url"] = button_url
+
+    reply_markup = {
+        "inline_keyboard": [
+            [btn]
+        ]
+    }
+
+    if not settings.is_live_bot and http_client is None:
+        logger.info(f"[Test/Dev Mode] Simulated rejection notification to user {author_user.id} (tg {author_user.telegram_id}) for event {event.id}.")
+        return True
+
+    bot_token = settings.clean_bot_token
+
+    async def _send(client: httpx.AsyncClient) -> bool:
+        try:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": author_user.telegram_id,
+                    "text": message_text,
+                    "parse_mode": "HTML",
+                    "reply_markup": reply_markup,
+                },
+                timeout=8.0
+            )
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning(f"Failed to send rejection notification for event {event.id} to user {author_user.id}: {e}")
+            return False
+
+    if http_client:
+        return await _send(http_client)
+    else:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await _send(client)
+
+

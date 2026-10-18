@@ -24,7 +24,7 @@ from app.models.organization import Organization
 from app.models.subscription import Subscription
 from app.models.view import EventView
 from app.models.broadcast import Broadcast, BroadcastRecipient
-from app.schemas.event import EventCreate, EventSummary, EventResponse, EventUpdate
+from app.schemas.event import EventCreate, EventSummary, EventResponse, EventUpdate, OrganizerEventSummary
 from app.schemas.interest import EventInterestResponse
 
 
@@ -1110,7 +1110,7 @@ async def delete_organizer_event(
 async def get_organizer_events(
     session: AsyncSession,
     organizer_user_id: int
-) -> List[EventSummary]:
+) -> List[OrganizerEventSummary]:
     """
     Lists all events submitted by a specific organizer across all statuses.
     """
@@ -1180,7 +1180,7 @@ async def get_organizer_events(
     for event, cat_name, c_name, att_count, int_count, v_count, org_name, org_category, org_avatar in rows:
         b_opens, b_interest, b_rsvp = broadcast_stats_map.get(event.id, (0, 0, 0))
         summaries.append(
-            EventSummary(
+            OrganizerEventSummary(
                 id=event.id,
                 title=event.title,
                 cover_image_url=event.cover_image_url,
@@ -1212,6 +1212,7 @@ async def get_organizer_events(
                 broadcast_opens_count=b_opens,
                 broadcast_interest_count=b_interest,
                 broadcast_rsvp_count=b_rsvp,
+                rejection_reason=event.rejection_reason,
             )
         )
     return summaries

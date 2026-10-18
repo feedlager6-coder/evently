@@ -1,6 +1,6 @@
 import React from 'react';
 import type { EventSummary } from '../types';
-import { Calendar, MapPin, Users, Bookmark } from 'lucide-react';
+import { Calendar, MapPin, Users, Bookmark, Clock } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface EventCardProps {
@@ -44,8 +44,13 @@ export const EventCard: React.FC<EventCardProps> = ({
       ? `${Number(priceAmount) % 1 === 0 ? Number(priceAmount) : priceAmount} ₽`
       : 'Вход свободный';
 
-  const isStarted = event.start_at ? new Date(event.start_at).getTime() <= Date.now() : false;
-  const isPast = isStarted;
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const startTime = event.start_at ? new Date(event.start_at).getTime() : 0;
+  const rawEndAt = (event as any).end_at;
+  const endTime = rawEndAt ? new Date(rawEndAt).getTime() : (startTime ? startTime + SIX_HOURS_MS : 0);
+  const now = Date.now();
+  const isStarted = startTime > 0 && startTime <= now && now <= endTime;
+  const isPast = endTime > 0 && now > endTime;
   const isCancelled = event.status === 'cancelled';
 
   const handleCardClick = () => {
@@ -100,6 +105,12 @@ export const EventCard: React.FC<EventCardProps> = ({
                   ✓ Проверено
                 </span>
               )}
+              {isPast && (
+                <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-zinc-300" />
+                  Завершено
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -137,10 +148,12 @@ export const EventCard: React.FC<EventCardProps> = ({
                 <MapPin className="w-3.5 h-3.5 text-[#8e9192] shrink-0" />
                 <span className="truncate">{event.venue_name} ({event.city_name})</span>
               </div>
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-[11px] font-bold shrink-0 border border-white/10">
-                <Users className="w-3 h-3 text-[#4edea3]" />
-                <span>{event.attendee_count} идут</span>
-              </div>
+              {event.source_type !== 'external' && (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-[11px] font-bold shrink-0 border border-white/10">
+                  <Users className="w-3 h-3 text-[#4edea3]" />
+                  <span>{event.attendee_count} идут</span>
+                </div>
+              )}
             </div>
 
             {/* Action & Price Row */}
@@ -189,7 +202,7 @@ export const EventCard: React.FC<EventCardProps> = ({
 
         {/* Top Badges */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {event.category_name && (
               <span className="px-2.5 py-1 rounded-full bg-[#08080a]/80 backdrop-blur-md text-white font-medium text-[11px] border border-white/15">
                 {event.category_name}
@@ -198,6 +211,12 @@ export const EventCard: React.FC<EventCardProps> = ({
             {isFree && (
               <span className="px-2.5 py-1 rounded-full bg-[#10b981]/25 backdrop-blur-md text-[#4edea3] font-semibold text-[10px] border border-[#10b981]/40 shadow-[0_2px_8px_rgba(16,185,129,0.2)]">
                 Бесплатно
+              </span>
+            )}
+            {isPast && (
+              <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                <Clock className="w-3 h-3 text-zinc-300" />
+                Завершено
               </span>
             )}
             {isCancelled && (
@@ -261,7 +280,7 @@ export const EventCard: React.FC<EventCardProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {event.attendee_count > 0 && (
+            {event.source_type !== 'external' && event.attendee_count > 0 && (
               <span className="text-[11px] text-[#8e9192] flex items-center gap-1">
                 <Users className="w-3 h-3 text-[#4edea3]" />
                 {event.attendee_count}

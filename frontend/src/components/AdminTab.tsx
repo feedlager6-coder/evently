@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { EventSummary, EventStatus, AdminOrganizationItem } from '../types';
+import type { EventSummary, EventStatus, AdminOrganizationItem, SyncStatusResponse } from '../types';
 import { api } from '../services/api';
 import { telegram } from '../services/telegram';
 import {
@@ -50,19 +50,48 @@ export const AdminTab: React.FC<AdminTabProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // External Events Sync state
+  const [syncStatus, setSyncStatus] = useState<SyncStatusResponse | null>(null);
   const [isSyncingExternal, setIsSyncingExternal] = useState(false);
+
+  const fetchSyncStatus = async () => {
+    try {
+      const status = await api.adminGetSyncStatus();
+      setSyncStatus(status);
+      return status;
+    } catch (e) {
+      console.warn('Failed to get sync status', e);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    fetchSyncStatus();
+  }, []);
+
+  useEffect(() => {
+    let intervalId: any = null;
+    if (syncStatus?.is_running) {
+      intervalId = setInterval(async () => {
+        const next = await fetchSyncStatus();
+        if (next && !next.is_running) {
+          telegram.hapticSuccess();
+          onRefresh();
+        }
+      }, 3000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [syncStatus?.is_running]);
 
   const handleSyncExternalEvents = async () => {
     try {
       setIsSyncingExternal(true);
       setError(null);
       telegram.hapticImpact('medium');
-      const res = await api.adminSyncExternalEvents();
+      await api.adminSyncExternalEvents();
       telegram.hapticSuccess();
-      await telegram.showAlert(
-        res.message || 'Фоновая синхронизация 34 городов запущена. Новые события появятся в течение 2–3 минут.'
-      );
-      onRefresh();
+      await fetchSyncStatus();
     } catch (err: any) {
       telegram.hapticNotification('error');
       setError(err.message || 'Ошибка запуска синхронизации');
@@ -223,23 +252,72 @@ export const AdminTab: React.FC<AdminTabProps> = ({
         </span>
       </div>
 
-      {/* Municipal / External Events Ingestion Trigger */}
-      <button
-        type="button"
-        disabled={isSyncingExternal}
-        onClick={handleSyncExternalEvents}
-        className="w-full py-2.5 px-4 rounded-2xl bg-[#1c1b1e] hover:bg-[#252428] border border-emerald-500/30 text-emerald-400 flex items-center justify-between transition-all active:scale-[0.98] shadow-sm disabled:opacity-50"
-      >
-        <div className="flex items-center gap-2">
-          <Globe className={`w-4 h-4 ${isSyncingExternal ? 'animate-spin' : ''}`} />
-          <span className="text-xs font-bold text-white">
-            {isSyncingExternal ? 'Синхронизация открытых событий...' : 'Запустить обновление вручную'}
-          </span>
+      {/* Municipal / External Events Ingestion Trigger & Live Progress */}
+      {syncStatus?.is_running ? (
+        <div className="p-4 rounded-2xl bg-[#1c1b1e] border border-emerald-500/40 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+              <span className="text-xs font-bold text-white">Идёт синхронизация открытых событий</span>
+            </div>
+            <span className="text-[10px] text-emerald-400 font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              Культура.РФ
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-[#c4c7c8]">
+              <span className="truncate">Регион: <strong className="text-white">{syncStatus.current_city || 'Подготовка...'}</strong></span>
+              <span className="shrink-0 font-mono font-semibold text-emerald-400">
+                {syncStatus.processed_cities} / {syncStatus.total_cities}
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-400 transition-all duration-500 rounded-full"
+                style={{
+                  width: `${Math.min(100, Math.round((syncStatus.processed_cities / (syncStatus.total_cities || 1)) * 100))}%`
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[10.5px] text-[#8e9192] pt-0.5 border-t border-white/5">
+            <span>Создано: <strong className="text-white">+{syncStatus.last_created}</strong></span>
+            <span>Обновлено: <strong className="text-white">{syncStatus.last_updated}</strong></span>
+            <span>В базе: <strong className="text-white">{syncStatus.total_external_in_db}</strong></span>
+          </div>
         </div>
-        <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-          Культура.РФ & Open API
-        </span>
-      </button>
+      ) : (
+        <div className="space-y-2">
+          <button
+            type="button"
+            disabled={isSyncingExternal}
+            onClick={handleSyncExternalEvents}
+            className="w-full py-2.5 px-4 rounded-2xl bg-[#1c1b1e] hover:bg-[#252428] border border-emerald-500/30 text-emerald-400 flex items-center justify-between transition-all active:scale-[0.98] shadow-sm disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2">
+              <Globe className={`w-4 h-4 ${isSyncingExternal ? 'animate-spin' : ''}`} />
+              <span className="text-xs font-bold text-white">
+                {isSyncingExternal ? 'Запуск обновления...' : 'Запустить обновление вручную'}
+              </span>
+            </div>
+            <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              Культура.РФ & Open API
+            </span>
+          </button>
+
+          {syncStatus && (
+            <div className="py-2 px-3.5 rounded-2xl bg-[#1c1b1e]/60 border border-white/5 flex items-center justify-between text-[11px] text-[#8e9192]">
+              <span>Внешних событий в базе: <strong className="text-white">{syncStatus.total_external_in_db}</strong></span>
+              {syncStatus.last_finished_at && (
+                <span>Итог: <strong className="text-emerald-400">+{syncStatus.last_created}</strong> новых</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Primary Segmented Switcher (Optical Glass Pill Tabs matching Stitch) */}
       <div className="p-1 rounded-2xl bg-[#1c1b1e] border border-white/10 flex items-center gap-1 shadow-inner text-xs">

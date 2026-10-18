@@ -28,6 +28,7 @@ export interface EventSummary {
   city_id: string;
   city_name: string;
   start_at: string;
+  end_at?: string;
   venue_name: string;
   address?: string;
   latitude?: number;
@@ -546,6 +547,19 @@ export interface CreatePaymentOrderRequest {
   organization_id: string;
   customer_email?: string | null;
 }
+
+export interface SyncStatusResponse {
+  is_running: boolean;
+  current_city: string | null;
+  processed_cities: number;
+  total_cities: number;
+  last_started_at: string | null;
+  last_finished_at: string | null;
+  last_created: number;
+  last_updated: number;
+  total_external_in_db: number;
+}
+
 
 
 

@@ -18,7 +18,7 @@ from app.models.organization_plan import PlanType
 from app.models.event import Event
 from app.models.attendee import EventAttendee
 from app.models.ticket_checkin import TicketCheckIn
-from app.schemas.event import EventSummary
+from app.schemas.event import EventSummary, OrganizerEventSummary
 from app.schemas.audience import OrganizerAudienceResponse
 from app.schemas.insights import OrganizerInsightsResponse
 from app.schemas.broadcast import (
@@ -48,7 +48,7 @@ from app.services.broadcast_service import (
 router = APIRouter(prefix="/organizer", tags=["Organizer"])
 
 
-@router.get("/events", response_model=List[EventSummary])
+@router.get("/events", response_model=List[OrganizerEventSummary])
 async def list_my_organized_events(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db)

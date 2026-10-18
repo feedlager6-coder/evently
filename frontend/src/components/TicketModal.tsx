@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { EventResponse, EventSummary } from '../types';
 import { telegram } from '../services/telegram';
-import { ArrowLeft, Share2, Check, Copy, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Share2, Check, Copy } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import QRCode from 'qrcode';
 
@@ -31,8 +31,6 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     : '';
 
   const isFree = Boolean(event?.is_free) || (event?.price_amount !== null && event?.price_amount !== undefined && Number(event?.price_amount) === 0);
-  const ticketUrl = event ? ((event as any).source_url || (event as any).registration_url || (event as any).ticket_link) : null;
-  const isPaymentRequiredAtDoor = !isFree && !ticketUrl && Boolean(event?.price_amount && Number(event.price_amount) > 0);
   const doorPrice = event?.price_amount ? Number(event.price_amount) : 0;
 
   useEffect(() => {
@@ -109,7 +107,9 @@ export const TicketModal: React.FC<TicketModalProps> = ({
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-base font-bold text-white tracking-tight">Электронный билет</h1>
+          <h1 className="text-base font-bold text-white tracking-tight">
+            {isFree ? 'Электронный входной билет' : 'QR-бронь участника'}
+          </h1>
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -139,11 +139,11 @@ export const TicketModal: React.FC<TicketModalProps> = ({
               </span>
             </div>
 
-            {isPaymentRequiredAtDoor && (
+            {!isFree && (
               <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span className="text-base shrink-0 leading-none">💡</span>
                 <span className="font-semibold leading-tight">
-                  Оплата на входе: {doorPrice} ₽. Подготовьте оплату для контролера при входе.
+                  Бронь места подтверждена. Оплата входа ({doorPrice} ₽) производится организатору на месте проведения.
                 </span>
               </div>
             )}
@@ -175,9 +175,11 @@ export const TicketModal: React.FC<TicketModalProps> = ({
               </div>
               <div>
                 <span className="text-[#8e9192] block text-[11px]">Категория</span>
-                <span className="font-semibold text-white text-sm">{tierName}</span>
-                <span className="text-[11px] text-[#4edea3] block">
-                  {event.is_free ? 'Бесплатный вход' : `${event.price_amount || 0} ₽`}
+                <span className="font-semibold text-white text-sm">
+                  {tierName === 'Входной билет' && !isFree ? 'Бронь места' : tierName}
+                </span>
+                <span className={`text-[11px] block font-semibold ${isFree ? 'text-[#4edea3]' : 'text-amber-400'}`}>
+                  {isFree ? 'Бесплатный вход' : `Оплата на месте: ${doorPrice} ₽`}
                 </span>
               </div>
               <div className="col-span-2 pt-1">
@@ -213,7 +215,9 @@ export const TicketModal: React.FC<TicketModalProps> = ({
               )}
             </div>
             <p className="text-[11px] text-[#8e9192] max-w-xs leading-relaxed">
-              Покажите этот QR-код на входе организатору или контролёру мероприятия
+              {isFree
+                ? 'Покажите этот QR-код на входе организатору или контролёру мероприятия'
+                : 'Покажите этот QR-код на входе организатору для подтверждения брони и оплаты'}
             </p>
           </div>
         </div>
@@ -226,7 +230,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
             className="w-full py-3.5 px-4 rounded-full bg-white text-black font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all shadow-lg hover:bg-zinc-200"
           >
             <Share2 className="w-4 h-4" />
-            <span>Переслать билет в Telegram</span>
+            <span>{isFree ? 'Переслать билет в Telegram' : 'Переслать бронь в Telegram'}</span>
           </button>
           <button
             type="button"
@@ -234,7 +238,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
             className="w-full py-3 px-4 rounded-full bg-white/5 hover:bg-white/10 text-white font-medium text-xs flex items-center justify-center gap-2 active:scale-98 transition-all border border-white/10"
           >
             {copiedToast ? <Check className="w-4 h-4 text-[#4edea3]" /> : <Copy className="w-4 h-4 text-[#8e9192]" />}
-            <span>{copiedToast ? 'Данные билета скопированы!' : 'Скопировать номер и детали'}</span>
+            <span>{copiedToast ? 'Данные скопированы!' : (isFree ? 'Скопировать номер и детали' : 'Скопировать детали брони')}</span>
           </button>
         </div>
       </main>

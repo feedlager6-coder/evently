@@ -480,9 +480,24 @@ async def create_broadcast(
     await session.commit()
     await session.refresh(broadcast)
 
-    # Immediately execute dispatch
-    await dispatch_broadcast(session, broadcast.id, http_client=http_client)
-    await session.refresh(broadcast)
+    # For large audiences (>50 recipients) in production (no mocked http_client),
+    # dispatch asynchronously in background to avoid API gateway timeouts.
+    if len(eligible_user_ids) > 50 and http_client is None:
+        async def _run_bg_dispatch(b_id: str):
+            from app.database import AsyncSessionLocal
+            try:
+                async with AsyncSessionLocal() as bg_sess:
+                    await dispatch_broadcast(bg_sess, b_id)
+            except Exception as bg_err:
+                logger.exception(f"Background broadcast dispatch failed for {b_id}: {bg_err}")
+
+        asyncio.create_task(_run_bg_dispatch(broadcast.id))
+        broadcast.status = BroadcastStatus.PROCESSING.value
+        await session.commit()
+    else:
+        # Immediately execute dispatch
+        await dispatch_broadcast(session, broadcast.id, http_client=http_client)
+        await session.refresh(broadcast)
 
     message_text, button_text, button_url = format_broadcast_content(
         organization=org,
@@ -619,7 +634,7 @@ async def dispatch_broadcast(
     # Live or mocked HTTP delivery
     bot_token = settings.clean_bot_token
     rate_limit = max(1, settings.BROADCAST_RATE_LIMIT_PER_SEC)
-    delay_between_messages = 1.0 / rate_limit
+    delay_between_messages = max(0.045, 1.0 / rate_limit)
 
     cover_image_url = None
     local_cover_path = None
@@ -684,12 +699,12 @@ async def dispatch_broadcast(
                 try:
                     resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
                     if resp.status_code == 429:
-                        retry_after = 1
+                        retry_after = 2
                         try:
                             data_json = resp.json()
                             if asyncio.iscoroutine(data_json):
                                 data_json = await data_json
-                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
                         except Exception:
                             pass
                         await asyncio.sleep(retry_after)
@@ -734,12 +749,12 @@ async def dispatch_broadcast(
                     }
                     resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
                     if resp.status_code == 429:
-                        retry_after = 1
+                        retry_after = 2
                         try:
                             data_json = resp.json()
                             if asyncio.iscoroutine(data_json):
                                 data_json = await data_json
-                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
                         except Exception:
                             pass
                         await asyncio.sleep(retry_after)
@@ -786,12 +801,12 @@ async def dispatch_broadcast(
                 try:
                     resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
                     if resp.status_code == 429:
-                        retry_after = 1
+                        retry_after = 2
                         try:
                             data_json = resp.json()
                             if asyncio.iscoroutine(data_json):
                                 data_json = await data_json
-                            retry_after = data_json.get("parameters", {}).get("retry_after", 1)
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
                         except Exception:
                             pass
                         await asyncio.sleep(retry_after)
@@ -831,12 +846,12 @@ async def dispatch_broadcast(
 
             # Handle 429 Too Many Requests
             if resp.status_code == 429:
-                retry_after = 1
+                retry_after = 2
                 try:
                     data = resp.json()
                     if asyncio.iscoroutine(data):
                         data = await data
-                    retry_after = data.get("parameters", {}).get("retry_after", 1)
+                    retry_after = int(data.get("parameters", {}).get("retry_after", 1)) + 1
                 except Exception:
                     pass
                 logger.warning(f"Telegram 429 for recipient {rec.user_id}. Waiting {retry_after}s to retry...")

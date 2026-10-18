@@ -20,7 +20,8 @@ import {
   Building2,
   X,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import { SafeAvatar } from './SafeAvatar';
 import { TelegramIcon } from './TelegramIcon';
@@ -126,8 +127,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   if (!isRendered || !event) return null;
 
   const eventDate = new Date(event.start_at);
-  const isStarted = event.start_at ? new Date(event.start_at).getTime() <= Date.now() : false;
-  const isPast = isStarted;
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const startTime = event.start_at ? new Date(event.start_at).getTime() : 0;
+  const endTime = event.end_at ? new Date(event.end_at).getTime() : (startTime ? startTime + SIX_HOURS_MS : 0);
+  const now = Date.now();
+  const isStarted = startTime > 0 && startTime <= now && now <= endTime;
+  const isPast = endTime > 0 && now > endTime;
   const isCancelled = event.status === 'cancelled';
   const isToday = eventDate.toDateString() === new Date().toDateString();
 
@@ -308,15 +313,20 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             {/* Floating Top Badges on Cover */}
             <div className="absolute top-4 inset-x-4 flex items-center justify-between pointer-events-auto">
               <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] tracking-tight shadow-md font-medium ${
-                  isPast 
-                    ? 'bg-neutral-800/80 text-neutral-400' 
-                    : isToday 
-                    ? 'bg-emerald-500/85 text-black font-bold' 
-                    : 'bg-[#0e0e10]/75 text-white'
-                }`}>
-                  {isPast ? 'Завершено' : isToday ? 'Сегодня' : 'Скоро'}
-                </span>
+                {isPast ? (
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-zinc-300" />
+                    Завершено
+                  </span>
+                ) : (
+                  <span className={`px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] tracking-tight shadow-md font-medium ${
+                    isToday 
+                      ? 'bg-emerald-500/85 text-black font-bold' 
+                      : 'bg-[#0e0e10]/75 text-white'
+                  }`}>
+                    {isToday ? 'Сегодня' : 'Скоро'}
+                  </span>
+                )}
                 <span className="px-2.5 py-1 rounded-full bg-[#0e0e10]/75 backdrop-blur-md text-[#c4c7c8] font-medium text-[11px] tracking-tight shadow-md">
                   {formattedShortDate}
                 </span>
