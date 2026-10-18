@@ -657,6 +657,8 @@ class ExternalSyncService:
     Resilient: uses database savepoints so individual parsing errors never roll back entire transaction.
     """
 
+    SYNC_STATE = SYNC_STATE
+
     @classmethod
     async def get_curator_user_id(
         cls,
