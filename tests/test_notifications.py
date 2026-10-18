@@ -153,13 +153,13 @@ def test_deep_link_formatting_and_startapp_values():
     event_link = settings.get_event_deep_link(test_event_id)
     org_link = settings.get_organization_deep_link(test_org_id)
 
-    # Must be official Telegram Mini App Direct Link format
+    # Must be official Main Mini App Direct Link format (t.me/{bot}?startapp=...)
     assert event_link.startswith("https://t.me/")
-    assert f"/{settings.clean_bot_username}/app?startapp=event_{test_event_id}" in event_link
+    assert event_link == f"https://t.me/{settings.clean_bot_username}?startapp=event_{test_event_id}"
     assert not event_link.startswith("https://ivently.up.railway.app")
 
     assert org_link.startswith("https://t.me/")
-    assert f"/{settings.clean_bot_username}/app?startapp=org_{test_org_id}" in org_link
+    assert org_link == f"https://t.me/{settings.clean_bot_username}?startapp=org_{test_org_id}"
     assert not org_link.startswith("https://ivently.up.railway.app")
 
     # Bot username must be clean without '@'

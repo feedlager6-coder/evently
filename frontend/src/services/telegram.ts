@@ -581,6 +581,32 @@ export const telegram = {
         resolve(window.confirm(message));
       }
     });
+  },
+
+  ensureWriteAccess(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const webApp = (typeof window !== 'undefined' ? window.Telegram?.WebApp : null) as any;
+      if (!webApp) {
+        resolve(false);
+        return;
+      }
+      // If user already granted permission to write to private messages
+      if (webApp.initDataUnsafe?.user?.allows_write_to_pm) {
+        resolve(true);
+        return;
+      }
+      if (typeof webApp.requestWriteAccess === 'function') {
+        try {
+          webApp.requestWriteAccess((allowed: boolean) => {
+            resolve(Boolean(allowed));
+          });
+        } catch {
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    });
   }
 };
 

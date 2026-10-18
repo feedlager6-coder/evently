@@ -416,7 +416,7 @@ def test_event_notification_generates_valid_native_and_direct_links():
 
     # Direct bot link
     direct_link = settings.get_event_deep_link(test_id)
-    assert direct_link.startswith(f"https://t.me/{settings.clean_bot_username}/app?startapp=event_{test_id}")
+    assert direct_link.startswith(f"https://t.me/{settings.clean_bot_username}?startapp=event_{test_id}")
 
 
 def test_event_deep_link_parser_resolves_correct_event_id():

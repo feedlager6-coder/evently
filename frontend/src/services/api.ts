@@ -901,6 +901,19 @@ export const api = {
     return res.json();
   },
 
+  async setNotificationsPermission(allowed: boolean = true): Promise<boolean> {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/users/me/notifications-permission`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ allowed }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   async trackEventView(
     eventId: string,
     source: TrackingSource = 'unknown',

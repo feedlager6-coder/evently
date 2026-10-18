@@ -122,3 +122,29 @@ async def get_my_hub(
         organizations=orgs
     )
 
+
+class NotificationsPermissionRequest(BaseModel):
+    allowed: bool = True
+
+
+@router.post("/me/notifications-permission")
+async def update_notifications_permission(
+    payload: NotificationsPermissionRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Records that user has granted bot messaging permission (e.g. via Telegram.WebApp.requestWriteAccess).
+    Ensures user subscriptions have notifications_enabled = True.
+    """
+    from app.models.subscription import Subscription
+    from sqlalchemy import update
+    if payload.allowed:
+        await session.execute(
+            update(Subscription)
+            .where(Subscription.user_id == user.id)
+            .values(notifications_enabled=True)
+        )
+        await session.commit()
+    return {"status": "ok", "allowed": payload.allowed}
+

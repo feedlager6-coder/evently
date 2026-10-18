@@ -675,11 +675,58 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if text.startswith("/start"):
         start_param = text.split(" ")[1] if len(text.split(" ")) > 1 else ""
         is_event = start_param.startswith("event_") or start_param.startswith("app_event_")
-        main_button_label = "Открыть событие" if is_event else "Открыть Ivently"
+        is_org = start_param.startswith("org_") or start_param.startswith("app_org_")
+
+        webapp_base = (settings.WEBAPP_URL or settings.effective_public_host or "https://iventlyapp.ru").rstrip("/")
+
+        if is_event:
+            clean_event_id = start_param.replace("app_event_", "").replace("event_", "").split("_b_")[0]
+            webapp_event_url = f"{webapp_base}/?event_id={clean_event_id}&tgWebAppStartParam=event_{clean_event_id}"
+            return {
+                "chat_id": chat_id,
+                "text": (
+                    "👋 <b>Событие ждёт вас в Ivently!</b>\n\n"
+                    "Нажмите кнопку ниже, чтобы открыть карточку события, узнать все детали и отметить своё участие."
+                ),
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {"text": "🎟 Открыть карточку события", "web_app": {"url": webapp_event_url}}
+                        ],
+                        [
+                            {"text": "🔎 Найти другие события", "switch_inline_query": ""}
+                        ],
+                        [
+                            build_mini_app_button("Афиша города", style="primary")
+                        ]
+                    ]
+                }
+            }
+
+        if is_org:
+            clean_org_id = start_param.replace("app_org_", "").replace("org_", "")
+            webapp_org_url = f"{webapp_base}/?startapp=org_{clean_org_id}"
+            return {
+                "chat_id": chat_id,
+                "text": (
+                    "🏛 <b>Организация в Ivently!</b>\n\n"
+                    "Нажмите кнопку ниже, чтобы открыть профиль организации, увидеть все события и подписаться на анонсы."
+                ),
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {"text": "🏛 Открыть профиль организации", "web_app": {"url": webapp_org_url}}
+                        ],
+                        [
+                            build_mini_app_button("Афиша города", style="primary")
+                        ]
+                    ]
+                }
+            }
+
         welcome_intro = (
-            "👋 <b>Событие ждёт вас в Ivently!</b>\n\n"
-            "Нажмите кнопку ниже, чтобы открыть карточку события, узнать детали и отметить участие."
-            if is_event else
             "👋 <b>Добро пожаловать в Ivently — события рядом!</b>\n\n"
             "Находите концерты, вечеринки, спорт, митапы и другие события в вашем городе.\n\n"
             "🔎 <b>Найти события</b> — поиск прямо из любого чата.\n"
@@ -693,7 +740,7 @@ def handle_private_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "reply_markup": {
                 "inline_keyboard": [
                     [
-                        build_mini_app_button(main_button_label, start_param or None, style="primary")
+                        build_mini_app_button("Открыть Ivently", style="primary")
                     ],
                     [
                         {"text": "Найти события", "switch_inline_query": ""}

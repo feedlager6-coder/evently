@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import httpx
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, case
+from sqlalchemy import select, and_, or_, func, case, update
 
 from app.config import settings
 from app.models.organization import Organization, OrganizationStatus
@@ -541,15 +541,40 @@ async def create_broadcast(
     )
 
 
+class BroadcastRateLimiter:
+    """
+    Precision rate limiter for Telegram Bot API outgoing broadcasts.
+    Guarantees no more than `rate` requests per second across concurrent coroutines.
+    """
+    def __init__(self, rate: float = 20.0):
+        self.interval = 1.0 / max(1.0, rate)
+        self.lock = asyncio.Lock()
+        self.last_call = 0.0
+
+    async def acquire(self):
+        async with self.lock:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+            now = loop.time()
+            elapsed = now - self.last_call
+            wait = self.interval - elapsed
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self.last_call = loop.time()
+
+
 async def dispatch_broadcast(
     session: AsyncSession,
     broadcast_id: str,
     http_client: Optional[httpx.AsyncClient] = None
 ) -> Broadcast:
     """
-    Executes message delivery with rate limiting, 429 retry-after handling,
-    and 403 Forbidden handling (setting Subscription.notifications_enabled = False).
-    Guarantees idempotency by processing only PENDING recipients.
+    Executes message delivery with batching (100 recipients per commit),
+    concurrency (5 workers up to 20 msg/sec with rate limiter),
+    429 retry-after handling, and 403 Forbidden handling (disabling subscriptions).
+    Guarantees idempotency and crash resilience by processing only PENDING recipients.
     """
     stmt = (
         select(Broadcast)
@@ -562,6 +587,490 @@ async def dispatch_broadcast(
 
     if broadcast.status in (BroadcastStatus.COMPLETED.value, BroadcastStatus.CANCELLED.value):
         return broadcast
+
+    broadcast.status = BroadcastStatus.PROCESSING.value
+    if not broadcast.started_at:
+        broadcast.started_at = utc_now()
+    if not broadcast.attribution_token:
+        broadcast.attribution_token = secrets.token_hex(8)
+
+    # Reset any interrupted 'sending' recipients back to 'pending'
+    await session.execute(
+        update(BroadcastRecipient)
+        .where(
+            BroadcastRecipient.broadcast_id == broadcast.id,
+            BroadcastRecipient.status == RecipientStatus.SENDING.value
+        )
+        .values(status=RecipientStatus.PENDING.value)
+    )
+    await session.commit()
+
+    # Load organization and event
+    org_res = await session.execute(select(Organization).where(Organization.id == broadcast.organization_id))
+    org = org_res.scalar_one()
+
+    event = None
+    if broadcast.event_id:
+        ev_res = await session.execute(select(Event).where(Event.id == broadcast.event_id))
+        event = ev_res.scalar_one_or_none()
+
+    message_text, button_text, button_url = format_broadcast_content(
+        organization=org,
+        template_key=broadcast.template_key,
+        event=event,
+        custom_text=broadcast.custom_text,
+        broadcast_id=broadcast.id,
+        attribution_token=broadcast.attribution_token,
+    )
+
+    btn: Dict[str, Any] = {"text": button_text, "style": "success"}
+    if settings.effective_public_host and settings.effective_public_host.startswith("https://"):
+        if event:
+            param = f"event_{event.id}"
+            if broadcast.attribution_token:
+                param = f"event_{event.id}_b_{broadcast.attribution_token}"
+            btn["web_app"] = {"url": f"{settings.effective_public_host}/?startapp={param}"}
+        else:
+            btn["web_app"] = {"url": f"{settings.effective_public_host}/?startapp=org_{org.id}"}
+    else:
+        btn["url"] = button_url
+
+    reply_markup = {
+        "inline_keyboard": [
+            [btn]
+        ]
+    }
+
+    bot_token = settings.clean_bot_token
+    rate_limit = min(20.0, max(1.0, float(settings.BROADCAST_RATE_LIMIT_PER_SEC)))
+    rate_limiter = BroadcastRateLimiter(rate=rate_limit)
+    sem = asyncio.Semaphore(5)
+    use_rate_limit = settings.is_live_bot and http_client is None
+
+    cover_image_url = None
+    local_cover_path = None
+    cached_photo_bytes = None
+    telegram_photo_file_id: Optional[str] = None
+
+    if event and event.cover_image_url:
+        from app.services.notification_service import resolve_event_cover_url, resolve_local_cover_path
+        cover_image_url = resolve_event_cover_url(event.cover_image_url)
+        local_cover_path = resolve_local_cover_path(event.cover_image_url)
+        if local_cover_path and local_cover_path.is_file():
+            try:
+                cached_photo_bytes = local_cover_path.read_bytes()
+            except Exception as e:
+                logger.warning(f"Failed to pre-read cover bytes: {e}")
+                cached_photo_bytes = None
+
+    async def _send_to_recipient(client: httpx.AsyncClient, rec: BroadcastRecipient, tg_id: Optional[int], blocked_uids: set):
+        nonlocal telegram_photo_file_id
+
+        # Idempotency check: only process PENDING recipients
+        if rec.status != RecipientStatus.PENDING.value:
+            return
+
+        if not tg_id:
+            rec.status = RecipientStatus.FAILED.value
+            rec.error_code = "missing_telegram_id"
+            rec.error_message = "User has no telegram_id"
+            broadcast.failed_count += 1
+            return
+
+        rec.status = RecipientStatus.SENDING.value
+
+        is_silent = bool(getattr(broadcast, "is_silent", False))
+        payload = {
+            "chat_id": tg_id,
+            "text": message_text,
+            "parse_mode": "HTML",
+            "reply_markup": reply_markup,
+            "disable_notification": is_silent,
+        }
+
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+        try:
+            resp = None
+            photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+
+            # Priority 0: If we already have telegram_photo_file_id from first successful sendPhoto, reuse it via JSON
+            if telegram_photo_file_id:
+                photo_payload = {
+                    "chat_id": tg_id,
+                    "photo": telegram_photo_file_id,
+                    "caption": message_text,
+                    "parse_mode": "HTML",
+                    "reply_markup": reply_markup,
+                    "disable_notification": is_silent,
+                }
+                try:
+                    resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+                    if resp.status_code == 429:
+                        retry_after = 2
+                        try:
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+
+                    if resp.status_code == 400:
+                        telegram_photo_file_id = None
+                        resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        logger.warning(f"sendPhoto with cached file_id failed with status {resp.status_code} for recipient {rec.user_id}")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+                except Exception as photo_err:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+
+            # Priority 1: If local file bytes exist, upload multipart once to obtain file_id
+            elif cached_photo_bytes and local_cover_path:
+                try:
+                    files = {"photo": (local_cover_path.name, cached_photo_bytes, "image/jpeg")}
+                    data = {
+                        "chat_id": str(tg_id),
+                        "caption": message_text,
+                        "parse_mode": "HTML",
+                        "reply_markup": json.dumps(reply_markup),
+                        "disable_notification": "true" if is_silent else "false",
+                    }
+                    resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
+                    if resp.status_code == 429:
+                        retry_after = 2
+                        try:
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, data=data, files=files, timeout=8.0)
+
+                    if resp.status_code == 400:
+                        logger.warning(f"Multipart sendPhoto failed (400), falling back to sendMessage for recipient {rec.user_id}: {resp.text}")
+                        resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        logger.warning(f"Multipart sendPhoto failed with status {resp.status_code} for recipient {rec.user_id}, skipping text fallback to prevent duplicate delivery.")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    logger.warning(f"Multipart sendPhoto network timeout/error for recipient {rec.user_id}: {photo_net_err}. Skipping text fallback to prevent duplicate delivery.")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+                except Exception as photo_err:
+                    logger.warning(f"Multipart sendPhoto exception for recipient {rec.user_id}: {photo_err}")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+
+            # Priority 2: Remote image URL
+            elif cover_image_url:
+                photo_payload = {
+                    "chat_id": tg_id,
+                    "photo": cover_image_url,
+                    "caption": message_text,
+                    "parse_mode": "HTML",
+                    "reply_markup": reply_markup,
+                    "disable_notification": is_silent,
+                }
+                try:
+                    resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+                    if resp.status_code == 429:
+                        retry_after = 2
+                        try:
+                            data_json = resp.json()
+                            if asyncio.iscoroutine(data_json):
+                                data_json = await data_json
+                            retry_after = int(data_json.get("parameters", {}).get("retry_after", 1)) + 1
+                        except Exception:
+                            pass
+                        await asyncio.sleep(retry_after)
+                        resp = await client.post(photo_url, json=photo_payload, timeout=8.0)
+
+                    if resp.status_code == 400:
+                        logger.warning(f"sendPhoto failed (400), falling back to sendMessage for recipient {rec.user_id}: {resp.text}")
+                        resp = None
+                    elif resp.status_code != 200 and resp.status_code != 403:
+                        logger.warning(f"sendPhoto failed with status {resp.status_code} for recipient {rec.user_id}, skipping text fallback to prevent duplicate delivery.")
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = str(resp.status_code)
+                        rec.error_message = resp.text[:500]
+                        broadcast.failed_count += 1
+                        return
+                except (httpx.TimeoutException, httpx.NetworkError) as photo_net_err:
+                    logger.warning(f"sendPhoto network timeout/error for recipient {rec.user_id}: {photo_net_err}. Skipping text fallback to prevent duplicate delivery.")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_timeout"
+                    rec.error_message = str(photo_net_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+                except Exception as photo_err:
+                    logger.warning(f"sendPhoto exception for recipient {rec.user_id}: {photo_err}")
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "photo_error"
+                    rec.error_message = str(photo_err)[:500]
+                    broadcast.failed_count += 1
+                    return
+
+            if resp is None:
+                resp = await client.post(url, json=payload, timeout=8.0)
+
+            # Handle 429 Too Many Requests
+            if resp.status_code == 429:
+                retry_after = 2
+                try:
+                    data = resp.json()
+                    if asyncio.iscoroutine(data):
+                        data = await data
+                    retry_after = int(data.get("parameters", {}).get("retry_after", 1)) + 1
+                except Exception:
+                    pass
+                logger.warning(f"Telegram 429 for recipient {rec.user_id}. Waiting {retry_after}s to retry...")
+                await asyncio.sleep(retry_after)
+                resp = await client.post(url, json=payload, timeout=8.0)
+
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    if asyncio.iscoroutine(data):
+                        data = await data
+                except Exception:
+                    data = {}
+
+                # If response has photos, capture Telegram file_id for subsequent recipients
+                if isinstance(data, dict):
+                    photos = data.get("result", {}).get("photo")
+                    if photos and isinstance(photos, list) and len(photos) > 0:
+                        last_p = photos[-1]
+                        if isinstance(last_p, dict) and last_p.get("file_id"):
+                            telegram_photo_file_id = last_p["file_id"]
+
+                # Invariant: ok MUST be True and message_id MUST be present
+                if isinstance(data, dict) and data.get("ok") is False:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = str(data.get("error_code", "200_not_ok"))
+                    rec.error_message = data.get("description", "Telegram API returned ok=false")
+                    broadcast.failed_count += 1
+                else:
+                    msg_id = data.get("result", {}).get("message_id") if isinstance(data, dict) else None
+                    if msg_id:
+                        rec.status = RecipientStatus.SENT.value
+                        rec.telegram_message_id = msg_id
+                        rec.sent_at = utc_now()
+                        broadcast.sent_count += 1
+                        broadcast.delivered_count += 1
+                    else:
+                        rec.status = RecipientStatus.FAILED.value
+                        rec.error_code = "missing_message_id"
+                        rec.error_message = "Ответ Telegram не содержит message_id"
+                        broadcast.failed_count += 1
+
+            elif resp.status_code == 403:
+                resp_text = resp.text.lower()
+                if "blocked" in resp_text:
+                    rec.status = RecipientStatus.BLOCKED.value
+                    rec.error_code = "403"
+                    rec.error_message = "Пользователь заблокировал бота"
+                    broadcast.blocked_count += 1
+                    blocked_uids.add(rec.user_id)
+                elif "can't initiate" in resp_text or "cant initiate" in resp_text:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "cant_initiate_conversation"
+                    rec.error_message = "Пользователь не начал диалог с ботом и не разрешил отправку сообщений"
+                    broadcast.failed_count += 1
+                elif "deactivated" in resp_text:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "user_deactivated"
+                    rec.error_message = "Аккаунт пользователя в Telegram деактивирован"
+                    broadcast.failed_count += 1
+                else:
+                    rec.status = RecipientStatus.FAILED.value
+                    rec.error_code = "403_forbidden"
+                    rec.error_message = resp.text[:500]
+                    broadcast.failed_count += 1
+
+            elif resp.status_code == 400:
+                rec.status = RecipientStatus.FAILED.value
+                rec.error_code = "400_bad_request"
+                rec.error_message = resp.text[:500]
+                broadcast.failed_count += 1
+                logger.warning(f"Telegram 400 Bad Request for user {rec.user_id}: {resp.text}")
+
+            else:
+                rec.status = RecipientStatus.FAILED.value
+                rec.error_code = str(resp.status_code)
+                rec.error_message = resp.text[:500]
+                broadcast.failed_count += 1
+                logger.warning(f"Failed to send to user {rec.user_id}: {resp.status_code} {resp.text}")
+
+        except (httpx.TimeoutException, httpx.NetworkError) as net_err:
+            rec.status = RecipientStatus.FAILED.value
+            rec.error_code = "network_timeout" if isinstance(net_err, httpx.TimeoutException) else "network_error"
+            rec.error_message = "Таймаут или ошибка сети при обращении к Telegram API"
+            broadcast.failed_count += 1
+            logger.warning(f"Network error sending to user {rec.user_id}: {net_err}")
+        except Exception as e:
+            rec.status = RecipientStatus.FAILED.value
+            rec.error_code = "internal_error"
+            rec.error_message = str(e)[:500]
+            broadcast.failed_count += 1
+            logger.warning(f"Exception sending to user {rec.user_id}: {e}")
+
+    BATCH_SIZE = 100
+    blocked_uids: set = set()
+
+    async def _send_worker(active_client: httpx.AsyncClient, rec: BroadcastRecipient, tg_id: Optional[int]):
+        async with sem:
+            if use_rate_limit:
+                await rate_limiter.acquire()
+            await _send_to_recipient(active_client, rec, tg_id, blocked_uids=blocked_uids)
+
+    # Process all recipients in batches of 100 with short database transactions
+    while True:
+        recipients_stmt = (
+            select(BroadcastRecipient, User.telegram_id)
+            .join(User, BroadcastRecipient.user_id == User.id)
+            .where(
+                BroadcastRecipient.broadcast_id == broadcast.id,
+                BroadcastRecipient.status == RecipientStatus.PENDING.value
+            )
+            .limit(BATCH_SIZE)
+        )
+        batch_rows = (await session.execute(recipients_stmt)).all()
+        if not batch_rows:
+            break
+
+        # If simulation mode (not live bot and no mocked client provided)
+        if not settings.is_live_bot and http_client is None:
+            logger.info(f"[Test/Dev Mode] Simulating batch of {len(batch_rows)} recipients for broadcast {broadcast.id}")
+            for rec, tg_id in batch_rows:
+                rec.status = RecipientStatus.SENT.value
+                rec.sent_at = utc_now()
+                broadcast.sent_count += 1
+                broadcast.delivered_count += 1
+            await session.commit()
+            continue
+
+        if http_client:
+            await asyncio.gather(*[_send_worker(http_client, rec, tg_id) for rec, tg_id in batch_rows])
+        else:
+            async with httpx.AsyncClient(timeout=10.0) as active_client:
+                await asyncio.gather(*[_send_worker(active_client, rec, tg_id) for rec, tg_id in batch_rows])
+
+        # Disable notification subscriptions for blocked users
+        if blocked_uids:
+            await session.execute(
+                update(Subscription)
+                .where(
+                    Subscription.user_id.in_(list(blocked_uids)),
+                    Subscription.organization_id == broadcast.organization_id
+                )
+                .values(notifications_enabled=False)
+            )
+            blocked_uids.clear()
+
+        await session.commit()
+
+    # Determine final broadcast status
+    broadcast.completed_at = utc_now()
+    if broadcast.failed_count == 0 and broadcast.blocked_count == 0 and broadcast.sent_count > 0:
+        broadcast.status = BroadcastStatus.COMPLETED.value
+    elif broadcast.sent_count > 0:
+        broadcast.status = BroadcastStatus.PARTIALLY_FAILED.value
+    else:
+        broadcast.status = BroadcastStatus.FAILED.value
+
+    await session.commit()
+    return broadcast
+
+
+async def resume_active_broadcasts(session: AsyncSession) -> List[str]:
+    """
+    Finds interrupted broadcasts (status in 'processing' or 'queued') on server startup
+    and resumes delivery in background for pending recipients.
+    """
+    stmt = (
+        select(Broadcast)
+        .where(Broadcast.status.in_([BroadcastStatus.PROCESSING.value, BroadcastStatus.QUEUED.value]))
+    )
+    res = await session.execute(stmt)
+    active_broadcasts = res.scalars().all()
+    resumed_ids = []
+
+    for bcast in active_broadcasts:
+        # Check if there are pending or interrupted recipients
+        pending_count_res = await session.execute(
+            select(func.count(BroadcastRecipient.id))
+            .where(
+                BroadcastRecipient.broadcast_id == bcast.id,
+                BroadcastRecipient.status.in_([RecipientStatus.PENDING.value, RecipientStatus.SENDING.value])
+            )
+        )
+        pending_count = pending_count_res.scalar() or 0
+        if pending_count > 0:
+            logger.info(f"🔄 Resuming interrupted broadcast {bcast.id} ({pending_count} pending recipients)")
+            resumed_ids.append(bcast.id)
+
+            # Reset any stuck 'sending' to 'pending'
+            await session.execute(
+                update(BroadcastRecipient)
+                .where(
+                    BroadcastRecipient.broadcast_id == bcast.id,
+                    BroadcastRecipient.status == RecipientStatus.SENDING.value
+                )
+                .values(status=RecipientStatus.PENDING.value)
+            )
+            await session.commit()
+
+            # Launch background worker
+            async def _resume_worker(b_id: str):
+                from app.database import AsyncSessionLocal
+                try:
+                    async with AsyncSessionLocal() as bg_sess:
+                        await dispatch_broadcast(bg_sess, b_id)
+                except Exception as err:
+                    logger.exception(f"Error in resumed broadcast {b_id}: {err}")
+
+            asyncio.create_task(_resume_worker(bcast.id))
+        else:
+            # All recipients already reached terminal state, finalize broadcast
+            bcast.completed_at = utc_now()
+            if bcast.failed_count == 0 and bcast.blocked_count == 0 and bcast.sent_count > 0:
+                bcast.status = BroadcastStatus.COMPLETED.value
+            elif bcast.sent_count > 0:
+                bcast.status = BroadcastStatus.PARTIALLY_FAILED.value
+            else:
+                bcast.status = BroadcastStatus.FAILED.value
+            await session.commit()
+
+    return resumed_ids
 
     broadcast.status = BroadcastStatus.PROCESSING.value
     if not broadcast.started_at:

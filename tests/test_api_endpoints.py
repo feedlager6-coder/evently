@@ -261,7 +261,7 @@ async def test_app_meta_endpoint(client):
     data = resp.json()
     assert data["app_name"] == "Ivently"
     assert data["bot_username"] == "Ivently_bot"
-    assert "https://t.me/Ivently_bot/app" in data["mini_app_url"]
+    assert "https://t.me/Ivently_bot" in data["mini_app_url"]
 
 
 

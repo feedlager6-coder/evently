@@ -710,10 +710,9 @@ export const App: React.FC = () => {
         res = await api.removeRsvp(eventId);
       } else {
         res = await api.addRsvp(eventId);
-        if (!localStorage.getItem('evently_write_access_prompted')) {
-          localStorage.setItem('evently_write_access_prompted', 'true');
-          telegram.requestWriteAccess().catch(() => {});
-        }
+        telegram.ensureWriteAccess().then((allowed) => {
+          if (allowed) api.setNotificationsPermission(true).catch(() => {});
+        }).catch(() => {});
       }
 
       // Update Details modal state
@@ -836,10 +835,9 @@ export const App: React.FC = () => {
         res = await api.removeInterest(eventId);
       } else {
         res = await api.addInterest(eventId);
-        if (!localStorage.getItem('evently_write_access_prompted')) {
-          localStorage.setItem('evently_write_access_prompted', 'true');
-          telegram.requestWriteAccess().catch(() => {});
-        }
+        telegram.ensureWriteAccess().then((allowed) => {
+          if (allowed) api.setNotificationsPermission(true).catch(() => {});
+        }).catch(() => {});
       }
 
       // Sync confirmed state from server

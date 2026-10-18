@@ -154,6 +154,9 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
         );
         telegram.hapticImpact('light');
       } else {
+        telegram.ensureWriteAccess().then((allowed) => {
+          if (allowed) api.setNotificationsPermission(true).catch(() => {});
+        }).catch(() => {});
         const res = await api.subscribeOrganization(org.id);
         setOrg((prev) =>
           prev
@@ -179,7 +182,7 @@ export const OrganizationModal: React.FC<OrganizationModalProps> = ({
     if (!org) return;
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
-    const shareUrl = `https://t.me/${botUsername}/app?startapp=org_${org.id}`;
+    const shareUrl = `https://t.me/${botUsername}?startapp=org_${org.id}`;
     const shareText = `🏛️ ${org.name} (${org.category})\nПодписывайтесь на события в Ivently:`;
 
     let shared = false;

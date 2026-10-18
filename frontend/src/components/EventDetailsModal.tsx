@@ -174,7 +174,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const handleSystemShare = async () => {
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
-    const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
+    const shareUrl = `https://t.me/${botUsername}?startapp=event_${event.id}`;
     const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
     const shareMessage = `Пойдём вместе на «${event.title}»!\n\n🗓 ${formattedFullDate}\n📍 ${venueLabel}\n\nПосмотреть событие в Ivently:\n${shareUrl}`;
 
@@ -214,7 +214,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const handleTelegramNativeShare = () => {
     telegram.hapticImpact('light');
     const botUsername = api.getBotUsername();
-    const shareUrl = `https://t.me/${botUsername}/app?startapp=event_${event.id}`;
+    const shareUrl = `https://t.me/${botUsername}?startapp=event_${event.id}`;
     const venueLabel = event.venue_name || (event.city_name ? `г. ${event.city_name}` : 'Локация в приложении');
     const shareText = `Пойдём вместе на «${event.title}»!\n🗓 ${formattedFullDate}\n📍 ${venueLabel}`;
     const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
@@ -226,6 +226,9 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     const isAttending = Boolean(event.is_attending);
     if (!isAttending) {
       telegram.hapticNotification('success');
+      telegram.ensureWriteAccess().then((allowed) => {
+        if (allowed) api.setNotificationsPermission(true).catch(() => {});
+      }).catch(() => {});
     } else {
       telegram.hapticImpact('light');
     }
@@ -237,6 +240,9 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     const isInterested = Boolean(event.current_user_interested);
     if (!isInterested) {
       telegram.hapticNotification('success');
+      telegram.ensureWriteAccess().then((allowed) => {
+        if (allowed) api.setNotificationsPermission(true).catch(() => {});
+      }).catch(() => {});
     } else {
       telegram.hapticImpact('light');
     }

@@ -210,9 +210,30 @@ async def lifespan(app: FastAPI):
 
     external_sync_task = asyncio.create_task(external_events_sync_loop())
 
+    # Auto-resume interrupted broadcasts on startup (recovery from container restarts)
+    async def resume_broadcasts_on_startup():
+        try:
+            await asyncio.sleep(4)  # brief warm-up
+            async with AsyncSessionLocal() as session:
+                from app.services.broadcast_service import resume_active_broadcasts
+                resumed = await resume_active_broadcasts(session)
+                if resumed:
+                    logger.info(f"🚀 Successfully resumed {len(resumed)} interrupted broadcasts: {resumed}")
+        except Exception as e:
+            logger.error(f"Error in auto-resume broadcasts runner: {e}", exc_info=True)
+
+    broadcast_resume_task = asyncio.create_task(resume_broadcasts_on_startup())
+
     yield
 
     # Shutdown: Cancel background tasks and close connections
+    if broadcast_resume_task:
+        broadcast_resume_task.cancel()
+        try:
+            await broadcast_resume_task
+        except asyncio.CancelledError:
+            pass
+
     if telegram_polling_task:
         telegram_polling_task.cancel()
         try:
