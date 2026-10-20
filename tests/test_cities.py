@@ -12,7 +12,7 @@ async def test_get_cities_returns_expanded_russian_cities(client: AsyncClient):
     assert response.status_code == 200
 
     cities = response.json()
-    assert len(cities) >= 34
+    assert len(cities) >= 70
 
     city_ids = {c["id"] for c in cities}
     city_names = {c["name"] for c in cities}
@@ -23,6 +23,21 @@ async def test_get_cities_returns_expanded_russian_cities(client: AsyncClient):
     assert "derbent" in city_ids
     assert "khasavyurt" in city_ids
     assert "izberbash" in city_ids
+
+    # Verify newly expanded Volga, Urals, Siberia & Central cities
+    assert "tolyatti" in city_ids
+    assert "izhevsk" in city_ids
+    assert "tula" in city_ids
+    assert "barnaul" in city_ids
+    assert "astrakhan" in city_ids
+    assert "surgut" in city_ids
+    assert "vladimir" in city_ids
+    assert "belgorod" in city_ids
+    assert "kursk" in city_ids
+    assert "cherepovets" in city_ids
+    assert "Тольятти" in city_names
+    assert "Тула" in city_names
+    assert "Барнаул" in city_names
 
     # Verify major federal and regional hubs
     assert "moscow" in city_ids

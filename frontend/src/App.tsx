@@ -572,6 +572,24 @@ export const App: React.FC = () => {
     await loadPersonalHub(true);
   }, [loadPersonalHub]);
 
+  const handleDeleteCreatedEvent = useCallback(async (event: EventSummary) => {
+    const confirmed = await telegram.showConfirm(
+      'Удалить завершенное событие «' + event.title + '» из списка?'
+    );
+    if (!confirmed) return;
+    try {
+      telegram.hapticImpact('medium');
+      await api.deleteEvent(event.id);
+      setOrganizerEvents((prev) => prev.filter((e) => e.id !== event.id));
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      telegram.showAlert('Событие удалено из списка');
+      loadOrganizerEvents();
+    } catch (err: any) {
+      console.error('Failed to delete event:', err);
+      telegram.showAlert(err.message || 'Ошибка удаления события');
+    }
+  }, [loadOrganizerEvents]);
+
   // 5. Fetch Admin Events
   const loadAdminEvents = useCallback(async () => {
     if (!isAdmin) return;
@@ -1412,6 +1430,7 @@ export const App: React.FC = () => {
                 setEditingEventData(ev as any);
                 setIsCreateEventModalOpen(true);
               }}
+              onDeleteCreatedEvent={handleDeleteCreatedEvent}
               initialFilter={organizerInitialFilter}
             />
           )
@@ -1649,8 +1668,18 @@ export const App: React.FC = () => {
           setIsUserProfileModalOpen(false);
           setIsCityModalOpen(true);
         }}
-        attendingCount={attendingEvents.length}
-        interestedCount={interestedEvents.length}
+        attendingCount={attendingEvents.filter((e) => {
+          if (!e.start_at) return false;
+          const now = Date.now();
+          if (e.end_at) return now <= new Date(e.end_at).getTime();
+          return now < new Date(e.start_at).getTime() + 3600 * 1000;
+        }).length}
+        interestedCount={interestedEvents.filter((e) => {
+          if (!e.start_at) return false;
+          const now = Date.now();
+          if (e.end_at) return now <= new Date(e.end_at).getTime();
+          return now < new Date(e.start_at).getTime() + 3600 * 1000;
+        }).length}
         subscriptionsCount={userSubscriptions.length}
         onNavigateToAttending={() => {
           setIsUserProfileModalOpen(false);

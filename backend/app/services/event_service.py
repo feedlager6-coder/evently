@@ -626,13 +626,12 @@ async def remove_event_rsvp(
     """
     Idempotently cancels event attendance.
     If not attending, returns (False, current_count, 'Not attending') safely.
+    Users are allowed to cancel RSVP at any time, even after an event has started or ended.
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if ensure_utc(event.start_at) < utc_now():
-        raise EventPastError("Мероприятие уже завершено. Изменение участия недоступно.")
 
     # Delete attendance if exists
     del_stmt = delete(EventAttendee).where(
@@ -721,13 +720,12 @@ async def remove_event_interest(
     """
     Idempotently cancels user interest ('Хочу пойти').
     Returns: (is_interested, interest_count, is_attending, attendee_count, message)
+    Users are allowed to remove bookmarks/likes at any time, even after an event has started or ended.
     """
     event_res = await session.execute(select(Event).where(Event.id == event_id))
     event = event_res.scalar_one_or_none()
     if not event or event.status == EventStatus.DELETED.value:
         raise EventNotFoundError(f"Event '{event_id}' not found.")
-    if ensure_utc(event.start_at) < utc_now():
-        raise EventPastError("Мероприятие уже завершено. Изменение интереса недоступно.")
 
     # Delete interest if exists
     del_stmt = delete(EventInterest).where(
@@ -1218,6 +1216,25 @@ async def get_organizer_events(
     return summaries
 
 
+async def cleanup_expired_interests(
+    session: AsyncSession,
+    user_id: Optional[int] = None
+) -> int:
+    """
+    Deletes EventInterest records for completed/past events (start_at < now - 1 hour).
+    If user_id is provided, prunes only for that user; otherwise global cleanup.
+    """
+    now_utc = utc_now()
+    cutoff = now_utc - timedelta(hours=1)
+    expired_subq = select(Event.id).where(Event.start_at < cutoff)
+    stmt = delete(EventInterest).where(EventInterest.event_id.in_(expired_subq))
+    if user_id is not None:
+        stmt = stmt.where(EventInterest.user_id == user_id)
+    res = await session.execute(stmt)
+    await session.commit()
+    return res.rowcount or 0
+
+
 async def get_user_personal_events(
     session: AsyncSession,
     user_id: int,
@@ -1226,10 +1243,21 @@ async def get_user_personal_events(
     offset: int = 0
 ) -> List[EventSummary]:
     """
-    Returns events for the authenticated user based on type:
+    Returns active, uncompleted events for the authenticated user based on type:
     - 'attending': events where user clicked 'Я иду' (EventAttendee)
     - 'interested': events where user clicked 'Хочу пойти' (EventInterest)
+    Completed events (start_at < now - 1 hour) are automatically excluded from both lists.
     """
+    if event_type == "interested":
+        try:
+            await cleanup_expired_interests(session, user_id=user_id)
+        except Exception as e:
+            logger.warning(f"Error auto-cleaning expired interests for user {user_id}: {e}")
+
+    now_utc = utc_now()
+    cutoff = now_utc - timedelta(hours=1)
+    active_condition = Event.start_at >= cutoff
+
     attendee_count_subq = (
         select(func.count(EventAttendee.user_id))
         .where(EventAttendee.event_id == Event.id)
@@ -1266,7 +1294,9 @@ async def get_user_personal_events(
         target_event_ids_q = select(EventAttendee.event_id).where(EventAttendee.user_id == user_id)
         query = query.where(Event.id.in_(target_event_ids_q))
 
-    # Show published or cancelled events (preserve personal event history)
+    # Show only active, non-completed events
+    query = query.where(active_condition)
+    # Show published or cancelled events (preserve personal notifications if cancelled)
     query = query.where(Event.status.in_([EventStatus.PUBLISHED.value, EventStatus.CANCELLED.value]))
     # Order by start_at ascending (upcoming events first)
     query = query.order_by(Event.start_at.asc()).limit(limit).offset(offset)

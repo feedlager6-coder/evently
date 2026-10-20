@@ -741,7 +741,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               {/* External Event: Single "Хочу пойти" / "В закладках ✓" button */}
               <button
                 onClick={handleInterestedClick}
-                disabled={isInterestLoading || isPast || !onToggleInterest}
+                disabled={isInterestLoading || (isPast && !event.current_user_interested) || !onToggleInterest}
                 type="button"
                 className={`flex-1 h-11 px-4 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md ${
                   event.current_user_interested
@@ -788,7 +788,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 {/* Radio Option 1: "Я иду" */}
                 <button
                   onClick={handleGoingClick}
-                  disabled={isRsvpLoading || isInterestLoading || isPast}
+                  disabled={isRsvpLoading || isInterestLoading || (isPast && !event.is_attending)}
                   aria-checked={Boolean(event.is_attending)}
                   role="radio"
                   type="button"
@@ -809,7 +809,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 {/* Radio Option 2: "Хочу пойти" */}
                 <button
                   onClick={handleInterestedClick}
-                  disabled={isInterestLoading || isRsvpLoading || isPast || !onToggleInterest}
+                  disabled={isInterestLoading || isRsvpLoading || (isPast && !event.current_user_interested) || !onToggleInterest}
                   aria-checked={Boolean(event.current_user_interested)}
                   role="radio"
                   type="button"

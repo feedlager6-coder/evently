@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   ShoppingBag,
   Bell,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 
 /* Contract compliance metadata:
@@ -51,6 +52,7 @@ interface OrganizerTabProps {
   onOpenBroadcastComposer?: (eventId: string, orgId?: string) => void;
   onOpenTicket?: (event: EventSummary) => void;
   onOpenEditEvent?: (event: EventSummary) => void;
+  onDeleteCreatedEvent?: (event: EventSummary) => void;
   initialFilter?: 'going' | 'wishlist' | 'created';
 }
 
@@ -74,6 +76,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onOpenBroadcastComposer: _onOpenBroadcastComposer,
   onOpenTicket,
   onOpenEditEvent,
+  onDeleteCreatedEvent,
   initialFilter = 'going',
 }) => {
   const [activeFilter, setActiveFilter] = useState<OrganizerFilterType>(initialFilter);
@@ -85,27 +88,27 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
 
   const isEventPast = (ev: { start_at?: string; end_at?: string }) => {
     if (!ev.start_at) return false;
+    const now = Date.now();
+    if (ev.end_at) {
+      return now > new Date(ev.end_at).getTime();
+    }
     const startTime = new Date(ev.start_at).getTime();
-    const endTime = ev.end_at ? new Date(ev.end_at).getTime() : startTime + 6 * 3600 * 1000;
-    return Date.now() > endTime;
+    return now >= startTime + 3600 * 1000;
   };
 
-  // Sort upcoming first, finished events at the bottom
-  const sortedAttending = [...attendingEvents].sort((a, b) => {
-    const aPast = isEventPast(a);
-    const bPast = isEventPast(b);
-    if (aPast !== bPast) return aPast ? 1 : -1;
-    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
-  });
+  // Only active, upcoming events are shown in 'Я иду' and 'Хочу пойти'
+  const activeAttending = attendingEvents.filter((e) => !isEventPast(e));
+  const activeInterested = interestedEvents.filter((e) => !isEventPast(e));
 
-  const sortedInterested = [...interestedEvents].sort((a, b) => {
-    const aPast = isEventPast(a);
-    const bPast = isEventPast(b);
-    if (aPast !== bPast) return aPast ? 1 : -1;
-    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
-  });
+  const sortedAttending = [...activeAttending].sort(
+    (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+  );
 
-  const totalTickets = attendingEvents.length;
+  const sortedInterested = [...activeInterested].sort(
+    (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+  );
+
+  const totalTickets = activeAttending.length;
   const isAnyOrgPro = organizations.some((o: any) => o.plan === 'pro');
   const isOrganizer = organizations.length > 0;
   const hasCreatedEvents = myCreatedEvents.length > 0 || isOrganizer;
@@ -267,7 +270,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   : 'bg-[#2a2a2c] text-[#c4c7c8]'
               }`}
             >
-              {attendingEvents.length}
+              {activeAttending.length}
             </span>
           </button>
 
@@ -287,7 +290,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                   : 'bg-[#2a2a2c] text-[#c4c7c8]'
               }`}
             >
-              {interestedEvents.length}
+              {activeInterested.length}
             </span>
           </button>
 
@@ -656,6 +659,21 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
+                        {isPast && onDeleteCreatedEvent && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              telegram.hapticImpact('medium');
+                              onDeleteCreatedEvent(event);
+                            }}
+                            className="py-1.5 px-3 rounded-full bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 border border-rose-500/30 font-bold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                            title="Удалить из списка"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Удалить</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {

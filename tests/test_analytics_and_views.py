@@ -448,8 +448,8 @@ async def test_past_event_still_available_in_organizer_events(client, test_sessi
 
 
 @pytest.mark.asyncio
-async def test_past_event_still_available_in_personal_events_history(client, test_session):
-    """17. Past event is still available in personal events history (attending and interested)."""
+async def test_past_event_excluded_from_personal_attending_events(client, test_session):
+    """17. Completed/past events are automatically excluded from personal active lists ('Я иду' and 'Хочу пойти')."""
     from app.models.attendee import EventAttendee
 
     visitor_id = 8391
@@ -481,7 +481,7 @@ async def test_past_event_still_available_in_personal_events_history(client, tes
     res = await client.get("/api/v1/users/me/events?type=attending", headers=v_auth)
     assert res.status_code == 200
     my_ids = [e["id"] for e in res.json()]
-    assert past_event.id in my_ids
+    assert past_event.id not in my_ids
 
 
 @pytest.mark.asyncio
