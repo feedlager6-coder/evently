@@ -567,7 +567,7 @@ CITIES_DATA = [
         "is_active": True
     },
     {
-        "id": "orel",
+        "id": "oryol",
         "name": "Орёл",
         "country": "Россия",
         "timezone": "Europe/Moscow",
@@ -667,7 +667,7 @@ CITIES_DATA = [
         "is_active": True
     },
     {
-        "id": "yessentuki",
+        "id": "essentuki",
         "name": "Ессентуки",
         "country": "Россия",
         "timezone": "Europe/Moscow",
@@ -687,7 +687,7 @@ CITIES_DATA = [
         "is_active": True
     },
     {
-        "id": "arhangelsk",
+        "id": "arkhangelsk",
         "name": "Архангельск",
         "country": "Россия",
         "timezone": "Europe/Moscow",
@@ -867,7 +867,7 @@ CITIES_DATA = [
         "is_active": True
     },
     {
-        "id": "yuzhno_sahalinsk",
+        "id": "yuzhno_sakhalinsk",
         "name": "Южно-Сахалинск",
         "country": "Россия",
         "timezone": "Asia/Sakhalin",
@@ -1378,7 +1378,9 @@ async def seed_database(session: AsyncSession) -> None:
         city_id = c_data["id"]
         c_data["is_active"] = city_id in supported_active_city_ids
         if city_id not in existing_cities:
-            session.add(City(**c_data))
+            city_obj = City(**c_data)
+            session.add(city_obj)
+            existing_cities[city_id] = city_obj
         else:
             existing_city = existing_cities[city_id]
             existing_city.name = c_data["name"]
@@ -1388,6 +1390,23 @@ async def seed_database(session: AsyncSession) -> None:
             existing_city.latitude = c_data.get("latitude")
             existing_city.longitude = c_data.get("longitude")
             existing_city.is_active = c_data["is_active"]
+
+    # Explicitly ensure all curated supported cities in CITIES_DATA are present and active
+    for c_data in CITIES_DATA:
+        city_id = c_data["id"]
+        if city_id not in existing_cities:
+            city_obj = City(**c_data)
+            session.add(city_obj)
+            existing_cities[city_id] = city_obj
+        else:
+            existing_city = existing_cities[city_id]
+            existing_city.name = c_data["name"]
+            existing_city.country = c_data["country"]
+            existing_city.timezone = c_data["timezone"]
+            existing_city.currency = c_data["currency"]
+            existing_city.latitude = c_data.get("latitude")
+            existing_city.longitude = c_data.get("longitude")
+            existing_city.is_active = True
 
     # Deactivate Warsaw if present from previous deployment and migrate references
     waw_res = await session.execute(select(City).where(City.id == "warsaw"))

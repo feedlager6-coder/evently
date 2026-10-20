@@ -222,7 +222,7 @@ export const DEFAULT_CITIES: City[] = [
   { id: 'saransk', name: 'Саранск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 54.1838, longitude: 45.1838, is_active: true },
   { id: 'tambov', name: 'Тамбов', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 52.7212, longitude: 41.4523, is_active: true },
   { id: 'kaluga', name: 'Калуга', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 54.5138, longitude: 36.2612, is_active: true },
-  { id: 'orel', name: 'Орёл', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 52.9685, longitude: 36.0693, is_active: true },
+  { id: 'oryol', name: 'Орёл', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 52.9685, longitude: 36.0693, is_active: true },
   { id: 'smolensk', name: 'Смоленск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 54.7826, longitude: 32.0453, is_active: true },
   { id: 'vologda', name: 'Вологда', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 59.2205, longitude: 39.8915, is_active: true },
   { id: 'cherepovets', name: 'Череповец', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 59.1226, longitude: 37.9034, is_active: true },
@@ -232,9 +232,9 @@ export const DEFAULT_CITIES: City[] = [
   { id: 'novorossiysk', name: 'Новороссийск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 44.7154, longitude: 37.7619, is_active: true },
   { id: 'taganrog', name: 'Таганрог', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 47.2362, longitude: 38.8969, is_active: true },
   { id: 'cherkessk', name: 'Черкесск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 44.2233, longitude: 42.0578, is_active: true },
-  { id: 'yessentuki', name: 'Ессентуки', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 44.044, longitude: 42.8604, is_active: true },
+  { id: 'essentuki', name: 'Ессентуки', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 44.044, longitude: 42.8604, is_active: true },
   { id: 'kislovodsk', name: 'Кисловодск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 43.9133, longitude: 42.7208, is_active: true },
-  { id: 'arhangelsk', name: 'Архангельск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 64.5399, longitude: 40.5158, is_active: true },
+  { id: 'arkhangelsk', name: 'Архангельск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 64.5399, longitude: 40.5158, is_active: true },
   { id: 'murmansk', name: 'Мурманск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 68.9707, longitude: 33.075, is_active: true },
   { id: 'petrozavodsk', name: 'Петрозаводск', country: 'Россия', timezone: 'Europe/Moscow', currency: 'RUB', latitude: 61.785, longitude: 34.3469, is_active: true },
   { id: 'surgut', name: 'Сургут', country: 'Россия', timezone: 'Asia/Yekaterinburg', currency: 'RUB', latitude: 61.254, longitude: 73.3962, is_active: true },
@@ -252,7 +252,7 @@ export const DEFAULT_CITIES: City[] = [
   { id: 'yakutsk', name: 'Якутск', country: 'Россия', timezone: 'Asia/Yakutsk', currency: 'RUB', latitude: 62.0355, longitude: 129.6755, is_active: true },
   { id: 'blagoveshchensk', name: 'Благовещенск', country: 'Россия', timezone: 'Asia/Yakutsk', currency: 'RUB', latitude: 50.2796, longitude: 127.5405, is_active: true },
   { id: 'petropavlovsk_kamchatskiy', name: 'Петропавловск-Камчатский', country: 'Россия', timezone: 'Asia/Kamchatka', currency: 'RUB', latitude: 53.037, longitude: 158.6559, is_active: true },
-  { id: 'yuzhno_sahalinsk', name: 'Южно-Сахалинск', country: 'Россия', timezone: 'Asia/Sakhalin', currency: 'RUB', latitude: 46.9591, longitude: 142.738, is_active: true },
+  { id: 'yuzhno_sakhalinsk', name: 'Южно-Сахалинск', country: 'Россия', timezone: 'Asia/Sakhalin', currency: 'RUB', latitude: 46.9591, longitude: 142.738, is_active: true },
 ];
 
 let memoryCitiesCache: City[] | null = null;
