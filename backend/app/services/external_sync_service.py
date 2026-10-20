@@ -1016,6 +1016,10 @@ class ExternalSyncService:
                 url = f"https://www.culture.ru/afisha/{region_slug}"
                 try:
                     resp = await client.get(url)
+                    if resp.status_code == 429:
+                        logger.warning("Culture.RU rate limit reached (429) for %s, backing off 2s", region_slug)
+                        await asyncio.sleep(2.0)
+                        resp = await client.get(url)
                     if resp.status_code != 200:
                         logger.warning("Culture.RU region %s returned status %s", region_slug, resp.status_code)
                         continue
@@ -1034,8 +1038,12 @@ class ExternalSyncService:
 
                     selected_items = items[:max_events_per_region]
 
-                    # Parallel worker for fetching detailed event page (text and saleLink)
+                    # Parallel worker for fetching detailed event page (text and saleLink) if needed
                     async def fetch_item_details(item_data: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+                        existing_desc = clean_html(item_data.get("description") or "")
+                        if len(existing_desc) >= 40:
+                            return existing_desc, None
+
                         raw_i = item_data.get("_id") or item_data.get("id")
                         if not raw_i:
                             return None, None
@@ -1286,6 +1294,8 @@ class ExternalSyncService:
                 except Exception as reg_err:
                     logger.warning("Error fetching Culture.RU region %s: %s", region_slug, reg_err)
                     errors.append(f"{region_slug}: {str(reg_err)}")
+                finally:
+                    await asyncio.sleep(0.15)
 
         return {
             "source": "culture_ru",
