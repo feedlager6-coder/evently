@@ -1017,8 +1017,8 @@ class ExternalSyncService:
                 try:
                     resp = await client.get(url)
                     if resp.status_code == 429:
-                        logger.warning("Culture.RU rate limit reached (429) for %s, backing off 2s", region_slug)
-                        await asyncio.sleep(2.0)
+                        logger.warning("Culture.RU rate limit reached (429) for %s, backing off 6s", region_slug)
+                        await asyncio.sleep(6.0)
                         resp = await client.get(url)
                     if resp.status_code != 200:
                         logger.warning("Culture.RU region %s returned status %s", region_slug, resp.status_code)
@@ -1295,7 +1295,7 @@ class ExternalSyncService:
                     logger.warning("Error fetching Culture.RU region %s: %s", region_slug, reg_err)
                     errors.append(f"{region_slug}: {str(reg_err)}")
                 finally:
-                    await asyncio.sleep(0.15)
+                    await asyncio.sleep(1.0)
 
         return {
             "source": "culture_ru",
