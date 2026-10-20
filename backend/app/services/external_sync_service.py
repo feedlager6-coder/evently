@@ -1238,7 +1238,7 @@ class ExternalSyncService:
                                     Event.source_name == "culture_ru",
                                     Event.external_id.in_([ext_id, f"cul_{raw_id}"])
                                 )
-                                existing_event = (await session.execute(existing_stmt)).scalar_one_or_none()
+                                existing_event = (await session.execute(existing_stmt)).scalars().first()
 
                                 if existing_event:
                                     existing_event.external_id = ext_id
@@ -1425,7 +1425,7 @@ class ExternalSyncService:
                                         Event.source_name == "kudago",
                                         Event.external_id == ext_id
                                     )
-                                    existing_event = (await session.execute(existing_stmt)).scalar_one_or_none()
+                                    existing_event = (await session.execute(existing_stmt)).scalars().first()
 
                                     if existing_event:
                                         existing_event.title = title
