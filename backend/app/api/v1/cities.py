@@ -67,8 +67,8 @@ async def get_cities(
     if limit:
         cities = cities[:limit]
 
-    # Cache catalog response for 24 hours to accelerate client warm startups
-    response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+    # Short cache header to prevent stale browser caching while maintaining snappy responsiveness
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return cities
 
 

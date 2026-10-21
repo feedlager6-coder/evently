@@ -256,17 +256,17 @@ export const DEFAULT_CITIES: City[] = [
 ];
 
 let memoryCitiesCache: City[] | null = null;
-const CITIES_STORAGE_KEY = 'evently_cached_cities';
+const CITIES_STORAGE_KEY = 'evently_cached_cities_v4';
 
 export function getCachedCities(): City[] {
-  if (memoryCitiesCache && memoryCitiesCache.length > 0) {
+  if (memoryCitiesCache && memoryCitiesCache.length >= DEFAULT_CITIES.length) {
     return memoryCitiesCache;
   }
   try {
     const raw = localStorage.getItem(CITIES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed) && parsed.length >= DEFAULT_CITIES.length) {
         memoryCitiesCache = parsed;
         return parsed;
       }

@@ -1225,7 +1225,7 @@ async def cleanup_expired_interests(
     If user_id is provided, prunes only for that user; otherwise global cleanup.
     """
     now_utc = utc_now()
-    cutoff = now_utc - timedelta(hours=1)
+    cutoff = now_utc - timedelta(hours=3)
     expired_subq = select(Event.id).where(Event.start_at < cutoff)
     stmt = delete(EventInterest).where(EventInterest.event_id.in_(expired_subq))
     if user_id is not None:
@@ -1255,7 +1255,7 @@ async def get_user_personal_events(
             logger.warning(f"Error auto-cleaning expired interests for user {user_id}: {e}")
 
     now_utc = utc_now()
-    cutoff = now_utc - timedelta(hours=1)
+    cutoff = now_utc - timedelta(hours=3)
     active_condition = Event.start_at >= cutoff
 
     attendee_count_subq = (

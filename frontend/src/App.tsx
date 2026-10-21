@@ -16,6 +16,7 @@ import type {
 import { api, DEFAULT_CITIES } from './services/api';
 import { telegram } from './services/telegram';
 import { Header } from './components/Header';
+import { isEventCompleted } from './utils/date';
 import { CityModal } from './components/CityModal';
 import { FilterBar } from './components/FilterBar';
 import { EventCard } from './components/EventCard';
@@ -1431,6 +1432,8 @@ export const App: React.FC = () => {
                 setIsCreateEventModalOpen(true);
               }}
               onDeleteCreatedEvent={handleDeleteCreatedEvent}
+              onToggleRsvp={(eventId, cur) => handleToggleRsvp(eventId, cur)}
+              onToggleInterest={(eventId, cur) => handleToggleInterest(eventId, cur)}
               initialFilter={organizerInitialFilter}
             />
           )
@@ -1668,18 +1671,8 @@ export const App: React.FC = () => {
           setIsUserProfileModalOpen(false);
           setIsCityModalOpen(true);
         }}
-        attendingCount={attendingEvents.filter((e) => {
-          if (!e.start_at) return false;
-          const now = Date.now();
-          if (e.end_at) return now <= new Date(e.end_at).getTime();
-          return now < new Date(e.start_at).getTime() + 3600 * 1000;
-        }).length}
-        interestedCount={interestedEvents.filter((e) => {
-          if (!e.start_at) return false;
-          const now = Date.now();
-          if (e.end_at) return now <= new Date(e.end_at).getTime();
-          return now < new Date(e.start_at).getTime() + 3600 * 1000;
-        }).length}
+        attendingCount={attendingEvents.filter((e) => !isEventCompleted(e)).length}
+        interestedCount={interestedEvents.filter((e) => !isEventCompleted(e)).length}
         subscriptionsCount={userSubscriptions.length}
         onNavigateToAttending={() => {
           setIsUserProfileModalOpen(false);

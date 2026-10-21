@@ -17,11 +17,13 @@ import {
   Users,
   CheckCircle2,
   ShieldCheck,
-  ShoppingBag,
   Bell,
   Clock,
-  Trash2
+  Trash2,
+  X,
+  Maximize2
 } from 'lucide-react';
+import { isEventCompleted } from '../utils/date';
 
 /* Contract compliance metadata:
  * <AnimatedSegmentedControl />
@@ -53,6 +55,8 @@ interface OrganizerTabProps {
   onOpenTicket?: (event: EventSummary) => void;
   onOpenEditEvent?: (event: EventSummary) => void;
   onDeleteCreatedEvent?: (event: EventSummary) => void;
+  onToggleRsvp?: (eventId: string, currentStatus: boolean) => void;
+  onToggleInterest?: (eventId: string, currentStatus: boolean) => void;
   initialFilter?: 'going' | 'wishlist' | 'created';
 }
 
@@ -77,6 +81,8 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
   onOpenTicket,
   onOpenEditEvent,
   onDeleteCreatedEvent,
+  onToggleRsvp,
+  onToggleInterest,
   initialFilter = 'going',
 }) => {
   const [activeFilter, setActiveFilter] = useState<OrganizerFilterType>(initialFilter);
@@ -86,19 +92,9 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
     setActiveFilter(initialFilter);
   }, [initialFilter]);
 
-  const isEventPast = (ev: { start_at?: string; end_at?: string }) => {
-    if (!ev.start_at) return false;
-    const now = Date.now();
-    if (ev.end_at) {
-      return now > new Date(ev.end_at).getTime();
-    }
-    const startTime = new Date(ev.start_at).getTime();
-    return now >= startTime + 3600 * 1000;
-  };
-
-  // Only active, upcoming events are shown in 'Я иду' and 'Хочу пойти'
-  const activeAttending = attendingEvents.filter((e) => !isEventPast(e));
-  const activeInterested = interestedEvents.filter((e) => !isEventPast(e));
+  // Only active, upcoming events are shown in 'Я иду' and 'Хочу пойти' (completed automatically hidden)
+  const activeAttending = attendingEvents.filter((e) => !isEventCompleted(e));
+  const activeInterested = interestedEvents.filter((e) => !isEventCompleted(e));
 
   const sortedAttending = [...activeAttending].sort(
     (a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
@@ -344,7 +340,6 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
           ) : (
             sortedAttending.map((event) => {
-              const isPast = isEventPast(event);
               const eventDate = new Date(event.start_at);
               const formattedDate = eventDate.toLocaleDateString('ru-RU', {
                 day: 'numeric',
@@ -357,9 +352,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 <article
                   key={event.id}
                   onClick={() => onEventClick(event)}
-                  className={`relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer ${
-                    isPast ? 'opacity-90' : ''
-                  }`}
+                  className="relative overflow-hidden rounded-[24px] bg-[#201f22] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_12px_28px_rgba(0,0,0,0.5)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer group"
                 >
                   {/* Hero Image */}
                   <div className="relative h-44 w-full overflow-hidden">
@@ -367,7 +360,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                       src={event.cover_image_url}
                       alt={event.title}
                       loading="eager"
-                      className={`w-full h-full object-cover ${isPast ? 'grayscale-[20%]' : ''}`}
+                      className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#201f22] via-[#201f22]/40 to-transparent" />
 
@@ -376,13 +369,26 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                       <span className="px-3 py-1 rounded-full bg-[#0e0e10]/80 backdrop-blur-xl text-white font-bold text-[11px] shadow-sm border border-white/10">
                         {formattedDate}
                       </span>
-                      {isPast && (
-                        <span className="px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md inline-flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-zinc-300" />
-                          Завершено
-                        </span>
-                      )}
                     </div>
+
+                    {/* Top Right "Убрать" Button - cleanly decoupled from QR code */}
+                    {onToggleRsvp && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            telegram.hapticImpact('medium');
+                            onToggleRsvp(event.id, true);
+                          }}
+                          aria-label="Убрать из списка «Я иду»"
+                          className="px-2.5 py-1 rounded-full bg-[#0e0e10]/85 hover:bg-rose-500/25 text-[#c4c7c8] hover:text-rose-200 backdrop-blur-xl border border-white/10 hover:border-rose-500/40 text-[11px] font-medium transition-all shadow-md active:scale-95 flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Убрать</span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Companions Badge on Image */}
                     {event.attendee_count > 1 && (
@@ -409,37 +415,37 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Ticket & QR Drawer Element matching Stitch */}
-                    <div className="p-3 rounded-2xl bg-[#1c1b1e] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] border border-white/5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#39393b] flex items-center justify-center text-[#4edea3] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
+                    {/* Clean, Clickable Ticket & QR Drawer Element */}
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        telegram.hapticImpact('light');
+                        if (onOpenTicket) {
+                          onOpenTicket(event);
+                        } else {
+                          onEventClick(event);
+                        }
+                      }}
+                      className="p-3 rounded-2xl bg-[#1c1b1e] hover:bg-[#252428] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.04)] border border-white/5 active:scale-[0.99] transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#2a2a2d] hover:bg-[#353438] flex items-center justify-center text-[#4edea3] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] border border-white/5 shrink-0 transition-colors">
                           <QrCode className="w-5 h-5" />
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-white">
-                            {isPast ? 'Архивный билет' : 'Электронный билет'}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
+                            <span>Электронный билет</span>
+                            <Maximize2 className="w-3 h-3 text-[#8e9192]" />
                           </span>
-                          <span className="text-[10px] text-[#c4c7c8]">
-                            {isPast ? 'Мероприятие прошло' : event.is_free ? 'Вход по регистрации' : 'Входной билет • Оплачено'}
+                          <span className="text-[10px] text-[#8e9192] truncate">
+                            {event.is_free ? 'Вход по регистрации' : 'Входной билет • Оплачено'} • Открыть QR
                           </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          telegram.hapticImpact('light');
-                          if (onOpenTicket) {
-                            onOpenTicket(event);
-                          } else {
-                            onEventClick(event);
-                          }
-                        }}
-                        className="py-1.5 px-3 rounded-full bg-[#353437] text-white font-medium text-xs active:scale-95 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center gap-0.5"
-                      >
+                      <div className="py-1.5 px-3 rounded-full bg-[#353437] text-white font-medium text-xs shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center gap-0.5 shrink-0 ml-2">
                         <span>Билет</span>
                         <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -475,7 +481,6 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
             </div>
           ) : (
             sortedInterested.map((event) => {
-              const isPast = isEventPast(event);
               const eventDate = new Date(event.start_at);
               const formattedDate = eventDate.toLocaleDateString('ru-RU', {
                 day: 'numeric',
@@ -491,16 +496,14 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 <article
                   key={event.id}
                   onClick={() => onEventClick(event)}
-                  className={`p-3 rounded-2xl bg-[#201f22] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer ${
-                    isPast ? 'opacity-85' : ''
-                  }`}
+                  className="p-3 rounded-2xl bg-[#201f22] flex items-center justify-between shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] border border-white/5 transition-all active:scale-[0.99] cursor-pointer"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                     <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-white/5 bg-[#121215]">
                       <SafeImage
                         src={event.cover_image_url}
                         alt={event.title}
-                        className={`w-full h-full object-cover ${isPast ? 'grayscale-[20%]' : ''}`}
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="flex flex-col min-w-0 space-y-0.5">
@@ -508,12 +511,6 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                         <span className="text-[11px] font-bold text-[#4edea3] uppercase tracking-wide">
                           {formattedDate}
                         </span>
-                        {isPast && (
-                          <span className="px-2 py-0.5 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[10px] border border-white/30 shadow-md inline-flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5 text-zinc-300" />
-                            Завершено
-                          </span>
-                        )}
                       </div>
                       <span className="text-sm font-semibold text-white truncate">
                         {event.title}
@@ -524,17 +521,36 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      telegram.hapticImpact('light');
-                      onEventClick(event);
-                    }}
-                    className="w-9 h-9 rounded-full bg-[#00a572] text-[#00311f] flex items-center justify-center active:scale-95 transition-transform shrink-0 shadow-sm"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                  </button>
+                  {/* Action group on the right: Tickets + Decoupled Remove */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        telegram.hapticImpact('light');
+                        onEventClick(event);
+                      }}
+                      className="py-1.5 px-3 rounded-full bg-[#00a572] text-[#00311f] font-semibold text-xs flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                    >
+                      <Ticket className="w-3.5 h-3.5" />
+                      <span>Билеты</span>
+                    </button>
+                    {onToggleInterest && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          telegram.hapticImpact('medium');
+                          onToggleInterest(event.id, true);
+                        }}
+                        title="Убрать из закладок"
+                        aria-label="Убрать из закладок"
+                        className="w-8 h-8 rounded-full bg-white/5 hover:bg-rose-500/20 text-[#8e9192] hover:text-rose-300 border border-white/10 hover:border-rose-500/30 flex items-center justify-center active:scale-95 transition-all"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </article>
               );
             })
@@ -577,7 +593,7 @@ export const OrganizerTab: React.FC<OrganizerTabProps> = ({
                 minute: '2-digit',
               }).toUpperCase();
 
-              const isPast = isEventPast(event);
+              const isPast = isEventCompleted(event);
 
               const statusBadge = isPast ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-900/95 text-zinc-100 font-bold text-[11px] border border-white/30 shadow-lg backdrop-blur-md">

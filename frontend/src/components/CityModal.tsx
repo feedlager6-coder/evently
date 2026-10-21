@@ -94,12 +94,13 @@ export const CityModal: React.FC<CityModalProps> = ({
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const allCities = useMemo(() => {
-    return cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+    const source = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+    return [...source].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }, [cities]);
 
   const filteredCities = useMemo(() => {
     const rawQ = searchQuery.toLowerCase().trim();
-    if (!rawQ) return allCities.slice(0, 40);
+    if (!rawQ) return allCities;
 
     const convertedQ = convertKeyboardLayout(rawQ);
     const translitQ = TRANSLIT_MAP[rawQ] || '';
@@ -114,7 +115,7 @@ export const CityModal: React.FC<CityModalProps> = ({
         id.includes(convertedQ) ||
         (translitQ && (name.includes(translitQ) || id.includes(translitQ)))
       );
-    }).slice(0, 40);
+    });
   }, [allCities, searchQuery]);
 
   if (!isOpen) return null;
@@ -252,7 +253,7 @@ export const CityModal: React.FC<CityModalProps> = ({
         </div>
 
         {/* Cities list */}
-        <div className="space-y-1.5 overflow-y-auto max-h-[260px] pr-0.5 custom-scrollbar">
+        <div className="space-y-1.5 overflow-y-auto max-h-[340px] sm:max-h-[380px] pr-0.5 custom-scrollbar">
           {filteredCities.length === 0 ? (
             <div className="py-6 text-center text-xs text-[#8e9192]">
               Город не найден
