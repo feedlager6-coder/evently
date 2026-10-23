@@ -188,11 +188,21 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 async with AsyncSessionLocal() as session:
+                    # 1. Multi-platform aggregator (Yandex.Afisha, MTS Live, Kassir.ru)
+                    from app.services.aggregator.aggregator_service import AggregatorMasterService
+                    logger.info("Starting scheduled multi-platform aggregator synchronization (Yandex, MTS Live, Kassir)...")
+                    agg_stats = await AggregatorMasterService.sync_all_sources(
+                        session=session,
+                        max_events_per_city=50,
+                    )
+                    logger.info("Scheduled aggregator sync complete: %s", agg_stats)
+
+                    # 2. Culture.RU municipal feeds
                     from app.services.external_sync_service import ExternalSyncService
-                    logger.info("Starting scheduled external events synchronization...")
+                    logger.info("Starting scheduled external events synchronization (Culture.RU)...")
                     result = await ExternalSyncService.sync_external_events(session)
                     logger.info(
-                        "Scheduled external sync complete: %d total synced (%d created, %d updated)",
+                        "Scheduled Culture.RU sync complete: %d total synced (%d created, %d updated)",
                         result.get("total_synced", 0),
                         result.get("created", 0),
                         result.get("updated", 0),

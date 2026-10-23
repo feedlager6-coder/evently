@@ -233,9 +233,25 @@ class AggregatorMasterService:
                                     if ev.price_min is not None:
                                         if matched_candidate.price_amount is None or ev.price_min < matched_candidate.price_amount:
                                             matched_candidate.price_amount = ev.price_min
-                                    if ev.cover_image_url and (not matched_candidate.cover_image_url or "default" in matched_candidate.cover_image_url):
+                                    # Upgrade generic cover to real platform poster
+                                    if ev.cover_image_url and ("covers" not in ev.cover_image_url and "default" not in ev.cover_image_url):
+                                        if not matched_candidate.cover_image_url or "covers" in matched_candidate.cover_image_url or "default" in matched_candidate.cover_image_url:
+                                            matched_candidate.cover_image_url = ev.cover_image_url
+                                    elif ev.cover_image_url and not matched_candidate.cover_image_url:
                                         matched_candidate.cover_image_url = ev.cover_image_url
-                                    if len(ev.description) > len(matched_candidate.description):
+
+                                    # Upgrade generic venue & address
+                                    generic_v = ("Площадка мероприятия", "Культурная площадка", "Центр города")
+                                    if ev.venue_name and ev.venue_name not in generic_v:
+                                        if not matched_candidate.venue_name or matched_candidate.venue_name in generic_v:
+                                            matched_candidate.venue_name = ev.venue_name
+                                            matched_candidate.address = ev.address
+
+                                    # Upgrade generic category
+                                    if ev.category_id and ev.category_id != "other" and matched_candidate.category_id in ("other", None):
+                                        matched_candidate.category_id = ev.category_id
+
+                                    if len(ev.description) > len(matched_candidate.description or ""):
                                         matched_candidate.description = ev.description
                                     if not matched_candidate.source_url and ev.source_url:
                                         matched_candidate.source_url = ev.source_url
