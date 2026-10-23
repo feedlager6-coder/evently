@@ -11,15 +11,9 @@ async def test():
             raw = ev_m.group(1)
             clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', raw)
             clean = re.sub(r"\bundefined\b", "null", clean)
-            try:
-                ap = json.loads(clean)
-                print("JSON LOADS SUCCESS! Keys:", len(ap))
-                for k, v in ap.items():
-                    if isinstance(v, dict):
-                        for sub_k, sub_v in v.items():
-                            if isinstance(sub_v, dict) and sub_v.get("__typename") == "SchedulePreview":
-                                print(f"Found SchedulePreview in [{k}][{sub_k}]: {sub_v}")
-            except Exception as e:
-                print("JSON LOADS FAILED:", e)
+            ap = json.loads(clean)
+            for k, v in ap.items():
+                if isinstance(v, dict):
+                    print(f"Key [{k}]: typename={v.get('__typename')}")
 
 asyncio.run(test())
