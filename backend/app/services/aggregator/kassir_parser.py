@@ -140,10 +140,13 @@ class KassirParser:
                         try:
                             clean_dt = begins_at_val.replace('Z', '+00:00')
                             dt_obj = datetime.fromisoformat(clean_dt)
+                            try:
+                                city_tz = resolve_city_timezone("Europe/Moscow")
+                            except Exception:
+                                city_tz = ZoneInfo("Europe/Moscow")
                             if dt_obj.tzinfo is None:
-                                start_at = dt_obj.replace(tzinfo=timezone.utc)
-                            else:
-                                start_at = dt_obj.astimezone(timezone.utc)
+                                dt_obj = dt_obj.replace(tzinfo=city_tz)
+                            start_at = dt_obj.astimezone(timezone.utc)
                         except Exception:
                             pass
 
@@ -290,7 +293,7 @@ class KassirParser:
 
                     events.append(AggregatedEvent(
                         source_name="kassir",
-                        external_id=f"kassir_{ext_id}",
+                        external_id=f"kassir_{target_city_id}_{ext_id}",
                         source_url=source_url,
                         title=title,
                         description=description,

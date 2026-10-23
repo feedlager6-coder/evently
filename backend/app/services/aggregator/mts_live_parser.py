@@ -152,11 +152,14 @@ class MtsLiveParser:
                         if dt_str and isinstance(dt_str, str):
                             try:
                                 clean_dt = dt_str.replace('Z', '+00:00')
-                                start_at = datetime.fromisoformat(clean_dt)
-                                if start_at.tzinfo is None:
-                                    start_at = start_at.replace(tzinfo=timezone.utc)
-                                else:
-                                    start_at = start_at.astimezone(timezone.utc)
+                                dt_obj = datetime.fromisoformat(clean_dt)
+                                try:
+                                    city_tz = resolve_city_timezone("Europe/Moscow")
+                                except Exception:
+                                    city_tz = ZoneInfo("Europe/Moscow")
+                                if dt_obj.tzinfo is None:
+                                    dt_obj = dt_obj.replace(tzinfo=city_tz)
+                                start_at = dt_obj.astimezone(timezone.utc)
                             except Exception:
                                 pass
 
@@ -252,7 +255,7 @@ class MtsLiveParser:
 
                         events.append(AggregatedEvent(
                             source_name="mts_live",
-                            external_id=f"mts_{ext_id}",
+                            external_id=f"mts_{default_city_id}_{ext_id}",
                             source_url=source_url,
                             title=title,
                             description=description,

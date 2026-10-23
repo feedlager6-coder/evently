@@ -150,19 +150,25 @@ class AggregatorMasterService:
                         elif ev.cover_image_url.startswith("/"):
                             ev.cover_image_url = f"https://iventlyapp.ru{ev.cover_image_url}"
 
+                        target_ev_city = ev.city_id or city_id
+                        prefix_to_strip = f"{ev.source_name}_{target_ev_city}_"
+                        raw_ext_suffix = ev.external_id[len(prefix_to_strip):] if ev.external_id.startswith(prefix_to_strip) else ev.external_id
+                        legacy_ext_id = f"{ev.source_name}_{raw_ext_suffix}"
+
                         async with session.begin_nested():
-                            # --- STAGE 1: Exact source match ---
+                            # --- STAGE 1: Exact source match (strictly within target city) ---
                             exact_stmt = select(Event).where(
                                 and_(
                                     Event.source_name == ev.source_name,
-                                    Event.external_id == ev.external_id,
+                                    or_(
+                                        Event.external_id == ev.external_id,
+                                        Event.external_id == legacy_ext_id,
+                                        Event.source_url == ev.source_url,
+                                    ),
+                                    Event.city_id == target_ev_city,
                                 )
                             )
                             existing_exact = (await session.execute(exact_stmt)).scalars().first()
-
-                            if not existing_exact and ev.source_url:
-                                url_stmt = select(Event).where(Event.source_url == ev.source_url)
-                                existing_exact = (await session.execute(url_stmt)).scalars().first()
 
                             if existing_exact:
                                 # Update fields
@@ -174,6 +180,9 @@ class AggregatorMasterService:
                                 existing_exact.start_at = ev.start_at
                                 existing_exact.venue_name = ev.venue_name
                                 existing_exact.address = ev.address
+                                existing_exact.city_id = target_ev_city
+                                existing_exact.external_id = ev.external_id
+                                existing_exact.source_url = ev.source_url
                                 existing_exact.last_synced_at = now
                                 existing_exact.status = EventStatus.PUBLISHED.value
                                 existing_exact.category_id = ev.category_id

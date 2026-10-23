@@ -523,7 +523,7 @@ class YandexAfishaParser:
 
             events.append(AggregatedEvent(
                 source_name="yandex_afisha",
-                external_id=f"yandex_{ext_id}",
+                external_id=f"yandex_{default_city_id}_{ext_id}",
                 source_url=source_url,
                 title=title,
                 description=description,

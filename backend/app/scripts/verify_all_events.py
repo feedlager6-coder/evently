@@ -47,7 +47,8 @@ def extract_live_date_from_page(url: str, html: str) -> str:
                         p_obj = v.get("preview")
                         p_text = p_obj.get("text") if isinstance(p_obj, dict) else str(p_obj or "")
                         if p_text:
-                            return str(p_text).strip()
+                            clean_p = re.sub(r",+", ",", str(p_text)).strip()
+                            return clean_p
             except Exception:
                 pass
 
