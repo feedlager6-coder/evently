@@ -772,7 +772,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 >
                   <ExternalLink className="w-4 h-4 text-black" />
                   <span className="truncate">
-                    {isFree ? 'Подробнее на сайте' : 'Билеты на сайте'}
+                    {isFree ? 'Подробнее на сайте' : 'Купить билет'}
                   </span>
                 </button>
               )}

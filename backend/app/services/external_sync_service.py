@@ -23,6 +23,7 @@ from app.models.category import Category
 from app.models.attendee import EventAttendee
 from app.models.interest import EventInterest
 from app.services.storage_service import storage_service
+from app.services.aggregator.aggregator_service import AggregatorMasterService
 
 logger = logging.getLogger("evently.external_sync")
 
@@ -1541,7 +1542,15 @@ class ExternalSyncService:
         cls.SYNC_STATE["last_updated"] = 0
 
         try:
-            # 1. Primary Live Network Source: Portal «Культура.РФ»
+            # 1. Major Russian Ticketing Platforms: Kassir.ru, MTS Live, Yandex.Afisha
+            aggregator_res = await AggregatorMasterService.sync_all_sources(
+                session=session,
+                target_cities=target_slugs,
+                max_events_per_city=max_events_per_city,
+                curator_user_id=curator_user_id,
+            )
+
+            # 2. Portal «Культура.РФ»
             culture_res = await cls.sync_culture_ru_events(
                 session=session,
                 curator_user_id=curator_user_id,
@@ -1549,7 +1558,7 @@ class ExternalSyncService:
                 max_events_per_region=max_events_per_city,
             )
 
-            # 2. Secondary Network Source: KudaGo API
+            # 3. KudaGo API
             kudago_res = await cls.sync_kudago_events(
                 session=session,
                 curator_user_id=curator_user_id,
@@ -1557,15 +1566,15 @@ class ExternalSyncService:
                 max_events_per_city=max_events_per_city,
             )
 
-            total_synced = culture_res["total_synced"] + kudago_res["total_synced"]
-            total_created = culture_res["created"] + kudago_res["created"]
-            total_updated = culture_res["updated"] + kudago_res["updated"]
-            combined_errors = culture_res["errors"] + kudago_res["errors"]
+            total_synced = aggregator_res["total_harvested"] + culture_res["total_synced"] + kudago_res["total_synced"]
+            total_created = aggregator_res["created"] + culture_res["created"] + kudago_res["created"]
+            total_updated = aggregator_res["updated"] + culture_res["updated"] + kudago_res["updated"]
+            combined_errors = aggregator_res["errors"] + culture_res["errors"] + kudago_res["errors"]
 
             cls.SYNC_STATE["last_created"] = total_created
             cls.SYNC_STATE["last_updated"] = total_updated
 
-            # 3. Auto-clean expired external events older than 3 days
+            # 4. Auto-clean expired external events older than 3 days
             cleaned_count = 0
             try:
                 cleaned_count = await cls.cleanup_expired_external_events(session=session, retention_days=3)
@@ -1573,8 +1582,8 @@ class ExternalSyncService:
                 logger.warning("Auto-cleanup of expired external events failed: %s", e)
 
             logger.info(
-                "External sync completed: %d total synced (%d created, %d updated), %d cleaned, %d errors",
-                total_synced, total_created, total_updated, cleaned_count, len(combined_errors)
+                "External sync completed: %d total synced (%d created, %d updated, %d dups merged), %d cleaned, %d errors",
+                total_synced, total_created, total_updated, aggregator_res.get("duplicates_merged", 0), cleaned_count, len(combined_errors)
             )
 
             return {
@@ -1582,9 +1591,11 @@ class ExternalSyncService:
                 "total_synced": total_synced,
                 "created": total_created,
                 "updated": total_updated,
+                "duplicates_merged": aggregator_res.get("duplicates_merged", 0),
                 "cleaned": cleaned_count,
                 "errors": combined_errors,
                 "sources": {
+                    "aggregator_ticketing": aggregator_res,
                     "culture_ru": culture_res,
                     "kudago": kudago_res,
                 },
