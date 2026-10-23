@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Category, DateFilterType } from '../types';
-import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass, Drama } from 'lucide-react';
+import { Sparkles, Music, Flame, Dumbbell, GraduationCap, Briefcase, Palette, Compass, Drama, Film } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface FilterBarProps {
@@ -26,6 +26,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   education: <GraduationCap className="w-3.5 h-3.5" />,
   business: <Briefcase className="w-3.5 h-3.5" />,
   exhibitions: <Palette className="w-3.5 h-3.5" />,
+  cinema: <Film className="w-3.5 h-3.5" />,
   other: <Compass className="w-3.5 h-3.5" />,
 };
 

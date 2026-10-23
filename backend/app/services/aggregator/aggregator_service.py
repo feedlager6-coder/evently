@@ -16,6 +16,7 @@ from app.services.aggregator.kassir_parser import KassirParser
 from app.services.aggregator.mts_live_parser import MtsLiveParser
 from app.services.aggregator.yandex_afisha_parser import YandexAfishaParser
 from app.services.aggregator.deduplication import is_cross_platform_duplicate
+from app.services.aggregator.city_mapping import validate_event_city
 
 logger = logging.getLogger("evently.aggregator.master")
 
@@ -132,6 +133,17 @@ class AggregatorMasterService:
                 # Process deduplication and database saving for this city
                 for ev in city_events:
                     try:
+                        # Extra Anti-Geo-Spoofing barrier before any DB write
+                        if not validate_event_city(
+                            source_name=ev.source_name,
+                            source_url=ev.source_url,
+                            title=ev.title,
+                            venue_name=ev.venue_name,
+                            address=ev.address,
+                            target_city_id=ev.city_id or city_id,
+                        ):
+                            continue
+
                         async with session.begin_nested():
                             # --- STAGE 1: Exact source match ---
                             exact_stmt = select(Event).where(
@@ -156,6 +168,9 @@ class AggregatorMasterService:
                                 existing_exact.start_at = ev.start_at
                                 existing_exact.last_synced_at = now
                                 existing_exact.status = EventStatus.PUBLISHED.value
+                                existing_exact.category_id = ev.category_id
+                                if ev.description and (not existing_exact.description or len(ev.description) > len(existing_exact.description)):
+                                    existing_exact.description = ev.description
                                 stats["updated"] += 1
                                 continue
 

@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 import re
@@ -11,6 +12,7 @@ from app.services.aggregator.category_classifier import classify_event_category
 from app.services.aggregator.city_mapping import (
     KASSIR_CITY_SUBDOMAINS,
     resolve_city_from_text,
+    validate_event_city,
 )
 
 logger = logging.getLogger("evently.aggregator.kassir")
@@ -72,7 +74,7 @@ class KassirParser:
                     default_rubric=rubric.replace("/", "").replace("-", "_") if rubric else "featured",
                 )
                 for ev in extracted:
-                    if ev.external_id not in seen_ids and (ev.city_id == city_id or city_id in ["makhachkala", "derbent", "kaspiysk", "khasavyurt", "izberbash"]):
+                    if ev.external_id not in seen_ids and ev.city_id == city_id:
                         seen_ids.add(ev.external_id)
                         events.append(ev)
                         if len(events) >= max_events:
@@ -187,9 +189,19 @@ class KassirParser:
                     else:
                         continue
 
-                    # Description
-                    desc_val = resolve(item.get("description")) or resolve(item.get("annotation"))
-                    description = desc_val.strip() if desc_val and isinstance(desc_val, str) else ""
+                    # Reject cross-promoted banners from foreign subdomains (e.g. msk.kassir.ru on dagestan.kassir.ru)
+                    if source_url.startswith("http") and not source_url.startswith(base_url):
+                        continue
+
+                    # Rich Description Parsing (clean HTML and entities)
+                    raw_desc = resolve(item.get("description")) or resolve(item.get("annotation")) or resolve(item.get("lead")) or ""
+                    clean_desc = re.sub(r'<[^>]+>', ' ', str(raw_desc)).strip()
+                    clean_desc = html.unescape(clean_desc)
+                    clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
+                    if clean_desc and len(clean_desc) > 10:
+                        description = clean_desc
+                    else:
+                        description = f"Событие «{title}». Площадка: {venue_name} ({address}). Билеты доступны онлайн на Kassir.ru."
 
                     # Images
                     poster_val = resolve(item.get("posterImage")) or resolve(item.get("horizontalImage"))
@@ -241,14 +253,30 @@ class KassirParser:
                         raw_rubric=inferred_rubric,
                         age_restriction=age_restriction,
                         venue_name=venue_name,
+                        source_url=source_url,
                     )
+
+                    # Strict Anti-Geo-Spoofing check
+                    if not validate_event_city(
+                        source_name="kassir",
+                        source_url=source_url,
+                        title=title,
+                        venue_name=venue_name,
+                        address=address,
+                        target_city_id=target_city_id,
+                    ):
+                        logger.debug(
+                            "Kassir geo mismatch rejected: %s | URL: %s | Venue: %s for city %s",
+                            title, source_url, venue_name, target_city_id
+                        )
+                        continue
 
                     events.append(AggregatedEvent(
                         source_name="kassir",
                         external_id=f"kassir_{ext_id}",
                         source_url=source_url,
                         title=title,
-                        description=description or f"Мероприятие «{title}» на площадке {venue_name} в городе {target_city_id.capitalize()}.",
+                        description=description,
                         start_at=start_at,
                         city_id=target_city_id,
                         venue_name=venue_name,

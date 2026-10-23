@@ -90,31 +90,26 @@ KASSIR_CITY_SUBDOMAINS: Dict[str, str] = {
     "yuzhno_sakhalinsk": "sakhalin",
 }
 
-# Mapping from Ivently city_id to MTS Live slug
+# Mapping from Ivently city_id to MTS Live slug (strictly verified active cities on live.mts.ru)
+# Regional cities without native MTS Live presence (Makhachkala, Derbent, Grozny, etc.) are excluded
+# to prevent silent fallback to Moscow events.
 MTS_CITY_SLUGS: Dict[str, str] = {
     "moscow": "moscow",
     "spb": "sankt-peterburg",
-    "makhachkala": "mahachkala",
-    "derbent": "mahachkala",
-    "kaspiysk": "mahachkala",
     "kazan": "kazan",
     "krasnodar": "krasnodar",
     "sochi": "sochi",
     "rostov_on_don": "rostov-na-donu",
-    "yekaterinburg": "yekaterinburg",
     "novosibirsk": "novosibirsk",
-    "nizhny_novgorod": "nizhny-novgorod",
     "samara": "samara",
     "ufa": "ufa",
     "krasnoyarsk": "krasnoyarsk",
     "voronezh": "voronezh",
     "volgograd": "volgograd",
     "saratov": "saratov",
-    "tolyatti": "tolyatti",
     "izhevsk": "izhevsk",
     "barnaul": "barnaul",
     "irkutsk": "irkutsk",
-    "khabarovsk": "habarovsk",
     "vladivostok": "vladivostok",
     "kaliningrad": "kaliningrad",
     "yaroslavl": "yaroslavl",
@@ -128,7 +123,6 @@ MTS_CITY_SLUGS: Dict[str, str] = {
     "tver": "tver",
     "ivanovo": "ivanovo",
     "stavropol": "stavropol",
-    "pyatigorsk": "pyatigorsk",
     "tomsk": "tomsk",
     "kemerovo": "kemerovo",
     "novokuznetsk": "novokuznetsk",
@@ -325,3 +319,129 @@ def resolve_city_from_text(text: str, default_city_id: Optional[str] = None) -> 
             return city_id
 
     return default_city_id
+
+
+# ---------------------------------------------------------
+# Anti-Geo-Spoofing & Geo-Leakage Validation
+# ---------------------------------------------------------
+
+_MOSCOW_SPOOF_PATTERN = re.compile(
+    r'(?<![а-яёa-z])(?:'
+    r'москв[а-я]*|лужники|втб\s+арен[а-я]*|live\s+арен[а-я]*|дворец\s+ирины\s+винер|'
+    r'цска\s+арен[а-я]*|ммдм|бкз\s+космос|театр\s+на\s+страстном|театр\s+сатиры|'
+    r'мастерск[а-я]*\s+петра\s+фоменко|крокус|зарядье|москва\s+202\d|подольск|мытищи|балаших[а-я]*|'
+    r'красн[а-я]*\s+пресн[а-я]*|чистые\s+пруды|тверск[а-я]*\s+улиц[а-я]*|арбат'
+    r')(?![а-яёa-z])',
+    re.IGNORECASE
+)
+
+_SPB_SPOOF_PATTERN = re.compile(
+    r'(?<![а-яёa-z])(?:'
+    r'санкт-петербург[а-я]*|петербург[а-я]*|питер[а-я]*|газпром\s+арен[а-я]*|'
+    r'бкз\s+октябрьск[а-я]*|ледовый\s+дворец\s+спб|мариинск[а-я]*\s+театр[а-я]*|'
+    r'михайловск[а-я]*\s+театр[а-я]*|александринск[а-я]*\s+театр[а-я]*|эрмитаж[а-я]*|петергоф[а-я]*|'
+    r'невск[а-я]*\s+проспект|васильевск[а-я]*\s+остров'
+    r')(?![а-яёa-z])',
+    re.IGNORECASE
+)
+
+_OTHER_REGIONS_PATTERN = re.compile(
+    r'(?<![а-яёa-z])(?:'
+    r'казан[ьиеяю]*|краснодар[а-я]*|сочи|екатеринбург[а-я]*|новосибирск[а-я]*|самар[а-я]*|'
+    r'нижн[иея]+й?\s*новгород[а-я]*|уф[а-я]*|воронеж[а-я]*|волгоград[а-я]*|ростов[а-я]*|'
+    r'перм[ьиеяю]*|омск[а-я]*|томск[а-я]*|красноярск[а-я]*|челябинск[а-я]*|тюмен[ьиеяю]*|'
+    r'ульяновск[а-я]*|ярославл[а-я]*|иркутск[а-я]*|барнаул[а-я]*|владивосток[а-я]*|хабаровск[а-я]*'
+    r')(?![а-яёa-z])',
+    re.IGNORECASE
+)
+
+DAGESTAN_CITIES = {"makhachkala", "derbent", "kaspiysk", "khasavyurt", "izberbash"}
+
+
+def validate_event_city(
+    source_name: str,
+    source_url: Optional[str],
+    title: str,
+    venue_name: str,
+    address: str,
+    target_city_id: str,
+) -> bool:
+    """
+    Strict Anti-Geo-Spoofing validator.
+    Prevents events from Moscow, Saint Petersburg or other cities from leaking into regional city feeds.
+    Checks URL domain/slug integrity and text/venue geographic consistency.
+    """
+    target_city_id = (target_city_id or "").lower()
+    clean_url = (source_url or "").lower()
+    full_text = f"{title} {venue_name} {address}".lower()
+
+    # 1. URL Domain & Slug validation
+    if clean_url:
+        # A. Yandex.Afisha check
+        if "afisha.yandex.ru" in clean_url:
+            if target_city_id != "moscow" and ("/moscow/" in clean_url or "/msk/" in clean_url):
+                return False
+            if target_city_id != "spb" and ("/saint-petersburg/" in clean_url or "/spb/" in clean_url):
+                return False
+
+            if target_city_id in DAGESTAN_CITIES:
+                # Must be one of Dagestan Yandex slugs
+                if not any(f"/{dag_slug}/" in clean_url for dag_slug in ["makhachkala", "derbent", "kaspiysk"]):
+                    return False
+            elif target_city_id in YANDEX_CITY_SLUGS:
+                expected_slug = YANDEX_CITY_SLUGS[target_city_id]
+                if f"/{expected_slug}/" not in clean_url:
+                    return False
+
+        # B. Kassir.ru check
+        elif "kassir.ru" in clean_url:
+            if target_city_id != "moscow" and "msk.kassir.ru" in clean_url:
+                return False
+            if target_city_id != "spb" and "spb.kassir.ru" in clean_url:
+                return False
+
+            if target_city_id in DAGESTAN_CITIES:
+                if "dagestan.kassir.ru" not in clean_url:
+                    return False
+            elif target_city_id in KASSIR_CITY_SUBDOMAINS:
+                expected_sub = KASSIR_CITY_SUBDOMAINS[target_city_id]
+                if f"{expected_sub}.kassir.ru" not in clean_url:
+                    return False
+
+        # C. MTS Live check
+        elif "live.mts.ru" in clean_url:
+            if target_city_id not in MTS_CITY_SLUGS:
+                return False
+            if target_city_id != "moscow" and "/moscow/" in clean_url:
+                return False
+            expected_slug = MTS_CITY_SLUGS[target_city_id]
+            if f"/{expected_slug}/" not in clean_url:
+                return False
+
+    # 2. Text inspection: check for foreign city names / landmarks
+    if target_city_id != "moscow":
+        if _MOSCOW_SPOOF_PATTERN.search(full_text):
+            return False
+
+    if target_city_id != "spb":
+        if _SPB_SPOOF_PATTERN.search(full_text):
+            return False
+
+    # 3. Dagestan intra-region integrity
+    if target_city_id in DAGESTAN_CITIES:
+        if _OTHER_REGIONS_PATTERN.search(full_text):
+            return False
+
+        # Do not put events clearly held in Derbent into Makhachkala, etc.
+        if target_city_id == "makhachkala":
+            if "г. дербент" in address or "в дербенте" in full_text:
+                return False
+        elif target_city_id == "derbent":
+            if "г. махачкала" in address or "в махачкале" in full_text:
+                return False
+        elif target_city_id == "kaspiysk":
+            if "г. махачкала" in address or "в махачкале" in full_text:
+                return False
+
+    return True
+

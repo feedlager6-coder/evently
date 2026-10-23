@@ -10,6 +10,7 @@ from app.services.aggregator.category_classifier import classify_event_category
 from app.services.aggregator.city_mapping import (
     YANDEX_CITY_SLUGS,
     resolve_city_from_text,
+    validate_event_city,
 )
 
 logger = logging.getLogger("evently.aggregator.yandex_afisha")
@@ -98,6 +99,8 @@ class YandexAfishaParser:
 
         events: List[AggregatedEvent] = []
         now_utc = datetime.now(timezone.utc)
+        cinema_count = 0
+        MAX_CINEMA_PER_CITY = 8
 
         # Lookup maps for Tickets, Places, and ScheduleInfo
         tickets_map: Dict[str, Any] = {}
@@ -239,17 +242,34 @@ class YandexAfishaParser:
             # Age restriction
             age_restriction = str(v.get("contentRating") or "").strip() or None
 
-            # Description / Argument
-            argument = str(v.get("argument") or "").strip()
-            description = argument if argument else f"Мероприятие «{title}» на площадке {venue_name} в городе {default_city_id.capitalize()}."
-
-            address = f"г. {default_city_id.capitalize()}, {venue_name}"
-
             # Category resolution
             inferred_rubric = default_rubric
             type_tag = v.get("type")
-            if isinstance(type_tag, dict) and type_tag.get("code"):
-                inferred_rubric = type_tag["code"]
+            type_name = ""
+            if isinstance(type_tag, dict):
+                if type_tag.get("code"):
+                    inferred_rubric = type_tag["code"]
+                if type_tag.get("name"):
+                    type_name = str(type_tag["name"]).strip()
+
+            address = f"г. {default_city_id.capitalize()}, {venue_name}"
+
+            # Rich Description Parsing
+            raw_desc = str(v.get("description") or "").strip()
+            argument = str(v.get("argument") or "").strip()
+            tagline = str(v.get("tagline") or "").strip()
+
+            if raw_desc and len(raw_desc) > 10:
+                description = raw_desc
+            elif argument and tagline:
+                description = f"{argument}. {tagline}"
+            elif argument:
+                description = argument
+            elif tagline:
+                description = tagline
+            else:
+                type_label = type_name or "Культурное мероприятие"
+                description = f"{type_label} «{title}». Площадка: {venue_name} ({address}). Расписание и билеты онлайн на Яндекс.Афише."
 
             category_id = classify_event_category(
                 title=title,
@@ -257,7 +277,29 @@ class YandexAfishaParser:
                 raw_rubric=inferred_rubric,
                 age_restriction=age_restriction,
                 venue_name=venue_name,
+                source_url=source_url,
             )
+
+            # Cap cinema events so they never overwhelm live events
+            if category_id == "cinema":
+                if cinema_count >= MAX_CINEMA_PER_CITY:
+                    continue
+                cinema_count += 1
+
+            # Strict Anti-Geo-Spoofing check
+            if not validate_event_city(
+                source_name="yandex_afisha",
+                source_url=source_url,
+                title=title,
+                venue_name=venue_name,
+                address=address,
+                target_city_id=default_city_id,
+            ):
+                logger.debug(
+                    "Yandex.Afisha geo mismatch rejected: %s | URL: %s | Venue: %s for city %s",
+                    title, source_url, venue_name, default_city_id
+                )
+                continue
 
             events.append(AggregatedEvent(
                 source_name="yandex_afisha",

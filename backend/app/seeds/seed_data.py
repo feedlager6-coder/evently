@@ -886,6 +886,7 @@ CATEGORIES_DATA = [
     {"id": "education", "name": "Образование", "slug": "education", "is_active": True},
     {"id": "business", "name": "Бизнес", "slug": "business", "is_active": True},
     {"id": "exhibitions", "name": "Выставки", "slug": "exhibitions", "is_active": True},
+    {"id": "cinema", "name": "Кино", "slug": "cinema", "is_active": True},
     {"id": "other", "name": "Другое", "slug": "other", "is_active": True},
 ]
 

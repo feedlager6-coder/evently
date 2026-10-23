@@ -178,9 +178,10 @@ async def run_deduplication_and_category_fix(dry_run: bool = False):
                 description=ev.description,
                 raw_rubric=inferred_rubric,
                 venue_name=ev.venue_name,
+                source_url=ev.source_url,
             )
 
-            if new_cat != ev.category_id and new_cat in ["theatre", "concerts", "parties", "sports", "education", "business", "exhibitions", "other"]:
+            if new_cat != ev.category_id and new_cat in ["theatre", "concerts", "parties", "sports", "education", "business", "exhibitions", "cinema", "other"]:
                 logger.info("Reclassifying '%s' (%s): %s -> %s", ev.title, ev.id, ev.category_id, new_cat)
                 reclassified_categories += 1
                 if not dry_run:

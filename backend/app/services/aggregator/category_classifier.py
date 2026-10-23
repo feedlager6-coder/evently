@@ -98,6 +98,27 @@ PARTIES_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+# 9. CINEMA / MOVIES / CARTOONS -> 'cinema' (strictly segregated from live theatre/concerts)
+CINEMA_PATTERN = re.compile(
+    r'(?<![а-яёa-z])(?:'
+    r'мультфильм[а-я]*|мультик[а-я]*|анимационн[а-я]*\s+фильм[а-я]*|кинопоказ[а-я]*|'
+    r'фильм[а-я]*|кинопрокат|киносеанс[а-я]*|в\s+кино|короткометражк[а-я]*|'
+    r'полнометражн[а-я]*|кинопремьер[а-я]*|х/ф|х\.ф\.|д/ф|д\.ф\.|'
+    r'документальн[а-я]*\s+фильм[а-я]*|художественн[а-я]*\s+фильм[а-я]*|'
+    r'сеанс\s+фильма|просмотр\s+фильма|'
+    r'кинотеатр[а-я]*|синема|cinemax|киномакс'
+    r')(?![а-яёa-z])',
+    re.IGNORECASE
+)
+
+CINEMA_VENUES_PATTERN = re.compile(
+    r'(?<![а-яёa-z])(?:'
+    r'кинотеатр|синема|cinema|киномакс|каро|мираж|люксор|'
+    r'кинокомплекс|кинозал|в\s+\d+\s+кинотеатр[а-я]*'
+    r')(?![а-яёa-z])',
+    re.IGNORECASE
+)
+
 # 9. KIDS / FAMILY (for non-theatrical family events)
 KIDS_PATTERN = re.compile(
     r'(?<![а-яёa-z])(?:'
@@ -189,6 +210,15 @@ RUBRIC_FALLBACK_MAP = {
     "children": "other",
     "detyam": "other",
     "circus": "other",
+
+    # Cinema / Movies / Cartoons
+    "cinema": "cinema",
+    "kino": "cinema",
+    "movie": "cinema",
+    "film": "cinema",
+    "filmy": "cinema",
+    "multfilmy": "cinema",
+
     "other": "other",
 }
 
@@ -199,53 +229,64 @@ def classify_event_category(
     raw_rubric: Optional[str] = None,
     age_restriction: Optional[str] = None,
     venue_name: Optional[str] = None,
+    source_url: Optional[str] = None,
 ) -> str:
     """
     Two-tier robust category classifier with enhanced domain coverage.
-    Tier 1: Priority keyword analysis on title, venue, and description.
+    Tier 1: Priority keyword analysis on title, venue, URL and description.
     Tier 2: Platform source rubric mapping.
     """
     t_clean = (title or "").strip().lower().replace('ё', 'е')
     d_clean = (description or "")[:600].strip().lower().replace('ё', 'е')
     v_clean = (venue_name or "").strip().lower().replace('ё', 'е')
+    u_clean = (source_url or "").strip().lower()
 
-    # --- TIER 1: HIGH PRIORITY KEYWORD RULES ---
+    # --- TIER 1: HIGH PRIORITY KEYWORD & VENUE RULES ---
 
-    # 1. Standup & Humor: highest priority (NEVER theatre, NEVER concerts)
+    # 1. Cinema, Movies & Cartoons:
+    # Strictly segregated so cartoons and everyday cinema screenings NEVER pollute theatre or concerts.
+    if "/cinema/" in u_clean or "/movie/" in u_clean or "/film/" in u_clean:
+        return "cinema"
+    if CINEMA_VENUES_PATTERN.search(v_clean) or "в кинотеатрах" in v_clean:
+        return "cinema"
+    if CINEMA_PATTERN.search(t_clean) or CINEMA_PATTERN.search(d_clean):
+        return "cinema"
+
+    # 2. Standup & Humor: highest priority (NEVER theatre, NEVER concerts)
     if STANDUP_PATTERN.search(t_clean) or STANDUP_PATTERN.search(d_clean):
         return "parties"
 
-    # 2. Sports: very specific keywords
+    # 3. Sports: very specific keywords
     if SPORTS_PATTERN.search(t_clean) or (SPORTS_PATTERN.search(d_clean) and not THEATRE_PATTERN.search(t_clean) and not CONCERTS_PATTERN.search(t_clean)):
         return "sports"
 
-    # 3. Education / Lectures / Workshops / Tours / Quizzes:
+    # 4. Education / Lectures / Workshops / Tours / Quizzes:
     if EDUCATION_PATTERN.search(t_clean):
         return "education"
 
-    # 4. Exhibitions & Art & Museums:
+    # 5. Exhibitions & Art & Museums:
     if EXHIBITIONS_PATTERN.search(t_clean):
         return "exhibitions"
     if any(m in v_clean for m in ["музей", "галерея", "эрмитаж", "третьяков", "манеж", "планетарий", "выставочный центр", "выставочный зал", "арт-пространство"]):
         if not CONCERTS_PATTERN.search(t_clean) and not THEATRE_PATTERN.search(t_clean) and not STANDUP_PATTERN.search(t_clean):
             return "exhibitions"
 
-    # 5. Theatre / Ballet / Opera / Drama / Stage Fairy Tales:
+    # 6. Theatre / Ballet / Opera / Drama / Stage Fairy Tales:
     if THEATRE_PATTERN.search(t_clean):
         return "theatre"
     if any(th in v_clean for th in ["театр", "тюз", "мхат", "бдт", "мариинский", "малый театр", "кукольный театр", "драмтеатр"]):
         if not CONCERTS_PATTERN.search(t_clean) and not STANDUP_PATTERN.search(t_clean) and not SPORTS_PATTERN.search(t_clean):
             return "theatre"
 
-    # 6. Parties / Nightlife:
+    # 7. Parties / Nightlife:
     if PARTIES_PATTERN.search(t_clean):
         return "parties"
 
-    # 7. Business:
+    # 8. Business:
     if BUSINESS_PATTERN.search(t_clean):
         return "business"
 
-    # 8. Concerts / Live Music / Singers / Bands / Tours:
+    # 9. Concerts / Live Music / Singers / Bands / Tours:
     if CONCERTS_PATTERN.search(t_clean):
         return "concerts"
     # Concert Venues check
@@ -253,7 +294,7 @@ def classify_event_category(
         if not SPORTS_PATTERN.search(t_clean) and not THEATRE_PATTERN.search(t_clean):
             return "concerts"
 
-    # 9. Kids / Family:
+    # 10. Kids / Family:
     if KIDS_PATTERN.search(t_clean) or (age_restriction in ["0+", "6+"] and KIDS_PATTERN.search(d_clean)):
         if "спектакл" in t_clean or "театр" in t_clean or "балет" in t_clean or "сказк" in t_clean or "чудо" in t_clean:
             return "theatre"

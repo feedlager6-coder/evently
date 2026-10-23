@@ -1,3 +1,4 @@
+import html
 import json
 import logging
 import re
@@ -10,6 +11,7 @@ from app.services.aggregator.category_classifier import classify_event_category
 from app.services.aggregator.city_mapping import (
     MTS_CITY_SLUGS,
     resolve_city_from_text,
+    validate_event_city,
 )
 
 logger = logging.getLogger("evently.aggregator.mts_live")
@@ -193,6 +195,16 @@ class MtsLiveParser:
                         if image_url and isinstance(image_url, str) and image_url.startswith("http"):
                             cover_image_url = image_url.strip()
 
+                        # Description
+                        raw_desc = it.get("description") or it.get("annotation") or it.get("subtitle") or it.get("lead") or ""
+                        clean_desc = re.sub(r'<[^>]+>', ' ', str(raw_desc)).strip()
+                        clean_desc = html.unescape(clean_desc)
+                        if clean_desc and len(clean_desc) > 10:
+                            description = clean_desc
+                        else:
+                            genre_str = f" ({raw_rubric})" if raw_rubric and raw_rubric not in ["ribbon", "announcements"] else ""
+                            description = f"Событие «{title}»{genre_str}. Площадка: {venue_name} ({address}). Билеты доступны онлайн на МТС Live."
+
                         # Category
                         raw_rubric = default_rubric
                         for field in ["genre", "rubric", "category", "alias"]:
@@ -203,17 +215,33 @@ class MtsLiveParser:
 
                         category_id = classify_event_category(
                             title=title,
-                            description="",
+                            description=description,
                             raw_rubric=raw_rubric,
                             venue_name=venue_name,
+                            source_url=source_url,
                         )
+
+                        # Strict Anti-Geo-Spoofing check
+                        if not validate_event_city(
+                            source_name="mts_live",
+                            source_url=source_url,
+                            title=title,
+                            venue_name=venue_name,
+                            address=address,
+                            target_city_id=default_city_id,
+                        ):
+                            logger.debug(
+                                "MTS Live geo mismatch rejected: %s | URL: %s | Venue: %s for city %s",
+                                title, source_url, venue_name, default_city_id
+                            )
+                            continue
 
                         events.append(AggregatedEvent(
                             source_name="mts_live",
                             external_id=f"mts_{ext_id}",
                             source_url=source_url,
                             title=title,
-                            description=f"Мероприятие «{title}» на площадке {venue_name} в городе {default_city_id.capitalize()}.",
+                            description=description,
                             start_at=start_at,
                             city_id=default_city_id,
                             venue_name=venue_name,
