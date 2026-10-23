@@ -3,8 +3,8 @@ import re
 import json
 import httpx
 
-def inspect():
-    url = "https://afisha.yandex.ru/makhachkala/concert/shaman-30-let-na-stsene"
+def inspect_event(url):
+    print(f"\n================ INSPECTING: {url} ================")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0"}
     resp = httpx.get(url, headers=headers)
     print("STATUS:", resp.status_code)
@@ -12,25 +12,25 @@ def inspect():
     
     # 1. ld+json
     ld_blocks = re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL)
-    print(f"Found {len(ld_blocks)} ld+json blocks")
     for i, b in enumerate(ld_blocks):
         try:
             d = json.loads(b)
-            print(f"--- LD+JSON block {i} ---")
-            print("Type:", d.get("@type"))
-            print("Name:", d.get("name"))
-            print("startDate:", d.get("startDate"))
-            print("endDate:", d.get("endDate"))
-            print("location:", d.get("location"))
-            print("image:", d.get("image"))
+            if d.get("@type") in ("Event", "MusicEvent", "TheaterEvent"):
+                print(f"--- LD+JSON Event ---")
+                print("Type:", d.get("@type"))
+                print("Name:", d.get("name"))
+                print("startDate:", d.get("startDate"))
+                print("endDate:", d.get("endDate"))
+                print("location:", d.get("location", {}).get("name") if isinstance(d.get("location"), dict) else d.get("location"))
+                print("image:", d.get("image"))
         except Exception as e:
-            print(f"Error parsing ld+json {i}:", e)
+            pass
 
     # 2. og:image
     og_img = re.search(r'<meta property="og:image" content="([^"]+)"', html)
     print("OG:IMAGE:", og_img.group(1) if og_img else "None")
 
-    # 3. Apollo state scheduleInfo
+    # 3. ScheduleInfo / Dates from Apollo
     m = re.search(r"window\[[\'\"]__APOLLO_STATE__[\'\"]\]\s*=\s*(.*?);\s*</script>", html, re.DOTALL)
     if m:
         clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', m.group(1))
@@ -39,11 +39,23 @@ def inspect():
             ap_data = json.loads(clean)
             for k, v in ap_data.items():
                 if isinstance(v, dict):
-                    if v.get("__typename") in ("Event", "ActualEvent", "ScheduleInfo", "Ticket"):
-                        if "startDate" in v or "singleShowtime" in str(v) or "nearestDate" in str(v):
-                            print(f"Apollo key {k} ({v.get('__typename')}): {v}")
+                    tname = v.get("__typename")
+                    if tname in ("Event", "ScheduleInfo", "ActualEvent", "EventPreview"):
+                        for sched_key in ("regularity", "scheduleInfo", "singleShowtime", "preview", "sessions", "dates"):
+                            if sched_key in v:
+                                print(f"  Apollo [{k}] {sched_key}: {v[sched_key]}")
+                    if tname == "Image":
+                        print(f"  Apollo Image [{k}]: {v}")
         except Exception as e:
-            print("Apollo state parse error:", e)
+            print("Apollo parse error:", e)
+
+    # 4. Any dates with times in raw text
+    text_matches = re.findall(r'(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+\d{4})?(?:,?\s*\d{1,2}:\d{2})?)', html, re.IGNORECASE)
+    print("Found text date matches:", list(set(text_matches))[:10])
+
+def inspect():
+    inspect_event("https://afisha.yandex.ru/makhachkala/concert/shaman-30-let-na-stsene")
+    inspect_event("https://afisha.yandex.ru/makhachkala/concert/arslan-shakhmardanov")
 
 if __name__ == "__main__":
     inspect()
