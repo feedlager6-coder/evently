@@ -1,5 +1,5 @@
 import asyncio
-import html
+import html as html_lib
 import json
 import logging
 import re
@@ -196,7 +196,7 @@ class KassirParser:
                     # Rich Description Parsing (clean HTML and entities)
                     raw_desc = resolve(item.get("description")) or resolve(item.get("annotation")) or resolve(item.get("lead")) or ""
                     clean_desc = re.sub(r'<[^>]+>', ' ', str(raw_desc)).strip()
-                    clean_desc = html.unescape(clean_desc)
+                    clean_desc = html_lib.unescape(clean_desc)
                     clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
                     if clean_desc and len(clean_desc) > 10:
                         description = clean_desc
@@ -255,6 +255,14 @@ class KassirParser:
                         venue_name=venue_name,
                         source_url=source_url,
                     )
+
+                    # Strictly skip cinema, cartoons, and movie screenings
+                    if category_id == "cinema" or any(x in s_url_low for x in ["/kino", "/cinema"]):
+                        continue
+                    if any(x in title.lower() for x in ["мультфильм", "мультик"]):
+                        continue
+                    if any(x in venue_name.lower() for x in ["кинотеатр", "кинозал", "синема"]):
+                        continue
 
                     # Strict Anti-Geo-Spoofing check
                     if not validate_event_city(

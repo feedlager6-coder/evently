@@ -1,4 +1,4 @@
-import html
+import html as html_lib
 import json
 import logging
 import re
@@ -197,21 +197,21 @@ class MtsLiveParser:
 
                         # Description
                         raw_desc = it.get("description") or it.get("annotation") or it.get("subtitle") or it.get("lead") or ""
-                        clean_desc = re.sub(r'<[^>]+>', ' ', str(raw_desc)).strip()
-                        clean_desc = html.unescape(clean_desc)
-                        if clean_desc and len(clean_desc) > 10:
-                            description = clean_desc
-                        else:
-                            genre_str = f" ({raw_rubric})" if raw_rubric and raw_rubric not in ["ribbon", "announcements"] else ""
-                            description = f"Событие «{title}»{genre_str}. Площадка: {venue_name} ({address}). Билеты доступны онлайн на МТС Live."
-
-                        # Category
+                        # Category rubric
                         raw_rubric = default_rubric
                         for field in ["genre", "rubric", "category", "alias"]:
                             val = it.get(field)
                             if val and isinstance(val, str):
                                 raw_rubric = val
                                 break
+
+                        clean_desc = re.sub(r'<[^>]+>', ' ', str(raw_desc)).strip()
+                        clean_desc = html_lib.unescape(clean_desc)
+                        if clean_desc and len(clean_desc) > 10:
+                            description = clean_desc
+                        else:
+                            genre_str = f" ({raw_rubric})" if raw_rubric and raw_rubric not in ["ribbon", "announcements"] else ""
+                            description = f"Событие «{title}»{genre_str}. Площадка: {venue_name} ({address}). Билеты доступны онлайн на МТС Live."
 
                         category_id = classify_event_category(
                             title=title,
@@ -220,6 +220,14 @@ class MtsLiveParser:
                             venue_name=venue_name,
                             source_url=source_url,
                         )
+
+                        # Strictly skip cinema, cartoons, and movie screenings
+                        if category_id == "cinema" or any(x in source_url.lower() for x in ["/kino", "/cinema"]):
+                            continue
+                        if any(x in title.lower() for x in ["мультфильм", "мультик"]):
+                            continue
+                        if any(x in venue_name.lower() for x in ["кинотеатр", "кинозал", "синема"]):
+                            continue
 
                         # Strict Anti-Geo-Spoofing check
                         if not validate_event_city(

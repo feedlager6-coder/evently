@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 
 from app.models.event import Event, EventStatus
 from app.models.city import City
@@ -270,6 +270,47 @@ class AggregatorMasterService:
 
                 # Brief pause between cities to adhere to rate-limiting
                 await asyncio.sleep(0.5)
+
+        # --- STAGE 3: Cleanup past events and cinema/cartoons from active feed ---
+        try:
+            # 1. Purge cinema, movie screenings, and cartoons
+            cinema_stmt = select(Event).where(
+                and_(
+                    Event.status == EventStatus.PUBLISHED.value,
+                    or_(
+                        Event.category_id == "cinema",
+                        Event.source_url.ilike("%/cinema/%"),
+                        Event.source_url.ilike("%/kino/%"),
+                        Event.title.ilike("%мультфильм%"),
+                        Event.title.ilike("%мультик%"),
+                        Event.venue_name.ilike("%кинотеатр%"),
+                        Event.venue_name.ilike("%кинозал%"),
+                        Event.venue_name.ilike("%синема%"),
+                        Event.venue_name.ilike("%в % кинотеатр%"),
+                    )
+                )
+            )
+            cinema_events = (await session.execute(cinema_stmt)).scalars().all()
+            for c_ev in cinema_events:
+                c_ev.status = EventStatus.DELETED.value
+
+            # 2. Unpublish past external events whose start_at is in the past (> 2 hours ago)
+            cutoff_cleanup = now - timedelta(hours=2)
+            expired_stmt = select(Event).where(
+                and_(
+                    Event.source_type == "external",
+                    Event.status == EventStatus.PUBLISHED.value,
+                    Event.start_at < cutoff_cleanup
+                )
+            )
+            expired_events = (await session.execute(expired_stmt)).scalars().all()
+            for exp_ev in expired_events:
+                exp_ev.status = EventStatus.DELETED.value
+
+            await session.commit()
+            logger.info("Cleaned up %d cinema events and %d expired events", len(cinema_events), len(expired_events))
+        except Exception as cleanup_err:
+            logger.warning("Error during post-sync cleanup: %s", cleanup_err)
 
         logger.info(
             "Aggregator sync finished: %d harvested, %d created, %d updated, %d duplicates merged",

@@ -259,6 +259,9 @@ async def list_published_events(
 
     if category_id:
         query = query.where(Event.category_id == category_id)
+    else:
+        # Exclude cinema / movie screenings from the default general feed
+        query = query.where(Event.category_id != "cinema")
 
     if search_query and search_query.strip():
         clean_text = search_query.strip()
