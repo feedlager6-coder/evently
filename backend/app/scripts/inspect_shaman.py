@@ -2,7 +2,6 @@ import asyncio
 import re
 import json
 import httpx
-from bs4 import BeautifulSoup
 
 def inspect():
     url = "https://afisha.yandex.ru/makhachkala/concert/shaman-30-let-na-stsene"
