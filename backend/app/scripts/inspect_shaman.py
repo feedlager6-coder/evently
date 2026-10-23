@@ -58,7 +58,25 @@ def inspect_event(url):
     if idx2 != -1:
         print("\nFound '2 ноября, 18:00' snippet:\n", html[max(0, idx2-150):idx2+150])
 
+def inspect_listing():
+    print("\n================ INSPECTING LISTING: afisha.yandex.ru/makhachkala/concert ================")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0"}
+    resp = httpx.get("https://afisha.yandex.ru/makhachkala/concert", headers=headers)
+    html = resp.text
+    m = re.search(r"window\[[\'\"]__APOLLO_STATE__[\'\"]\]\s*=\s*(.*?);\s*</script>", html, re.DOTALL)
+    if m:
+        clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', m.group(1))
+        clean = re.sub(r"\bundefined\b", "null", clean)
+        try:
+            ap_data = json.loads(clean)
+            for k, v in ap_data.items():
+                if isinstance(v, dict) and "shaman" in str(v).lower():
+                    print(f"Listing key [{k}]: {json.dumps(v, ensure_ascii=False)[:300]}")
+        except Exception as e:
+            print("Listing parse error:", e)
+
 def inspect():
+    inspect_listing()
     inspect_event("https://afisha.yandex.ru/makhachkala/concert/shaman-30-let-na-stsene")
     inspect_event("https://afisha.yandex.ru/makhachkala/concert/arslan-shakhmardanov")
 
