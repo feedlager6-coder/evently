@@ -76,13 +76,15 @@ def extract_live_date_from_page(url: str, html: str) -> str:
 
 async def main():
     async with AsyncSessionLocal() as session:
-        # Select published events in Makhachkala with external source_url
+        # Select published upcoming events in Makhachkala with external source_url
+        now = datetime.now(timezone.utc)
         stmt = (
             select(Event)
             .where(
                 and_(
                     Event.city_id == "makhachkala",
                     Event.status == EventStatus.PUBLISHED.value,
+                    Event.start_at >= now,
                     Event.source_url.isnot(None),
                     Event.source_url != "",
                 )

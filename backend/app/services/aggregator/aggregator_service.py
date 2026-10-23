@@ -294,8 +294,8 @@ class AggregatorMasterService:
             for c_ev in cinema_events:
                 c_ev.status = EventStatus.DELETED.value
 
-            # 2. Unpublish past external events whose start_at is in the past (> 2 hours ago)
-            cutoff_cleanup = now - timedelta(hours=2)
+            # 2. Unpublish past external events whose start_at is in the past
+            cutoff_cleanup = now
             expired_stmt = select(Event).where(
                 and_(
                     Event.source_type == "external",

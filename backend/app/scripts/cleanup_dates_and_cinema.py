@@ -39,7 +39,7 @@ async def main():
             ev.status = EventStatus.DELETED.value
 
         # 2. Delete past external events
-        cutoff = now - timedelta(hours=2)
+        cutoff = now
         past_stmt = select(Event).where(
             and_(
                 Event.source_type == "external",
