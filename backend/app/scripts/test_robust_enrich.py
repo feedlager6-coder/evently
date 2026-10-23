@@ -12,7 +12,8 @@ async def test():
             clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', raw)
             clean = re.sub(r"\bundefined\b", "null", clean)
             ap = json.loads(clean)
-            ev_obj = ap.get("Event:67e141cd4b3a700055a8ad7c")
-            print(json.dumps(ev_obj, ensure_ascii=False, indent=2))
+            for k, v in ap.items():
+                if "Ticket" in k:
+                    print(f"Ticket [{k}]:\n{json.dumps(v, ensure_ascii=False, indent=2)}")
 
 asyncio.run(test())
