@@ -1,20 +1,18 @@
 import asyncio
 import httpx
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
-from app.services.aggregator.yandex_afisha_parser import YandexAfishaParser
+import re
+import json
 
 async def test():
-    city_tz = ZoneInfo("Europe/Moscow")
-    now_utc = datetime.now(timezone.utc)
     async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
         resp = await client.get("https://afisha.yandex.ru/makhachkala/concert")
-        extracted = YandexAfishaParser._parse_apollo_state(resp.text, "makhachkala", "concert")
-        print(f"Extracted {len(extracted)} events from makhachkala/concert:")
-        for ev in extracted:
-            pre_start = ev.start_at
-            await YandexAfishaParser._enrich_event_details(client, ev, city_tz)
-            post_start = ev.start_at
-            print(f"  {ev.title}: pre={pre_start} -> post={post_start} | cover={ev.cover_image_url}")
+        m = re.search(r"window\[[\'\"]__APOLLO_STATE__[\'\"]\]\s*=\s*(.*?);\s*</script>", resp.text, re.DOTALL)
+        if m:
+            clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', m.group(1))
+            clean = re.sub(r"\bundefined\b", "null", clean)
+            ap = json.loads(clean)
+            for k, v in ap.items():
+                if isinstance(v, dict) and "шахмарданов" in str(v).lower():
+                    print(f"Apollo [{k}]:\n{json.dumps(v, ensure_ascii=False, indent=2)}")
 
 asyncio.run(test())
