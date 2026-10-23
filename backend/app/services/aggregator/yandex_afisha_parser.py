@@ -244,8 +244,8 @@ class YandexAfishaParser:
             if not raw_url:
                 continue
 
-            # Hard rejection of cinema and cartoons
-            if "/cinema/" in raw_url:
+            # Hard rejection of cinema, cartoons, and unscheduled excursions
+            if "/cinema/" in raw_url or "/excursions/" in raw_url:
                 continue
 
             source_url = raw_url if raw_url.startswith("http") else f"https://afisha.yandex.ru{raw_url}"

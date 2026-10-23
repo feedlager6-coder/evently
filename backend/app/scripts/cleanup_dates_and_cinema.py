@@ -24,6 +24,7 @@ async def main():
                     Event.category_id == "cinema",
                     Event.source_url.ilike("%/cinema/%"),
                     Event.source_url.ilike("%/kino/%"),
+                    Event.source_url.ilike("%/excursions/%"),
                     Event.title.ilike("%мультфильм%"),
                     Event.title.ilike("%мультик%"),
                     Event.venue_name.ilike("%кинотеатр%"),

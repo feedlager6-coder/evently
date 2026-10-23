@@ -107,8 +107,8 @@ async def main():
                 if len(verified_results) >= 10:
                     break
 
-                # Exclude cinema
-                if ev.category_id == "cinema" or "/cinema/" in (ev.source_url or ""):
+                # Exclude cinema and unscheduled excursions
+                if ev.category_id == "cinema" or "/cinema/" in (ev.source_url or "") or "/excursions/" in (ev.source_url or ""):
                     continue
 
                 db_date_str, db_time_str = format_event_local_datetime(ev.start_at, "Europe/Moscow")
