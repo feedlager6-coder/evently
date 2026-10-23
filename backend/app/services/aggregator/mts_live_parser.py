@@ -12,6 +12,7 @@ from app.services.aggregator.city_mapping import (
     MTS_CITY_SLUGS,
     resolve_city_from_text,
     validate_event_city,
+    get_city_name_ru,
 )
 
 logger = logging.getLogger("evently.aggregator.mts_live")
@@ -170,7 +171,8 @@ class MtsLiveParser:
                         elif isinstance(venue_data, str) and venue_data:
                             venue_name = venue_data.strip()
 
-                        address = f"г. {default_city_id.capitalize()}, {venue_name}"
+                        city_ru = get_city_name_ru(default_city_id)
+                        address = f"г. {city_ru}, {venue_name}"
 
                         # Price
                         price_min = None
@@ -228,6 +230,10 @@ class MtsLiveParser:
                             continue
                         if any(x in venue_name.lower() for x in ["кинотеатр", "кинозал", "синема"]):
                             continue
+
+                        # Guaranteed fallback cover
+                        if not cover_image_url:
+                            cover_image_url = f"https://iventlyapp.ru/covers/{category_id}.jpg"
 
                         # Strict Anti-Geo-Spoofing check
                         if not validate_event_city(

@@ -13,6 +13,7 @@ from app.services.aggregator.city_mapping import (
     KASSIR_CITY_SUBDOMAINS,
     resolve_city_from_text,
     validate_event_city,
+    get_city_name_ru,
 )
 
 logger = logging.getLogger("evently.aggregator.kassir")
@@ -153,7 +154,8 @@ class KassirParser:
                     # Venue & Address
                     venue_obj = resolve(item.get("venue"))
                     venue_name = "Площадка мероприятия"
-                    address = f"г. {default_city_id.capitalize()}"
+                    city_name_ru = get_city_name_ru(default_city_id)
+                    address = f"г. {city_name_ru}"
 
                     if isinstance(venue_obj, dict):
                         v_title = resolve(venue_obj.get("title")) or resolve(venue_obj.get("name")) or resolve(item.get("venueName"))
@@ -171,11 +173,14 @@ class KassirParser:
                         if v_name_direct and isinstance(v_name_direct, str):
                             venue_name = v_name_direct.strip()
 
-                    if address == f"г. {default_city_id.capitalize()}":
-                        address = f"г. {default_city_id.capitalize()}, {venue_name}"
+                    if address == f"г. {city_name_ru}":
+                        address = f"г. {city_name_ru}, {venue_name}"
 
                     # City resolution (especially for multi-city regional subdomains like dagestan)
                     target_city_id = resolve_city_from_text(f"{address} {venue_name} {title}", default_city_id=default_city_id)
+                    target_city_ru = get_city_name_ru(target_city_id)
+                    if address.startswith(f"г. {city_name_ru}") and city_name_ru != target_city_ru:
+                        address = address.replace(f"г. {city_name_ru}", f"г. {target_city_ru}")
 
                     # External ID and Source URL
                     alias_val = resolve(item.get("alias")) or resolve(item.get("id"))
@@ -259,6 +264,10 @@ class KassirParser:
                     # Strictly skip cinema, cartoons, and movie screenings
                     if category_id == "cinema" or any(x in s_url_low for x in ["/kino", "/cinema"]):
                         continue
+
+                    # Guaranteed fallback cover
+                    if not cover_image_url:
+                        cover_image_url = f"https://iventlyapp.ru/covers/{category_id}.jpg"
                     if any(x in title.lower() for x in ["мультфильм", "мультик"]):
                         continue
                     if any(x in venue_name.lower() for x in ["кинотеатр", "кинозал", "синема"]):

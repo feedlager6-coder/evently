@@ -12,6 +12,7 @@ from app.services.aggregator.city_mapping import (
     YANDEX_CITY_SLUGS,
     resolve_city_from_text,
     validate_event_city,
+    get_city_name_ru,
 )
 from app.services.event_service import resolve_city_timezone
 
@@ -40,7 +41,7 @@ SESSION_REGEX = re.compile(
 
 
 def parse_russian_date_time(day_month_str: str, time_str: str, tz: Any) -> Optional[datetime]:
-    """Parses Russian date like '27 октября' and time '18:30' into UTC datetime."""
+    """Parses Russian date like '6 ноября' and time '19:00' into UTC datetime."""
     try:
         parts = day_month_str.strip().split()
         if len(parts) < 2:
@@ -65,6 +66,37 @@ def parse_russian_date_time(day_month_str: str, time_str: str, tz: Any) -> Optio
         return local_dt.astimezone(timezone.utc)
     except Exception:
         return None
+
+
+def resolve_apollo_image(img_node: Any, apollo_data: Dict[str, Any]) -> Optional[str]:
+    """Resolves Apollo Image node, following __ref if needed, preferring high-res origin/s940."""
+    if not img_node:
+        return None
+    if isinstance(img_node, dict) and "__ref" in img_node:
+        img_node = apollo_data.get(img_node["__ref"])
+    if isinstance(img_node, dict):
+        for sz in (
+            'image({"size":"origin"})',
+            'image({"size":"s940x380_crop"})',
+            'image({"size":"s760x380_crop"})',
+            'image({"size":"s1880x760_crop"})',
+            'image({"size":"s760x440_crop"})',
+            'image({"size":"s380x220_crop"})',
+        ):
+            sz_obj = img_node.get(sz)
+            if isinstance(sz_obj, dict) and sz_obj.get("url"):
+                u = str(sz_obj["url"]).strip()
+                if u.startswith("http") and "yastatic-net.ru" not in u:
+                    return u
+        # Fallback to any child with 'url'
+        for ik, iv in img_node.items():
+            if isinstance(iv, dict) and iv.get("url"):
+                u = str(iv["url"]).strip()
+                if u.startswith("http") and "yastatic-net.ru" not in u:
+                    return u
+    elif isinstance(img_node, str) and img_node.startswith("http") and "yastatic-net.ru" not in img_node:
+        return img_node.strip()
+    return None
 
 
 class YandexAfishaParser:
@@ -122,6 +154,11 @@ class YandexAfishaParser:
                     if not ev.start_at or ev.start_at < now_utc:
                         continue
 
+                    # Final fallback for cover image to ensure 100% cards have valid image
+                    if not ev.cover_image_url or "yastatic-net.ru" in ev.cover_image_url:
+                        cat_slug = ev.category_id or "concerts"
+                        ev.cover_image_url = f"https://iventlyapp.ru/covers/{cat_slug}.jpg"
+
                     if ev.external_id not in seen_ids:
                         seen_ids.add(ev.external_id)
                         events.append(ev)
@@ -138,7 +175,7 @@ class YandexAfishaParser:
         ev: AggregatedEvent,
         city_tz: ZoneInfo,
     ) -> None:
-        """Fetches the event page to extract exact session showtimes and rich description."""
+        """Fetches the event page to extract exact session showtimes, posters, and rich description."""
         if not ev.source_url:
             return
 
@@ -150,7 +187,63 @@ class YandexAfishaParser:
 
             ev_html = resp.text
 
-            # 1. Exact session dates & times from HTML schedule tabs
+            # 1. Parse __APOLLO_STATE__ from event page
+            ev_m = re.search(r"window\[[\x27\"]__APOLLO_STATE__[\x27\"]\]\s*=\s*(.*?);\s*</script>", ev_html, re.DOTALL)
+            if ev_m:
+                ev_clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', ev_m.group(1))
+                ev_clean = re.sub(r"\bundefined\b", "null", ev_clean)
+                try:
+                    ev_json = json.loads(ev_clean)
+                    for ek, ev_val in ev_json.items():
+                        if not isinstance(ev_val, dict):
+                            continue
+
+                        # Enrich description & poster from Event object
+                        if ev_val.get("__typename") == "Event":
+                            d_text = str(ev_val.get("description") or "").strip()
+                            if len(d_text) > 30 and (not ev.description or len(d_text) > len(ev.description)):
+                                ev.description = d_text
+
+                            if not ev.cover_image_url:
+                                img_resolved = resolve_apollo_image(ev_val.get("image"), ev_json)
+                                if img_resolved:
+                                    ev.cover_image_url = img_resolved
+
+                        # Enrich exact date/time & venue from EventScheduleInfo
+                        if "eventScheduleInfo" in ek or ev_val.get("__typename") == "EventScheduleInfo":
+                            reg = ev_val.get("regularity")
+                            if isinstance(reg, dict) and reg.get("singleShowtime"):
+                                s_time = str(reg["singleShowtime"]).replace('Z', '+00:00')
+                                try:
+                                    dt_parsed = datetime.fromisoformat(s_time)
+                                    if dt_parsed.tzinfo is None:
+                                        dt_parsed = dt_parsed.replace(tzinfo=city_tz)
+                                    cand_utc = dt_parsed.astimezone(timezone.utc)
+                                    if cand_utc >= now_utc:
+                                        ev.start_at = cand_utc
+                                except Exception:
+                                    pass
+
+                            if not ev.start_at:
+                                p_obj = ev_val.get("preview")
+                                p_text = p_obj.get("text") if isinstance(p_obj, dict) else str(p_obj or "")
+                                tm = re.search(r"(\d{1,2}\s+[а-яё]+),\s*(\d{1,2}:\d{2})", str(p_text), re.IGNORECASE)
+                                if tm:
+                                    dt_p = parse_russian_date_time(tm.group(1), tm.group(2), city_tz)
+                                    if dt_p and dt_p >= now_utc:
+                                        ev.start_at = dt_p
+
+                            # Place preview
+                            if ev_val.get("placePreview"):
+                                p_prev = str(ev_val["placePreview"]).strip()
+                                if p_prev and p_prev != "Площадка мероприятия":
+                                    ev.venue_name = p_prev
+                                    city_ru = get_city_name_ru(ev.city_id)
+                                    ev.address = f"г. {city_ru}, {ev.venue_name}"
+                except Exception as ap_err:
+                    logger.debug("Error parsing event Apollo JSON: %s", ap_err)
+
+            # 2. Check multi-session schedule from HTML schedule tabs
             found_sessions = SESSION_REGEX.findall(ev_html)
             valid_sessions = []
             for s_day, s_time in found_sessions:
@@ -162,18 +255,52 @@ class YandexAfishaParser:
                 valid_sessions.sort()
                 ev.start_at = valid_sessions[0]
 
-            # 2. Extract full rich description from event page Apollo state
-            ev_m = re.search(r"window\[[\x27\"]__APOLLO_STATE__[\x27\"]\]\s*=\s*(.*?);\s*</script>", ev_html, re.DOTALL)
-            if ev_m:
-                ev_clean = re.sub(r"new Date\([^)]+\)", '"2026-10-23T00:00:00Z"', ev_m.group(1))
-                ev_clean = re.sub(r"\bundefined\b", "null", ev_clean)
-                ev_json = json.loads(ev_clean)
-                for ek, ev_val in ev_json.items():
-                    if isinstance(ev_val, dict) and ev_val.get("__typename") == "Event":
-                        d_text = str(ev_val.get("description") or "").strip()
-                        if len(d_text) > 30:
-                            ev.description = d_text
-                            break
+            # 3. Microdata: application/ld+json
+            ld_matches = re.findall(r'<script[^>]*type=[\'"]application/ld\+json[\'"][^>]*>(.*?)</script>', ev_html, re.DOTALL)
+            for ld_raw in ld_matches:
+                try:
+                    ld_data = json.loads(ld_raw)
+                    if ld_data.get("@type") in ("Event", "MusicEvent", "TheaterEvent"):
+                        # If start_at still not found, check startDate
+                        if not ev.start_at and ld_data.get("startDate"):
+                            s_date = str(ld_data["startDate"]).replace('Z', '+00:00')
+                            try:
+                                dt_ld = datetime.fromisoformat(s_date)
+                                if dt_ld.tzinfo is None:
+                                    dt_ld = dt_ld.replace(tzinfo=city_tz)
+                                cand_utc = dt_ld.astimezone(timezone.utc)
+                                if cand_utc.hour == 21 and cand_utc.minute == 0:
+                                    cand_utc = cand_utc.replace(hour=16, minute=0)
+                                if cand_utc >= now_utc:
+                                    ev.start_at = cand_utc
+                            except Exception:
+                                pass
+
+                        # Cover image from ld+json
+                        if not ev.cover_image_url and ld_data.get("image"):
+                            img_candidate = str(ld_data["image"]).strip()
+                            if img_candidate.startswith("http") and not any(s in img_candidate for s in ["yastatic-net.ru", "stub", "blank"]):
+                                ev.cover_image_url = img_candidate
+
+                        # Venue name from ld+json
+                        if ld_data.get("location"):
+                            loc = ld_data["location"]
+                            loc_name = loc.get("name") if isinstance(loc, dict) else str(loc)
+                            if loc_name and str(loc_name).strip() and str(loc_name).strip() != "Площадка мероприятия":
+                                ev.venue_name = str(loc_name).strip()
+                                city_ru = get_city_name_ru(ev.city_id)
+                                ev.address = f"г. {city_ru}, {ev.venue_name}"
+                except Exception:
+                    pass
+
+            # 4. OpenGraph og:image fallback
+            if not ev.cover_image_url:
+                og_img = re.search(r'<meta\s+property=[\'"]og:image[\'"]\s+content=[\'"](.*?)[\'"]', ev_html)
+                if og_img:
+                    cand = og_img.group(1).strip()
+                    if cand.startswith("http") and not any(s in cand for s in ["yastatic-net.ru", "stub", "blank"]):
+                        ev.cover_image_url = cand
+
         except Exception as e:
             logger.debug("Failed deep session enrichment for %s: %s", ev.source_url, e)
 
@@ -223,7 +350,12 @@ class YandexAfishaParser:
         rq = data.get("ROOT_QUERY", {})
         if isinstance(rq, dict):
             for pk, pv in rq.items():
-                if isinstance(pv, list):
+                if "eventScheduleInfo" in pk:
+                    match_id = re.search(r'id":"([^"]+)"', pk)
+                    if match_id and isinstance(pv, dict):
+                        schedule_by_ref[f"Event:{match_id.group(1)}"] = pv
+                        schedule_by_ref[match_id.group(1)] = pv
+                elif isinstance(pv, list):
                     for item in pv:
                         if isinstance(item, dict) and item.get("__typename") == "ActualEvent":
                             ev_ref = item.get("event", {}).get("__ref") if isinstance(item.get("event"), dict) else None
@@ -257,7 +389,7 @@ class YandexAfishaParser:
                 continue
 
             # Schedule / Date / Venue resolution
-            sched = schedule_by_ref.get(k) or schedule_by_ref.get(f"Event:{ext_id}")
+            sched = schedule_by_ref.get(k) or schedule_by_ref.get(f"Event:{ext_id}") or schedule_by_ref.get(ext_id)
             start_at: Optional[datetime] = None
             venue_name = "Площадка мероприятия"
             price_min: Optional[float] = None
@@ -278,7 +410,7 @@ class YandexAfishaParser:
                     except Exception:
                         pass
 
-                # B. Preview text if it has exact time e.g. "7 ноября, 17:00"
+                # B. Preview text if it has exact time e.g. "6 ноября, 19:00"
                 if not start_at:
                     p_text = str(sched.get("preview", {}).get("text") or "")
                     tm = re.search(r"(\d{1,2}\s+[а-яё]+),\s*(\d{1,2}:\d{2})", p_text, re.IGNORECASE)
@@ -321,17 +453,12 @@ class YandexAfishaParser:
                                 price_max = float(p_max) / 100.0
                             break
 
-            # Cover Image (prefer origin / high-res)
-            cover_image_url = None
-            img_obj = v.get("image")
-            if isinstance(img_obj, dict):
-                for img_key, img_val in img_obj.items():
-                    if isinstance(img_val, dict) and img_val.get("url"):
-                        u = str(img_val["url"])
-                        if "/orig" in u or "s760x380" in u or "s940x380" in u or not cover_image_url:
-                            cover_image_url = u
-                            if "/orig" in u:
-                                break
+            # Cover Image (prefer origin / high-res, resolving __ref)
+            cover_image_url = resolve_apollo_image(v.get("image"), data)
+            if not cover_image_url:
+                cover_image_url = resolve_apollo_image(v.get("promoImage"), data)
+            if not cover_image_url:
+                cover_image_url = resolve_apollo_image(v.get("poster"), data)
 
             # Age restriction
             age_restriction = str(v.get("contentRating") or "").strip() or None
@@ -346,7 +473,8 @@ class YandexAfishaParser:
                 if type_tag.get("name"):
                     type_name = str(type_tag["name"]).strip()
 
-            address = f"г. {default_city_id.capitalize()}, {venue_name}"
+            city_name_ru = get_city_name_ru(default_city_id)
+            address = f"г. {city_name_ru}, {venue_name}"
 
             # Description Assembly
             raw_desc = str(v.get("description") or "").strip()
@@ -377,6 +505,10 @@ class YandexAfishaParser:
             # Strictly skip any event classified as cinema or cartoon
             if category_id == "cinema":
                 continue
+
+            # Fallback cover if image is missing
+            if not cover_image_url:
+                cover_image_url = f"https://iventlyapp.ru/covers/{category_id}.jpg"
 
             # Strict Anti-Geo-Spoofing check
             if not validate_event_city(

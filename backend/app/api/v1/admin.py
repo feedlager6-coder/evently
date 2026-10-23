@@ -223,14 +223,13 @@ _SYNC_LOGGER = logging.getLogger(__name__)
 
 async def _run_external_sync_background(admin_user_id: int, city_slugs: Optional[List[str]], max_per_city: int):
     from app.database import AsyncSessionLocal
-    from app.services.external_sync_service import ExternalSyncService
+    from app.services.aggregator.aggregator_service import AggregatorMasterService
     _SYNC_LOGGER.info(f"Background external sync started by admin {admin_user_id}")
     try:
         async with AsyncSessionLocal() as bg_session:
-            result = await ExternalSyncService.sync_external_events(
+            result = await AggregatorMasterService.sync_all_sources(
                 session=bg_session,
-                admin_user_id=admin_user_id,
-                city_slugs=city_slugs,
+                target_cities=city_slugs,
                 max_events_per_city=max_per_city,
             )
             _SYNC_LOGGER.info(f"Background external sync completed: {result}")

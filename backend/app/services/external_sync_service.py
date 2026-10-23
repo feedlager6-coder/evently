@@ -868,7 +868,7 @@ async def download_and_cache_cover(
         target_path = local_covers_dir / target_filename
         thumb_filename = f"ext_{ext_id}_thumb.jpg"
         thumb_path = local_covers_dir / thumb_filename
-        relative_url = f"/uploads/covers/{target_filename}"
+        relative_url = f"https://iventlyapp.ru/uploads/covers/{target_filename}"
 
         # If already cached on disk and valid size, ensure thumbnail exists and return
         if target_path.exists() and target_path.stat().st_size > 1024:

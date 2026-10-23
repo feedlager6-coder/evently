@@ -144,6 +144,12 @@ class AggregatorMasterService:
                         ):
                             continue
 
+                        # Ensure cover_image_url is absolute https://
+                        if not ev.cover_image_url:
+                            ev.cover_image_url = f"https://iventlyapp.ru/covers/{ev.category_id or 'concerts'}.jpg"
+                        elif ev.cover_image_url.startswith("/"):
+                            ev.cover_image_url = f"https://iventlyapp.ru{ev.cover_image_url}"
+
                         async with session.begin_nested():
                             # --- STAGE 1: Exact source match ---
                             exact_stmt = select(Event).where(
@@ -163,106 +169,106 @@ class AggregatorMasterService:
                                 existing_exact.title = ev.title
                                 if ev.price_min is not None:
                                     existing_exact.price_amount = ev.price_min
-                                if ev.cover_image_url and (not existing_exact.cover_image_url or "unsplash" in existing_exact.cover_image_url):
+                                if ev.cover_image_url:
                                     existing_exact.cover_image_url = ev.cover_image_url
                                 existing_exact.start_at = ev.start_at
+                                existing_exact.venue_name = ev.venue_name
+                                existing_exact.address = ev.address
                                 existing_exact.last_synced_at = now
                                 existing_exact.status = EventStatus.PUBLISHED.value
                                 existing_exact.category_id = ev.category_id
                                 if ev.description and (not existing_exact.description or len(ev.description) > len(existing_exact.description)):
                                     existing_exact.description = ev.description
                                 stats["updated"] += 1
-                                continue
+                            else:
+                                # --- STAGE 2: Cross-platform & same-day session deduplication ---
+                                ev_utc = ev.start_at.astimezone(timezone.utc)
+                                day_start = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 0, 0, 0, tzinfo=timezone.utc)
+                                day_end = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 23, 59, 59, tzinfo=timezone.utc)
 
-                            # --- STAGE 2: Cross-platform & same-day session deduplication ---
-                            ev_utc = ev.start_at.astimezone(timezone.utc)
-                            day_start = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 0, 0, 0, tzinfo=timezone.utc)
-                            day_end = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 23, 59, 59, tzinfo=timezone.utc)
-
-                            candidate_stmt = select(Event).where(
-                                and_(
-                                    Event.city_id == ev.city_id,
-                                    Event.start_at >= day_start,
-                                    Event.start_at <= day_end,
-                                    Event.status != EventStatus.DELETED.value,
-                                )
-                            )
-                            candidates = (await session.execute(candidate_stmt)).scalars().all()
-
-                            is_dup = False
-                            matched_candidate = None
-                            for cand in candidates:
-                                is_d, score, reason = is_cross_platform_duplicate(
-                                    title_a=ev.title,
-                                    venue_a=ev.venue_name,
-                                    time_a=ev.start_at,
-                                    city_a=ev.city_id,
-                                    title_b=cand.title,
-                                    venue_b=cand.venue_name,
-                                    time_b=cand.start_at,
-                                    city_b=cand.city_id,
-                                )
-                                if is_d:
-                                    is_dup = True
-                                    matched_candidate = cand
-                                    logger.info(
-                                        "Merged cross-platform / same-day duplicate: '%s' (%s) into '%s' (%s) [score: %.2f, reason: %s]",
-                                        ev.title, ev.source_name, cand.title, cand.source_name, score, reason
+                                candidate_stmt = select(Event).where(
+                                    and_(
+                                        Event.city_id == ev.city_id,
+                                        Event.start_at >= day_start,
+                                        Event.start_at <= day_end,
+                                        Event.status != EventStatus.DELETED.value,
                                     )
-                                    break
+                                )
+                                candidates = (await session.execute(candidate_stmt)).scalars().all()
 
-                            if is_dup and matched_candidate:
-                                # Enrich existing card without creating duplicate!
-                                stats["duplicates_merged"] += 1
-                                if ev.price_min is not None:
-                                    if matched_candidate.price_amount is None or ev.price_min < matched_candidate.price_amount:
-                                        matched_candidate.price_amount = ev.price_min
-                                if ev.cover_image_url and (not matched_candidate.cover_image_url or "unsplash" in matched_candidate.cover_image_url or "default" in matched_candidate.cover_image_url):
-                                    matched_candidate.cover_image_url = ev.cover_image_url
-                                if len(ev.description) > len(matched_candidate.description):
-                                    matched_candidate.description = ev.description
-                                if not matched_candidate.source_url and ev.source_url:
-                                    matched_candidate.source_url = ev.source_url
+                                is_dup = False
+                                matched_candidate = None
+                                for cand in candidates:
+                                    is_d, score, reason = is_cross_platform_duplicate(
+                                        title_a=ev.title,
+                                        venue_a=ev.venue_name,
+                                        time_a=ev.start_at,
+                                        city_a=ev.city_id,
+                                        title_b=cand.title,
+                                        venue_b=cand.venue_name,
+                                        time_b=cand.start_at,
+                                        city_b=cand.city_id,
+                                    )
+                                    if is_d:
+                                        is_dup = True
+                                        matched_candidate = cand
+                                        logger.info(
+                                            "Merged cross-platform / same-day duplicate: '%s' (%s) into '%s' (%s) [score: %.2f, reason: %s]",
+                                            ev.title, ev.source_name, cand.title, cand.source_name, score, reason
+                                        )
+                                        break
 
-                                # If upcoming, keep earlier upcoming session on that day
-                                if ev.start_at >= now and matched_candidate.start_at >= now:
-                                    matched_candidate.start_at = min(ev.start_at, matched_candidate.start_at)
-                                elif ev.start_at >= now and matched_candidate.start_at < now:
-                                    matched_candidate.start_at = ev.start_at
+                                if is_dup and matched_candidate:
+                                    # Enrich existing card without creating duplicate!
+                                    stats["duplicates_merged"] += 1
+                                    if ev.price_min is not None:
+                                        if matched_candidate.price_amount is None or ev.price_min < matched_candidate.price_amount:
+                                            matched_candidate.price_amount = ev.price_min
+                                    if ev.cover_image_url and (not matched_candidate.cover_image_url or "default" in matched_candidate.cover_image_url):
+                                        matched_candidate.cover_image_url = ev.cover_image_url
+                                    if len(ev.description) > len(matched_candidate.description):
+                                        matched_candidate.description = ev.description
+                                    if not matched_candidate.source_url and ev.source_url:
+                                        matched_candidate.source_url = ev.source_url
 
-                                matched_candidate.last_synced_at = now
-                                continue
+                                    # If upcoming, keep earlier upcoming session on that day
+                                    if ev.start_at >= now and matched_candidate.start_at >= now:
+                                        matched_candidate.start_at = min(ev.start_at, matched_candidate.start_at)
+                                    elif ev.start_at >= now and matched_candidate.start_at < now:
+                                        matched_candidate.start_at = ev.start_at
 
-                            # --- Not a duplicate: Insert new event card ---
-                            new_event = Event(
-                                title=ev.title,
-                                description=ev.description,
-                                cover_image_url=ev.cover_image_url,
-                                category_id=ev.category_id,
-                                city_id=ev.city_id,
-                                start_at=ev.start_at,
-                                venue_name=ev.venue_name,
-                                address=ev.address,
-                                latitude=ev.latitude,
-                                longitude=ev.longitude,
-                                price_amount=ev.price_min,
-                                price_currency=ev.price_currency,
-                                status=EventStatus.PUBLISHED.value,
-                                organizer_user_id=curator_user_id,
-                                source_type="external",
-                                source_name=ev.source_name,
-                                external_id=ev.external_id,
-                                source_url=ev.source_url,
-                                last_synced_at=now,
-                                created_at=now,
-                                updated_at=now,
-                            )
-                            session.add(new_event)
-                            stats["created"] += 1
+                                    matched_candidate.last_synced_at = now
+                                else:
+                                    # --- Not a duplicate: Insert new event card ---
+                                    new_event = Event(
+                                        title=ev.title,
+                                        description=ev.description,
+                                        cover_image_url=ev.cover_image_url,
+                                        category_id=ev.category_id,
+                                        city_id=ev.city_id,
+                                        start_at=ev.start_at,
+                                        venue_name=ev.venue_name,
+                                        address=ev.address,
+                                        latitude=ev.latitude,
+                                        longitude=ev.longitude,
+                                        price_amount=ev.price_min,
+                                        price_currency=ev.price_currency,
+                                        status=EventStatus.PUBLISHED.value,
+                                        organizer_user_id=curator_user_id,
+                                        source_type="external",
+                                        source_name=ev.source_name,
+                                        external_id=ev.external_id,
+                                        source_url=ev.source_url,
+                                        last_synced_at=now,
+                                        created_at=now,
+                                        updated_at=now,
+                                    )
+                                    session.add(new_event)
+                                    stats["created"] += 1
 
-                            # Update counters
-                            stats["by_category"][ev.category_id] = stats["by_category"].get(ev.category_id, 0) + 1
-                            stats["by_city"][ev.city_id] = stats["by_city"].get(ev.city_id, 0) + 1
+                                    # Update counters
+                                    stats["by_category"][ev.category_id] = stats["by_category"].get(ev.category_id, 0) + 1
+                                    stats["by_city"][ev.city_id] = stats["by_city"].get(ev.city_id, 0) + 1
 
                         await session.commit()
                     except Exception as item_err:
