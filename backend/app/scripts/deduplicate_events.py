@@ -58,9 +58,10 @@ async def run_deduplication_and_category_fix(dry_run: bool = False):
                     if ev_b.id in deleted_ids:
                         continue
 
-                    # If difference in start_at > 3 hours, since list is sorted by start_at, break inner loop
-                    time_diff_sec = abs((ev_a.start_at - ev_b.start_at).total_seconds())
-                    if (ev_b.start_at - ev_a.start_at).total_seconds() > 3 * 3600:
+                    # If difference in calendar date > same day (and > 4 hours crossing midnight), break
+                    dt_a = ev_a.start_at.astimezone(timezone.utc)
+                    dt_b = ev_b.start_at.astimezone(timezone.utc)
+                    if dt_b.date() > dt_a.date() and (ev_b.start_at - ev_a.start_at).total_seconds() > 4 * 3600:
                         break
 
                     is_dup, score, reason = is_cross_platform_duplicate(
@@ -86,6 +87,12 @@ async def run_deduplication_and_category_fix(dry_run: bool = False):
                         duplicate = ev_b
                         if ev_a.source_type == "external" and ev_b.source_type == "user":
                             canonical, duplicate = ev_b, ev_a
+
+                        # Merge start_at for same-day sessions: keep earlier upcoming session
+                        if ev_a.start_at >= now_utc and ev_b.start_at >= now_utc:
+                            canonical.start_at = min(ev_a.start_at, ev_b.start_at)
+                        elif ev_b.start_at >= now_utc and ev_a.start_at < now_utc:
+                            canonical.start_at = ev_b.start_at
 
                         # Merge metadata into canonical
                         if duplicate.price_amount is not None:
@@ -146,10 +153,30 @@ async def run_deduplication_and_category_fix(dry_run: bool = False):
             if ev.id in deleted_ids:
                 continue
 
+            inferred_rubric = ev.category_id
+            if ev.source_url:
+                s_url = ev.source_url.lower()
+                if any(x in s_url for x in ["/koncert", "/concert", "/music", "/muz"]):
+                    inferred_rubric = "concert"
+                elif any(x in s_url for x in ["/teatr", "/theater"]):
+                    inferred_rubric = "theatre"
+                elif any(x in s_url for x in ["/standup", "/comedy"]):
+                    inferred_rubric = "standup"
+                elif any(x in s_url for x in ["/art", "/muzej", "/muzei", "/vystavk", "/exhibition", "/museum"]):
+                    inferred_rubric = "exhibitions"
+                elif any(x in s_url for x in ["/ekskurs", "/seminar", "/education", "/lecture"]):
+                    inferred_rubric = "education"
+                elif any(x in s_url for x in ["/sport"]):
+                    inferred_rubric = "sport"
+                elif any(x in s_url for x in ["/detyam", "/kids", "/children"]):
+                    inferred_rubric = "kids"
+                elif any(x in s_url for x in ["/shou", "/show"]):
+                    inferred_rubric = "show"
+
             new_cat = classify_event_category(
                 title=ev.title,
                 description=ev.description,
-                raw_rubric=ev.category_id,
+                raw_rubric=inferred_rubric,
                 venue_name=ev.venue_name,
             )
 

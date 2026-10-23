@@ -15,10 +15,12 @@ from app.services.aggregator.city_mapping import (
 logger = logging.getLogger("evently.aggregator.mts_live")
 
 MTS_COLLECTIONS = [
+    "ribbon",
     "concerts",
     "theatre",
     "standup",
     "kids",
+    "show",
 ]
 
 
@@ -32,7 +34,7 @@ class MtsLiveParser:
         cls,
         client: httpx.AsyncClient,
         city_id: str,
-        max_events: int = 40,
+        max_events: int = 80,
     ) -> List[AggregatedEvent]:
         city_slug = MTS_CITY_SLUGS.get(city_id)
         if not city_slug:
@@ -192,10 +194,17 @@ class MtsLiveParser:
                             cover_image_url = image_url.strip()
 
                         # Category
+                        raw_rubric = default_rubric
+                        for field in ["genre", "rubric", "category", "alias"]:
+                            val = it.get(field)
+                            if val and isinstance(val, str):
+                                raw_rubric = val
+                                break
+
                         category_id = classify_event_category(
                             title=title,
                             description="",
-                            raw_rubric=default_rubric or it.get("alias"),
+                            raw_rubric=raw_rubric,
                             venue_name=venue_name,
                         )
 

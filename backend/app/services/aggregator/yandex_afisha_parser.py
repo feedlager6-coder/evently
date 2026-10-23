@@ -14,19 +14,23 @@ from app.services.aggregator.city_mapping import (
 
 logger = logging.getLogger("evently.aggregator.yandex_afisha")
 
+# Core rubrics available across Yandex.Afisha cities
 YANDEX_RUBRICS = [
-    "concert",
-    "theatre",
-    "standup",
-    "kids",
-    "sport",
-    "exhibitions",
+    "",           # Main city page with top featured / upcoming
+    "concert",    # Concerts & Live Music
+    "theatre",    # Theatre, Opera, Ballet
+    "standup",    # Standup & Comedy
+    "art",        # Exhibitions, Museums & Galleries
+    "show",       # Shows, Musicals, Circus
+    "kids",       # Children & Family
+    "sport",      # Sports events & Matches
 ]
 
 
 class YandexAfishaParser:
     """
     Parser for Yandex.Afisha (afisha.yandex.ru) using Apollo GraphQL normalized client cache.
+    Extracts structured events, multi-session dates, high-res posters, and direct ticket links.
     Features robust error isolation on HTTP 403 / captcha challenges.
     """
 
@@ -35,7 +39,7 @@ class YandexAfishaParser:
         cls,
         client: httpx.AsyncClient,
         city_id: str,
-        max_events: int = 40,
+        max_events: int = 80,
     ) -> List[AggregatedEvent]:
         city_slug = YANDEX_CITY_SLUGS.get(city_id)
         if not city_slug:
@@ -48,17 +52,16 @@ class YandexAfishaParser:
         for rubric in YANDEX_RUBRICS:
             if len(events) >= max_events:
                 break
-            url = f"https://afisha.yandex.ru/{city_slug}/{rubric}"
+            url = f"https://afisha.yandex.ru/{city_slug}/{rubric}" if rubric else f"https://afisha.yandex.ru/{city_slug}"
             try:
                 resp = await client.get(url, timeout=12.0)
                 if resp.status_code == 403:
                     logger.warning("Yandex.Afisha returned 403 for %s/%s (WAF/Anti-Bot active)", city_slug, rubric)
-                    # Don't fail the whole sync, continue gracefully
                     continue
                 if resp.status_code != 200:
                     continue
 
-                extracted = cls._parse_apollo_state(resp.text, default_city_id=city_id, default_rubric=rubric)
+                extracted = cls._parse_apollo_state(resp.text, default_city_id=city_id, default_rubric=rubric or "featured")
                 for ev in extracted:
                     if ev.external_id not in seen_ids:
                         seen_ids.add(ev.external_id)
@@ -96,11 +99,12 @@ class YandexAfishaParser:
         events: List[AggregatedEvent] = []
         now_utc = datetime.now(timezone.utc)
 
-        # Build lookup maps for Tickets and Places and ActualEvents
+        # Lookup maps for Tickets, Places, and ScheduleInfo
         tickets_map: Dict[str, Any] = {}
         places_map: Dict[str, Any] = {}
         schedule_by_event_id: Dict[str, Any] = {}
 
+        # 1. First pass: Index Tickets, Places, and direct/nested ActualEvent / Featured objects
         for k, v in data.items():
             if not isinstance(v, dict):
                 continue
@@ -109,14 +113,31 @@ class YandexAfishaParser:
                 tickets_map[k] = v
             elif tname in ["Place", "PlacePreview"]:
                 places_map[k] = v
+            elif tname == "ActualEvent":
+                ev_ref = v.get("event", {}).get("__ref") if isinstance(v.get("event"), dict) else None
+                sched = v.get("scheduleInfo")
+                if ev_ref and sched:
+                    schedule_by_event_id[ev_ref] = sched
             elif tname == "Featured" and isinstance(v.get("object"), dict):
                 obj = v["object"]
-                ev_ref = obj.get("event", {}).get("__ref")
+                ev_ref = obj.get("event", {}).get("__ref") if isinstance(obj.get("event"), dict) else None
                 sched = obj.get("scheduleInfo")
                 if ev_ref and sched:
                     schedule_by_event_id[ev_ref] = sched
 
-        # Extract EventPreviews
+        # 2. Check ROOT_QUERY lists for actualEventsById or rubric events
+        rq = data.get("ROOT_QUERY", {})
+        if isinstance(rq, dict):
+            for pk, pv in rq.items():
+                if isinstance(pv, list):
+                    for item in pv:
+                        if isinstance(item, dict) and item.get("__typename") == "ActualEvent":
+                            ev_ref = item.get("event", {}).get("__ref") if isinstance(item.get("event"), dict) else None
+                            sched = item.get("scheduleInfo")
+                            if ev_ref and sched:
+                                schedule_by_event_id[ev_ref] = sched
+
+        # 3. Extract EventPreviews
         for k, v in data.items():
             if not isinstance(v, dict) or v.get("__typename") != "EventPreview":
                 continue
@@ -132,55 +153,76 @@ class YandexAfishaParser:
             source_url = raw_url if raw_url.startswith("http") else f"https://afisha.yandex.ru{raw_url}"
             ext_id = str(v.get("id") or hash(source_url))
 
-            # Schedule / Date
+            # Schedule / Date / Venue
             start_at: Optional[datetime] = None
             venue_name = "Площадка мероприятия"
+            price_min: Optional[float] = None
+            price_max: Optional[float] = None
+
             sched = schedule_by_event_id.get(k) or schedule_by_event_id.get(f"Event:{ext_id}")
 
             if sched and isinstance(sched, dict):
-                # singleShowtime e.g. "2026-12-09T20:00:00"
+                # A. Regularity singleShowtime e.g. "2026-11-06T18:30:00"
                 reg = sched.get("regularity")
                 showtime = None
                 if isinstance(reg, dict) and reg.get("singleShowtime"):
                     showtime = reg.get("singleShowtime")
+                elif sched.get("dates") and isinstance(sched["dates"], list):
+                    # Filter dates in future
+                    for d in sched["dates"]:
+                        try:
+                            d_parsed = datetime.fromisoformat(f"{d}T19:00:00+00:00")
+                            if d_parsed >= now_utc:
+                                showtime = f"{d}T19:00:00"
+                                break
+                        except Exception:
+                            pass
                 elif sched.get("dateStarted"):
                     showtime = f"{sched['dateStarted']}T19:00:00"
 
                 if showtime:
                     try:
                         clean_dt = str(showtime).replace('Z', '+00:00')
-                        start_at = datetime.fromisoformat(clean_dt)
-                        if start_at.tzinfo is None:
-                            start_at = start_at.replace(tzinfo=timezone.utc)
+                        dt_obj = datetime.fromisoformat(clean_dt)
+                        if dt_obj.tzinfo is None:
+                            start_at = dt_obj.replace(tzinfo=timezone.utc)
                         else:
-                            start_at = start_at.astimezone(timezone.utc)
+                            start_at = dt_obj.astimezone(timezone.utc)
                     except Exception:
                         pass
 
+                # Venue name from scheduleInfo
                 if sched.get("placePreview"):
                     venue_name = str(sched["placePreview"]).strip()
 
-            # If no start_at from scheduleInfo, skip past or invalid events
+                # Prices from scheduleInfo
+                for pr in sched.get("prices") or []:
+                    if isinstance(pr, dict) and pr.get("value"):
+                        val = float(pr["value"]) / 100.0  # kopecks to rubles
+                        if price_min is None or val < price_min:
+                            price_min = val
+                        if price_max is None or val > price_max:
+                            price_max = val
+
+            # Fallback if no scheduleInfo or past date: try dateReleased / dateStarted
             if not start_at or start_at < now_utc:
                 continue
 
-            # Price from Ticket objects
-            price_min = None
-            price_max = None
-            for t_ref in v.get("tickets") or []:
-                ref_key = t_ref.get("__ref") if isinstance(t_ref, dict) else None
-                if ref_key and ref_key in tickets_map:
-                    t_obj = tickets_map[ref_key]
-                    pr_range = t_obj.get("price")
-                    if isinstance(pr_range, dict):
-                        p_min = pr_range.get("min")
-                        p_max = pr_range.get("max")
-                        # Yandex Afisha prices are in kopecks (e.g. 150000 -> 1500.0)
-                        if isinstance(p_min, (int, float)):
-                            price_min = float(p_min) / 100.0
-                        if isinstance(p_max, (int, float)):
-                            price_max = float(p_max) / 100.0
-                        break
+            # Price from Ticket objects if not in scheduleInfo
+            if price_min is None:
+                for t_ref in v.get("tickets") or []:
+                    ref_key = t_ref.get("__ref") if isinstance(t_ref, dict) else None
+                    if ref_key and ref_key in tickets_map:
+                        t_obj = tickets_map[ref_key]
+                        pr_range = t_obj.get("price")
+                        if isinstance(pr_range, dict):
+                            p_min = pr_range.get("min")
+                            p_max = pr_range.get("max")
+                            if isinstance(p_min, (int, float)):
+                                price_min = float(p_min) / 100.0
+                            if isinstance(p_max, (int, float)):
+                                price_max = float(p_max) / 100.0
+                            break
 
             # Cover Image (prefer origin / high-res)
             cover_image_url = None
@@ -199,15 +241,20 @@ class YandexAfishaParser:
 
             # Description / Argument
             argument = str(v.get("argument") or "").strip()
-            description = argument if argument else f"Мероприятие «{title}» в городе {default_city_id.capitalize()}."
+            description = argument if argument else f"Мероприятие «{title}» на площадке {venue_name} в городе {default_city_id.capitalize()}."
 
             address = f"г. {default_city_id.capitalize()}, {venue_name}"
 
-            # Category
+            # Category resolution
+            inferred_rubric = default_rubric
+            type_tag = v.get("type")
+            if isinstance(type_tag, dict) and type_tag.get("code"):
+                inferred_rubric = type_tag["code"]
+
             category_id = classify_event_category(
                 title=title,
                 description=description,
-                raw_rubric=default_rubric,
+                raw_rubric=inferred_rubric,
                 age_restriction=age_restriction,
                 venue_name=venue_name,
             )

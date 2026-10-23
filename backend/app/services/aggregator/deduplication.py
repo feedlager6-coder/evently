@@ -149,26 +149,31 @@ def is_cross_platform_duplicate(
     venue_b: str,
     time_b: datetime,
     city_b: str,
-    max_time_diff_hours: float = 3.0,
+    max_time_diff_hours: float = 24.0,
     similarity_threshold: float = 0.68,
 ) -> Tuple[bool, float, str]:
     """
-    Evaluates whether two events from different aggregators refer to the exact same event.
+    Evaluates whether two events refer to the exact same event or multiple sessions
+    of the same show/tour/excursion on the same calendar day in the same city.
     Returns: (is_duplicate: bool, score: float, reason: str)
     """
     # 1. City must match
     if city_a != city_b:
         return False, 0.0, "Different cities"
 
-    # 2. Date/time must be within ± max_time_diff_hours
+    # 2. Date matching (same calendar date in UTC)
     if time_a.tzinfo is None:
         time_a = time_a.replace(tzinfo=timezone.utc)
     if time_b.tzinfo is None:
         time_b = time_b.replace(tzinfo=timezone.utc)
 
+    date_a = time_a.date()
+    date_b = time_b.date()
     time_diff_sec = abs((time_a - time_b).total_seconds())
-    if time_diff_sec > max_time_diff_hours * 3600:
-        return False, 0.0, f"Time difference {time_diff_sec/3600:.1f}h > {max_time_diff_hours}h"
+
+    # If dates are completely different days (and time difference > 4 hours crossing midnight), not duplicate
+    if date_a != date_b and time_diff_sec > 4 * 3600:
+        return False, 0.0, f"Time difference {time_diff_sec/3600:.1f}h (Different calendar dates {date_a} vs {date_b})"
 
     # 3. Normalize titles and venues
     norm_t_a = normalize_event_title(title_a)
@@ -178,15 +183,19 @@ def is_cross_platform_duplicate(
 
     score = calculate_title_similarity(norm_t_a, norm_t_b)
     venue_match = bool(norm_v_a and norm_v_b and (norm_v_a == norm_v_b or norm_v_a in norm_v_b or norm_v_b in norm_v_a))
-    exact_time_match = (time_diff_sec <= 3600)  # within 1 hour
 
-    # Condition A: Normalized titles identical or substring core match
+    # Condition A: Same calendar day and normalized title match >= 0.75
+    # (Collapses multiple sessions of same excursion/show/performance on the same day)
+    if score >= 0.75:
+        return True, score, f"Same day multi-session or title match ({score:.2f})"
+
+    # Condition B: High title similarity >= 0.90
     if score >= 0.90:
         return True, score, f"High title similarity ({score:.2f})"
 
-    # Condition B: Similarity >= threshold (0.68) AND (venue match OR exact start time match)
-    if score >= similarity_threshold and (venue_match or exact_time_match):
+    # Condition C: Similarity >= threshold (0.65) AND (venue match OR close start time within 2 hours)
+    if score >= similarity_threshold and (venue_match or time_diff_sec <= 2 * 3600):
         reason = f"Title similarity {score:.2f} + {'venue match' if venue_match else 'time match'}"
         return True, score, reason
 
-    return False, score, f"Similarity {score:.2f} below threshold or venue/time mismatch"
+    return False, score, f"Similarity {score:.2f} below threshold or venue mismatch"

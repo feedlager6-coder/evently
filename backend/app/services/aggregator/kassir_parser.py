@@ -1,8 +1,9 @@
+import asyncio
 import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Set, Dict, Any
 import httpx
 
 from app.services.aggregator.models import AggregatedEvent
@@ -15,17 +16,22 @@ from app.services.aggregator.city_mapping import (
 logger = logging.getLogger("evently.aggregator.kassir")
 
 KASSIR_RUBRICS = [
-    "/bilety-na-koncert",
-    "/bilety-v-teatr",
-    "/detyam",
-    "/bilety-na-sportivnye-meropriyatiya",
-    "/shou",
+    "",                                      # Top upcoming on city subdomain
+    "/bilety-na-koncert",                    # Concerts & Live Music
+    "/bilety-v-teatr",                       # Theatre, Opera, Ballet
+    "/standup",                              # Standup & Comedy
+    "/ekskursii",                            # City & Cultural excursions
+    "/bilety-v-muzei-i-galerei",             # Museums, Exhibitions, Galleries
+    "/shou",                                 # Circus, Show, Musicals
+    "/bilety-na-sportivnye-meropriyatiya",   # Sports & Matches
+    "/detyam",                               # Children & Family events
 ]
 
 
 class KassirParser:
     """
     Parser for Kassir.ru across supported cities using Nuxt 3 structured SSR data.
+    Safely navigates subdomains, parses arrays, prices, venues, and direct ticketing links.
     """
 
     @classmethod
@@ -33,7 +39,7 @@ class KassirParser:
         cls,
         client: httpx.AsyncClient,
         city_id: str,
-        max_events: int = 40,
+        max_events: int = 80,
     ) -> List[AggregatedEvent]:
         subdomain = KASSIR_CITY_SUBDOMAINS.get(city_id)
         if not subdomain:
@@ -49,11 +55,22 @@ class KassirParser:
 
             url = f"https://{subdomain}.kassir.ru{rubric}"
             try:
+                # Polite rate limiting to protect connection
+                await asyncio.sleep(0.35)
                 resp = await client.get(url, timeout=12.0)
+                if resp.status_code == 429:
+                    logger.warning("Kassir rate limited on %s (HTTP 429), backing off...", url)
+                    await asyncio.sleep(2.0)
+                    continue
                 if resp.status_code != 200:
                     continue
 
-                extracted = cls._parse_nuxt_data(resp.text, default_city_id=city_id, base_url=f"https://{subdomain}.kassir.ru")
+                extracted = cls._parse_nuxt_data(
+                    resp.text,
+                    default_city_id=city_id,
+                    base_url=f"https://{subdomain}.kassir.ru",
+                    default_rubric=rubric.replace("/", "").replace("-", "_") if rubric else "featured",
+                )
                 for ev in extracted:
                     if ev.external_id not in seen_ids and (ev.city_id == city_id or city_id in ["makhachkala", "derbent", "kaspiysk", "khasavyurt", "izberbash"]):
                         seen_ids.add(ev.external_id)
@@ -61,102 +78,120 @@ class KassirParser:
                         if len(events) >= max_events:
                             break
             except Exception as e:
-                logger.warning("Error fetching Kassir %s %s: %s", subdomain, rubric, e)
+                logger.warning("Error fetching Kassir %s%s: %s", subdomain, rubric, e)
 
-        logger.info("Kassir parsed %d events for %s", len(events), city_id)
+        logger.info("Kassir.ru parsed %d events for %s", len(events), city_id)
         return events
 
     @classmethod
-    def _parse_nuxt_data(cls, html: str, default_city_id: str, base_url: str) -> List[AggregatedEvent]:
-        m = re.search(r'<script[^>]*id="__NUXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+    def _parse_nuxt_data(
+        cls,
+        html: str,
+        default_city_id: str,
+        base_url: str,
+        default_rubric: Optional[str] = None,
+    ) -> List[AggregatedEvent]:
+        m = re.search(r"<script[^>]*id=[\"']__NUXT_DATA__[\"'][^>]*>(.*?)</script>", html, re.DOTALL)
         if not m:
             return []
 
         try:
-            data = json.loads(m.group(1))
-        except Exception:
+            raw_data = json.loads(m.group(1))
+        except Exception as e:
+            logger.debug("Failed to parse __NUXT_DATA__ JSON: %s", e)
             return []
 
-        if not isinstance(data, list):
+        if not isinstance(raw_data, list):
             return []
 
         def resolve(val: Any) -> Any:
-            if isinstance(val, int) and 0 <= val < len(data):
-                return data[val]
+            """Resolves Nuxt 3 indexed pointers in raw_data list."""
+            if isinstance(val, int) and 0 <= val < len(raw_data):
+                target = raw_data[val]
+                if isinstance(target, (str, int, float, bool)) or target is None:
+                    return target
+                return target
             return val
 
         events: List[AggregatedEvent] = []
+        now_utc = datetime.now(timezone.utc)
 
-        for item in data:
-            if not isinstance(item, dict):
+        for entry in raw_data:
+            if not isinstance(entry, dict):
                 continue
 
-            # Identify event card object in Nuxt data
-            if "title" in item and ("beginsAt" in item or "posterImage" in item or "url" in item or "dateRange" in item):
+            # Identify Event objects in Nuxt state
+            if "title" in entry and ("beginsAt" in entry or "alias" in entry or "priceRange" in entry or "horizontalImage" in entry):
+                item = entry
                 try:
                     title_val = resolve(item.get("title"))
                     if not title_val or not isinstance(title_val, str) or len(title_val.strip()) < 2:
                         continue
 
                     title = title_val.strip()
-                    desc_val = resolve(item.get("description")) or ""
-                    description = re.sub(r'<[^>]+>', ' ', str(desc_val)).strip() if desc_val else ""
 
-                    # Venue & Address
-                    venue_val = resolve(item.get("venueName")) or resolve(item.get("venue"))
-                    venue_name = "Площадка мероприятия"
-                    address = "Центр города"
-
-                    if isinstance(venue_val, dict):
-                        venue_name = str(resolve(venue_val.get("name")) or venue_name).strip()
-                        addr_val = resolve(venue_val.get("address"))
-                        if isinstance(addr_val, dict):
-                            address = str(resolve(addr_val.get("addressString")) or address).strip()
-                        elif isinstance(addr_val, str):
-                            address = addr_val.strip()
-                    elif isinstance(venue_val, str) and venue_val:
-                        venue_name = venue_val.strip()
-
-                    # City resolution (especially important for Dagestan multi-city subdomain)
-                    target_city_id = resolve_city_from_text(
-                        f"{venue_name} {address} {str(resolve(item.get('cityName')) or '')}",
-                        default_city_id=default_city_id
-                    ) or default_city_id
-
-                    # Date / Start time
-                    begins_at_val = resolve(item.get("beginsAt"))
-                    start_at: Optional[datetime] = None
-
+                    # Date parsing
+                    begins_at_val = resolve(item.get("beginsAt")) or resolve(item.get("date")) or resolve(item.get("dateStart"))
+                    start_at = None
                     if begins_at_val and isinstance(begins_at_val, str):
                         try:
-                            # ISO 8601 with tz or without
                             clean_dt = begins_at_val.replace('Z', '+00:00')
-                            start_at = datetime.fromisoformat(clean_dt)
-                            if start_at.tzinfo is None:
-                                start_at = start_at.replace(tzinfo=timezone.utc)
+                            dt_obj = datetime.fromisoformat(clean_dt)
+                            if dt_obj.tzinfo is None:
+                                start_at = dt_obj.replace(tzinfo=timezone.utc)
                             else:
-                                start_at = start_at.astimezone(timezone.utc)
+                                start_at = dt_obj.astimezone(timezone.utc)
                         except Exception:
                             pass
 
-                    # Skip events in the past or without date
-                    now_utc = datetime.now(timezone.utc)
+                    # Filter past events
                     if not start_at or start_at < now_utc:
                         continue
 
-                    # URL / ticket link
-                    url_val = resolve(item.get("url")) or resolve(item.get("canonicalLink")) or resolve(item.get("urlSlug"))
-                    if not url_val or not isinstance(url_val, str):
+                    # Venue & Address
+                    venue_obj = resolve(item.get("venue"))
+                    venue_name = "Площадка мероприятия"
+                    address = f"г. {default_city_id.capitalize()}"
+
+                    if isinstance(venue_obj, dict):
+                        v_title = resolve(venue_obj.get("title")) or resolve(venue_obj.get("name")) or resolve(item.get("venueName"))
+                        v_addr = resolve(venue_obj.get("address"))
+                        if isinstance(v_addr, dict):
+                            v_addr = resolve(v_addr.get("addressString")) or resolve(v_addr.get("title"))
+                        if v_title and isinstance(v_title, str):
+                            venue_name = v_title.strip()
+                        if v_addr and isinstance(v_addr, str):
+                            address = v_addr.strip()
+                    elif isinstance(venue_obj, str) and venue_obj.strip():
+                        venue_name = venue_obj.strip()
+                    elif item.get("venueName"):
+                        v_name_direct = resolve(item.get("venueName"))
+                        if v_name_direct and isinstance(v_name_direct, str):
+                            venue_name = v_name_direct.strip()
+
+                    if address == f"г. {default_city_id.capitalize()}":
+                        address = f"г. {default_city_id.capitalize()}, {venue_name}"
+
+                    # City resolution (especially for multi-city regional subdomains like dagestan)
+                    target_city_id = resolve_city_from_text(f"{address} {venue_name} {title}", default_city_id=default_city_id)
+
+                    # External ID and Source URL
+                    alias_val = resolve(item.get("alias")) or resolve(item.get("id"))
+                    ext_id = str(resolve(item.get("id")) or alias_val)
+                    url_val = resolve(item.get("url")) or resolve(item.get("canonicalUrl"))
+
+                    if url_val and isinstance(url_val, str):
+                        source_url = url_val if url_val.startswith("http") else f"{base_url}{url_val}"
+                    elif alias_val:
+                        source_url = f"{base_url}/event/{alias_val}"
+                    else:
                         continue
 
-                    source_url = url_val.strip()
-                    if not source_url.startswith("http"):
-                        source_url = f"{base_url.rstrip('/')}/{source_url.lstrip('/')}"
+                    # Description
+                    desc_val = resolve(item.get("description")) or resolve(item.get("annotation"))
+                    description = desc_val.strip() if desc_val and isinstance(desc_val, str) else ""
 
-                    # ID
-                    ext_id = str(resolve(item.get("id")) or resolve(item.get("backofficeId")) or hash(source_url))
-
-                    # Poster Image
+                    # Images
                     poster_val = resolve(item.get("posterImage")) or resolve(item.get("horizontalImage"))
                     cover_image_url = None
                     if poster_val and isinstance(poster_val, str) and poster_val.startswith("http"):
@@ -180,10 +215,30 @@ class KassirParser:
                     age_val = resolve(item.get("ageGroup")) or resolve(item.get("age"))
                     age_restriction = str(age_val).strip() if age_val else None
 
-                    # Category
+                    # Category resolution: infer from source_url path or default_rubric
+                    inferred_rubric = default_rubric
+                    s_url_low = source_url.lower()
+                    if any(x in s_url_low for x in ["/koncert", "/bilety-na-koncert"]):
+                        inferred_rubric = "concerts"
+                    elif any(x in s_url_low for x in ["/teatr", "/bilety-v-teatr"]):
+                        inferred_rubric = "theatre"
+                    elif "/standup" in s_url_low:
+                        inferred_rubric = "standup"
+                    elif any(x in s_url_low for x in ["/muzej", "/muzei", "/vystavk", "/bilety-v-muzei"]):
+                        inferred_rubric = "exhibitions"
+                    elif any(x in s_url_low for x in ["/ekskurs", "/seminar"]):
+                        inferred_rubric = "education"
+                    elif "/shou" in s_url_low:
+                        inferred_rubric = "show"
+                    elif any(x in s_url_low for x in ["/sport", "/bilety-na-sportivnye"]):
+                        inferred_rubric = "sports"
+                    elif "/detyam" in s_url_low:
+                        inferred_rubric = "kids"
+
                     category_id = classify_event_category(
                         title=title,
                         description=description,
+                        raw_rubric=inferred_rubric,
                         age_restriction=age_restriction,
                         venue_name=venue_name,
                     )
@@ -193,7 +248,7 @@ class KassirParser:
                         external_id=f"kassir_{ext_id}",
                         source_url=source_url,
                         title=title,
-                        description=description or f"Мероприятие «{title}» в городе {target_city_id.capitalize()}.",
+                        description=description or f"Мероприятие «{title}» на площадке {venue_name} в городе {target_city_id.capitalize()}.",
                         start_at=start_at,
                         city_id=target_city_id,
                         venue_name=venue_name,
@@ -206,6 +261,6 @@ class KassirParser:
                         category_id=category_id,
                     ))
                 except Exception as parse_err:
-                    logger.debug("Error parsing Kassir event item: %s", parse_err)
+                    logger.debug("Error parsing Kassir Nuxt item: %s", parse_err)
 
         return events

@@ -65,7 +65,7 @@ class AggregatorMasterService:
         cls,
         session: AsyncSession,
         target_cities: Optional[List[str]] = None,
-        max_events_per_city: int = 25,
+        max_events_per_city: int = 50,
         curator_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -159,15 +159,16 @@ class AggregatorMasterService:
                                 stats["updated"] += 1
                                 continue
 
-                            # --- STAGE 2: Cross-platform fuzzy deduplication ---
-                            time_lower = ev.start_at - timedelta(hours=3)
-                            time_upper = ev.start_at + timedelta(hours=3)
+                            # --- STAGE 2: Cross-platform & same-day session deduplication ---
+                            ev_utc = ev.start_at.astimezone(timezone.utc)
+                            day_start = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 0, 0, 0, tzinfo=timezone.utc)
+                            day_end = datetime(ev_utc.year, ev_utc.month, ev_utc.day, 23, 59, 59, tzinfo=timezone.utc)
 
                             candidate_stmt = select(Event).where(
                                 and_(
                                     Event.city_id == ev.city_id,
-                                    Event.start_at >= time_lower,
-                                    Event.start_at <= time_upper,
+                                    Event.start_at >= day_start,
+                                    Event.start_at <= day_end,
                                     Event.status != EventStatus.DELETED.value,
                                 )
                             )
@@ -190,7 +191,7 @@ class AggregatorMasterService:
                                     is_dup = True
                                     matched_candidate = cand
                                     logger.info(
-                                        "Merged cross-platform duplicate: '%s' (%s) into '%s' (%s) [score: %.2f, reason: %s]",
+                                        "Merged cross-platform / same-day duplicate: '%s' (%s) into '%s' (%s) [score: %.2f, reason: %s]",
                                         ev.title, ev.source_name, cand.title, cand.source_name, score, reason
                                     )
                                     break
@@ -201,12 +202,19 @@ class AggregatorMasterService:
                                 if ev.price_min is not None:
                                     if matched_candidate.price_amount is None or ev.price_min < matched_candidate.price_amount:
                                         matched_candidate.price_amount = ev.price_min
-                                if ev.cover_image_url and (not matched_candidate.cover_image_url or "unsplash" in matched_candidate.cover_image_url):
+                                if ev.cover_image_url and (not matched_candidate.cover_image_url or "unsplash" in matched_candidate.cover_image_url or "default" in matched_candidate.cover_image_url):
                                     matched_candidate.cover_image_url = ev.cover_image_url
                                 if len(ev.description) > len(matched_candidate.description):
                                     matched_candidate.description = ev.description
                                 if not matched_candidate.source_url and ev.source_url:
                                     matched_candidate.source_url = ev.source_url
+
+                                # If upcoming, keep earlier upcoming session on that day
+                                if ev.start_at >= now and matched_candidate.start_at >= now:
+                                    matched_candidate.start_at = min(ev.start_at, matched_candidate.start_at)
+                                elif ev.start_at >= now and matched_candidate.start_at < now:
+                                    matched_candidate.start_at = ev.start_at
+
                                 matched_candidate.last_synced_at = now
                                 continue
 

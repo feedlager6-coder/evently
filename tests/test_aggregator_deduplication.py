@@ -339,3 +339,65 @@ def test_yandex_afisha_parser_mock_extraction():
     assert ev.source_url == "https://afisha.yandex.ru/moscow/theatre_show/optimisty"
     assert ev.category_id == "theatre"
     assert ev.age_restriction == "18+"
+
+
+def test_same_day_multi_session_deduplicated():
+    """Verify that multiple sessions of the same show on the same day in the same city are deduplicated."""
+    time_15_00 = datetime(2026, 10, 23, 15, 0, 0, tzinfo=timezone.utc)
+    time_18_45 = datetime(2026, 10, 23, 18, 45, 0, tzinfo=timezone.utc)
+
+    is_dup, score, reason = is_cross_platform_duplicate(
+        title_a="Стендап-экскурсия по Санкт-Петербургу",
+        venue_a="Памятник Конке",
+        time_a=time_15_00,
+        city_a="spb",
+        title_b="Стендап-экскурсия по Санкт-Петербургу",
+        venue_b="Памятник Сергею Довлатову",
+        time_b=time_18_45,
+        city_b="spb",
+    )
+    assert is_dup is True
+    assert score >= 0.75
+
+    # Tver quizzes
+    tver_12_30 = datetime(2026, 10, 30, 12, 30, 0, tzinfo=timezone.utc)
+    tver_17_00 = datetime(2026, 10, 30, 17, 0, 0, tzinfo=timezone.utc)
+    is_dup_tver, score_tver, _ = is_cross_platform_duplicate(
+        title_a="Детский мини-квиз",
+        venue_a='Котокафе "Мур-мяу"',
+        time_a=tver_12_30,
+        city_a="tver",
+        title_b="Детский мини-квиз",
+        venue_b='Котокафе "Мур-мяу"',
+        time_b=tver_17_00,
+        city_b="tver",
+    )
+    assert is_dup_tver is True
+    assert score_tver >= 0.75
+
+
+def test_enhanced_category_classifier_cases():
+    """Verify that artist names, exhibitions, workshops and tours don't fall into 'other'."""
+    # Music & Concerts
+    assert classify_event_category("Леша Свик. Все хиты!") == "concerts"
+    assert classify_event_category("Максим Фадеев", venue_name="Live Арена") == "concerts"
+    assert classify_event_category("t.A.T.u", venue_name="VK Stadium") == "concerts"
+    assert classify_event_category("Группа ПЕЛАГЕЯ") == "concerts"
+    assert classify_event_category("СУПЕРДИСКОТЕКА 90-Х РАДИО РЕКОРД") in ["concerts", "parties"]
+
+    # Exhibitions
+    assert classify_event_category("Пабло Пикассо. Метаморфозы", venue_name="Музей изобразительных искусств") == "exhibitions"
+    assert classify_event_category("Иммерсивная выставка «Сад сновидений»") == "exhibitions"
+    assert classify_event_category("Экспозиция в Эрмитаже", venue_name="Государственный Эрмитаж") == "exhibitions"
+
+    # Education / Workshops / Tours
+    assert classify_event_category("Мастер-класс по керамике") == "education"
+    assert classify_event_category("Стендап-экскурсия по Санкт-Петербургу") == "parties"  # standup keyword priority
+    assert classify_event_category("Пешеходная экскурсия по старому городу") == "education"
+    assert classify_event_category("Детский мини-квиз") == "education"
+    assert classify_event_category("Цикл занятий «Сказкины объятия»", venue_name="Детская библиотека") == "education"
+
+    # Theatre
+    assert classify_event_category("Слуга двух господ", venue_name="Русский драматический театр им. Горького") == "theatre"
+    assert classify_event_category("Сказка о Белоснежке и семи гномах") == "theatre"
+
