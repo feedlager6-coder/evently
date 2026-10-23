@@ -13,7 +13,8 @@ async def test():
             clean = re.sub(r"\bundefined\b", "null", clean)
             ap = json.loads(clean)
             rq = ap.get("ROOT_QUERY", {})
-            for rk in rq:
-                print("ROOT_QUERY key:", rk)
+            for rk, rv in rq.items():
+                if "eventScheduleInfo" in rk:
+                    print(f"eventScheduleInfo:\n{json.dumps(rv, ensure_ascii=False, indent=2)}")
 
 asyncio.run(test())
