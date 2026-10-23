@@ -70,8 +70,9 @@ def inspect_listing():
         try:
             ap_data = json.loads(clean)
             for k, v in ap_data.items():
-                if isinstance(v, dict) and "shaman" in str(v).lower():
-                    print(f"Listing key [{k}]: {json.dumps(v, ensure_ascii=False)[:300]}")
+                if isinstance(v, dict):
+                    if "67e141cd4b3a700055a8ad7c" in str(v):
+                        print(f"Listing key [{k}]: {json.dumps(v, ensure_ascii=False)}")
         except Exception as e:
             print("Listing parse error:", e)
 
