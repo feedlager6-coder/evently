@@ -1,13 +1,14 @@
 import asyncio
-from sqlalchemy import select, and_
-from app.database import AsyncSessionLocal
-from app.models.event import Event
+import httpx
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from app.services.aggregator.yandex_afisha_parser import YandexAfishaParser
 
 async def test():
-    async with AsyncSessionLocal() as session:
-        stmt = select(Event).where(and_(Event.title.ilike("%shaman%"), Event.city_id == "makhachkala"))
-        db_shamans = (await session.execute(stmt)).scalars().all()
-        for s in db_shamans:
-            print(f"MAHACHKALA SHAMAN: id={s.id}, status={s.status}, ext_id={s.external_id}, source={s.source_name}, url={s.source_url}, start={s.start_at}, created={s.created_at}")
+    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
+        events = await YandexAfishaParser.fetch_city_events(client, "makhachkala", max_events=100)
+        print(f"FETCHED {len(events)} events for Makhachkala:")
+        for ev in events:
+            print(f"  [{ev.category_id}] {ev.title} | {ev.start_at} | {ev.source_url}")
 
 asyncio.run(test())
