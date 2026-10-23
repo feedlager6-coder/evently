@@ -49,9 +49,14 @@ def inspect_event(url):
         except Exception as e:
             print("Apollo parse error:", e)
 
-    # 4. Any dates with times in raw text
-    text_matches = re.findall(r'(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+\d{4})?(?:,?\s*\d{1,2}:\d{2})?)', html, re.IGNORECASE)
-    print("Found text date matches:", list(set(text_matches))[:10])
+    # 5. Look for target date and its enclosing element
+    idx = html.find("6 ноября, 19:00")
+    if idx != -1:
+        print("\nFound '6 ноября, 19:00' snippet:\n", html[max(0, idx-150):idx+150])
+
+    idx2 = html.find("2 ноября, 18:00")
+    if idx2 != -1:
+        print("\nFound '2 ноября, 18:00' snippet:\n", html[max(0, idx2-150):idx2+150])
 
 def inspect():
     inspect_event("https://afisha.yandex.ru/makhachkala/concert/shaman-30-let-na-stsene")
