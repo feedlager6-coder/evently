@@ -395,7 +395,7 @@ class YandexAfishaParser:
                 source_url=source_url,
                 title=title,
                 description=description,
-                start_at=start_at or now_utc,
+                start_at=start_at,
                 city_id=default_city_id,
                 venue_name=venue_name,
                 address=address,

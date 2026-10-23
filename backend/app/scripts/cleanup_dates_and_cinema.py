@@ -52,6 +52,19 @@ async def main():
         for ev in past_events:
             ev.status = EventStatus.DELETED.value
 
+        # 3. Clean up legacy culture_ru events in makhachkala that lack exact live sessions
+        cult_stmt = select(Event).where(
+            and_(
+                Event.source_name == "culture_ru",
+                Event.city_id == "makhachkala",
+                Event.status != EventStatus.DELETED.value,
+            )
+        )
+        cult_events = (await session.execute(cult_stmt)).scalars().all()
+        logger.info("Found %d legacy culture_ru events in makhachkala to purge.", len(cult_events))
+        for ev in cult_events:
+            ev.status = EventStatus.DELETED.value
+
         await session.commit()
         logger.info("Cleanup committed successfully.")
 
