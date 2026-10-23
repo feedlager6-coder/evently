@@ -53,16 +53,20 @@ async def main():
         for ev in past_events:
             ev.status = EventStatus.DELETED.value
 
-        # 3. Clean up legacy culture_ru events in makhachkala that lack exact live sessions
-        cult_stmt = select(Event).where(
+        # 3. Clean up broken/generic culture_ru catalog URLs that 404
+        broken_cult_stmt = select(Event).where(
             and_(
                 Event.source_name == "culture_ru",
-                Event.city_id == "makhachkala",
                 Event.status != EventStatus.DELETED.value,
+                or_(
+                    Event.source_url.ilike("%culture.ru/events?%"),
+                    Event.source_url == "https://www.culture.ru/events",
+                    Event.city_id == "makhachkala",
+                )
             )
         )
-        cult_events = (await session.execute(cult_stmt)).scalars().all()
-        logger.info("Found %d legacy culture_ru events in makhachkala to purge.", len(cult_events))
+        cult_events = (await session.execute(broken_cult_stmt)).scalars().all()
+        logger.info("Found %d legacy / broken culture_ru events to purge.", len(cult_events))
         for ev in cult_events:
             ev.status = EventStatus.DELETED.value
 

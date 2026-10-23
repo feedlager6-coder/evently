@@ -81,16 +81,37 @@ def extract_live_date_from_page(url: str, html: str) -> str:
                 pass
 
     elif "live.mts.ru" in url:
+        m_dt = re.search(r'eventClosestDateTime\\":\\"([^\\"]+)\\"', html)
+        if m_dt:
+            try:
+                dt = datetime.fromisoformat(m_dt.group(1).replace("Z", "+00:00"))
+                return dt.astimezone(ZoneInfo("Europe/Moscow")).strftime("%-d %B, %H:%M")
+            except Exception:
+                pass
         pushes = re.findall(r'self\.__next_f\.push\(\[1,\s*"(.*?)"\s*\]\)', html, re.DOTALL)
         for p in pushes:
             clean = p.replace('\\"', '"').replace('\\\\', '\\')
-            dt_m = re.search(r'"eventDateStart"\s*:\s*"([^"]+)"', clean)
+            dt_m = re.search(r'"eventDateStart"\s*:\s*"([^"]+)"', clean) or re.search(r'"eventClosestDateTime"\s*:\s*"([^"]+)"', clean)
             if dt_m:
                 try:
                     dt = datetime.fromisoformat(dt_m.group(1).replace("Z", "+00:00"))
                     return dt.astimezone(ZoneInfo("Europe/Moscow")).strftime("%-d %B, %H:%M")
                 except Exception:
                     pass
+
+    elif "culture.ru" in url:
+        m_cul = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if m_cul:
+            try:
+                d = json.loads(m_cul.group(1))
+                ev = d.get("props", {}).get("pageProps", {}).get("event", {})
+                cs = ev.get("cardSchedule", {})
+                p_date = cs.get("primaryDate") or ev.get("date")
+                if p_date:
+                    dt = datetime.fromisoformat(str(p_date).replace("Z", "+00:00"))
+                    return dt.astimezone(ZoneInfo("Europe/Moscow")).strftime("%-d %B %Y")
+            except Exception:
+                pass
 
     # Generic date regex fallback on page text
     m_gen = re.search(r"(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+\d{4})?(?:,?\s*\d{1,2}:\d{2})?)", html, re.IGNORECASE)
