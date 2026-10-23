@@ -35,7 +35,9 @@ class AggregatorMasterService:
     @classmethod
     async def get_curator_user_id(cls, session: AsyncSession) -> int:
         curator = (await session.execute(
-            select(User).where(User.role.in_(["curator", "admin"])).order_by(User.id.asc())
+            select(User).where(
+                (User.telegram_id == 777000) | (User.username == "ivently_curator")
+            ).order_by(User.id.asc())
         )).scalars().first()
         if curator:
             return curator.id
@@ -43,7 +45,20 @@ class AggregatorMasterService:
         admin = (await session.execute(
             select(User).order_by(User.id.asc())
         )).scalars().first()
-        return admin.id if admin else 1
+        if admin:
+            return admin.id
+
+        new_curator = User(
+            telegram_id=777000,
+            username="ivently_curator",
+            first_name="Афиша Ivently",
+            last_name="",
+            default_city_id="makhachkala",
+        )
+        session.add(new_curator)
+        await session.commit()
+        await session.refresh(new_curator)
+        return new_curator.id
 
     @classmethod
     async def sync_all_sources(
